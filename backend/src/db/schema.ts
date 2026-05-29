@@ -1,0 +1,41 @@
+import { pgTable, text, boolean, timestamp, jsonb, primaryKey } from 'drizzle-orm/pg-core'
+
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  name: text('name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const tags = pgTable('tags', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  color: text('color').notNull(),
+  icon: text('icon'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+})
+
+export const tasks = pgTable('tasks', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  startTime: timestamp('start_time', { withTimezone: true }).notNull(),
+  endTime: timestamp('end_time', { withTimezone: true }).notNull(),
+  isAllDay: boolean('is_all_day').default(false).notNull(),
+  status: text('status').default('todo').notNull(),
+  priority: text('priority').default('medium').notNull(),
+  recurrence: jsonb('recurrence'),
+  color: text('color'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+})
+
+export const taskTags = pgTable('task_tags', {
+  taskId: text('task_id').references(() => tasks.id, { onDelete: 'cascade' }).notNull(),
+  tagId: text('tag_id').references(() => tags.id, { onDelete: 'cascade' }).notNull(),
+}, (t) => [primaryKey({ columns: [t.taskId, t.tagId] })])

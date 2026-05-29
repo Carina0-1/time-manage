@@ -1,0 +1,228 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  width: 480px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 0;
+}
+
+.header h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #888;
+  padding: 4px;
+  line-height: 1;
+}
+
+.closeBtn:hover {
+  color: #333;
+}
+
+.form {
+  padding: 16px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+}
+
+.titleInput {
+  font-size: 18px;
+  font-weight: 500;
+  border: none;
+  border-bottom: 2px solid #e0e0e0;
+  outline: none;
+  padding: 4px 0;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+
+.titleInput:focus {
+  border-bottom-color: #6366f1;
+}
+
+.field input[type="datetime-local"],
+.field select {
+  padding: 7px 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  background: #fff;
+}
+
+.field input:focus,
+.field select:focus {
+  border-color: #6366f1;
+}
+
+.timeRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tagChip {
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1.5px solid var(--tag-color, #6366f1);
+  background: transparent;
+  color: var(--tag-color, #6366f1);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s;
+}
+
+.tagChip:hover {
+  background: color-mix(in srgb, var(--tag-color, #6366f1) 10%, transparent);
+}
+
+.tagSelected {
+  background: var(--tag-color, #6366f1);
+  color: #fff;
+}
+
+.textarea {
+  padding: 8px 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 13px;
+  resize: vertical;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+}
+
+.textarea:focus {
+  border-color: #6366f1;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.rightActions {
+  display: flex;
+  gap: 8px;
+}
+
+.deleteBtn {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid #fca5a5;
+  background: transparent;
+  color: #ef4444;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.deleteBtn:hover {
+  background: #fef2f2;
+}
+
+.cancelBtn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+  background: transparent;
+  color: #555;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cancelBtn:hover {
+  background: #f5f5f5;
+}
+
+.submitBtn {
+  padding: 8px 20px;
+  border-radius: 6px;
+  border: none;
+  background: #6366f1;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.submitBtn:hover {
+  background: #4f46e5;
+}
+
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  padding: 7px 0;
+}
+
+.checkboxLabel input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+
+.error {
+  font-size: 11px;
+  color: #ef4444;
+}

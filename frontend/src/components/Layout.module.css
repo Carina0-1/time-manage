@@ -1,0 +1,58 @@
+.shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 180px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid #e8e8e8;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 12px;
+  gap: 24px;
+}
+
+.logo {
+  font-size: 16px;
+  font-weight: 700;
+  color: #6366f1;
+  padding: 0 8px;
+}
+
+.nav {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.navLink {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #555;
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.navLink:hover {
+  background: #f3f4f6;
+  color: #111;
+}
+
+.navLink.active {
+  background: #eef2ff;
+  color: #6366f1;
+  font-weight: 600;
+}
+
+.main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}

@@ -1,0 +1,69 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+  background: #f5f5f5;
+}
+
+/* FullCalendar 基础样式覆盖 */
+.fc {
+  height: 100%;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.fc .fc-toolbar-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.fc .fc-button {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  color: #333;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.fc .fc-button:hover {
+  background: #f0f0f0;
+}
+
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.fc .fc-daygrid-event,
+.fc .fc-timegrid-event {
+  border-radius: 4px;
+  border: none;
+  font-size: 12px;
+  padding: 1px 4px;
+  cursor: pointer;
+}
+
+.fc .fc-timegrid-event .fc-event-main {
+  position: relative;
+  overflow: visible;
+}
+
+.fc .fc-timegrid-slot {
+  height: 32px;
+}
+
+.fc .fc-col-header-cell {
+  font-weight: 600;
+  padding: 6px 0;
+}

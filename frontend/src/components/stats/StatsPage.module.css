@@ -1,0 +1,182 @@
+.page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 32px;
+  overflow-y: auto;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header h1 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.rangeBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rangeBtn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.rangeBtn:hover {
+  background: #f5f5f5;
+}
+
+.rangeBtnActive {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.customRange {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #666;
+}
+
+.customRange input[type="date"] {
+  padding: 5px 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+}
+
+.customRange input[type="date"]:focus {
+  border-color: #6366f1;
+}
+
+.loading {
+  color: #888;
+  font-size: 14px;
+  padding: 32px 0;
+  text-align: center;
+}
+
+.empty {
+  color: #999;
+  font-size: 14px;
+  padding: 48px 0;
+  text-align: center;
+}
+
+/* 汇总卡片 */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e8e8e8;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cardLabel {
+  font-size: 12px;
+  color: #888;
+  font-weight: 500;
+}
+
+.cardValue {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a1a;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 图表区 */
+.charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.chartCard {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e8e8e8;
+  padding: 20px 24px;
+}
+
+.chartCard h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+/* 明细表 */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  text-align: left;
+  padding: 8px 12px;
+  color: #888;
+  font-weight: 500;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f8f8f8;
+  vertical-align: middle;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.tagBadge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.progressBar {
+  display: inline-block;
+  width: 80px;
+  height: 6px;
+  background: #f0f0f0;
+  border-radius: 3px;
+  margin-right: 8px;
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
