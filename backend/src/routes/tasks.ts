@@ -89,15 +89,18 @@ tasksRouter.patch('/:id', zValidator('json', UpdateTaskSchema), async (c) => {
 
   if (!task) return c.json({ error: 'Not found' }, 404)
 
-  // 更新标签关联
+  // 更新标签关联（只保留第一个）
   if (tagIds !== undefined) {
     await db.delete(taskTags).where(eq(taskTags.taskId, id))
-    if (tagIds.length > 0) {
-      await db.insert(taskTags).values(tagIds.map((tagId) => ({ taskId: id, tagId })))
+    const singleTag = tagIds.slice(0, 1)
+    if (singleTag.length > 0) {
+      await db.insert(taskTags).values([{ taskId: id, tagId: singleTag[0] }])
     }
   }
 
-  const finalTagIds = tagIds ?? []
+  // 重新从数据库查最新的 tagIds
+  const tagRelations = await db.select().from(taskTags).where(eq(taskTags.taskId, id))
+  const finalTagIds = tagRelations.map((r) => r.tagId)
   return c.json({ data: { ...task, tagIds: finalTagIds } })
 })
 

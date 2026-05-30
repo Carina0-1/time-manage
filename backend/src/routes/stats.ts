@@ -35,7 +35,7 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
 
   if (taskRows.length === 0) {
     return c.json<{ data: StatsResult }>({
-      data: { tags: [], totalMinutes: 0, completedCount: 0, totalCount: 0 },
+      data: { tags: [], totalMinutes: 0, completedCount: 0, totalCount: 0, dailyActivity: [] },
     })
   }
 
@@ -91,7 +91,17 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
     }
   }).sort((a, b) => b.totalMinutes - a.totalMinutes)
 
+  // 按天分组计算每日任务数
+  const activityMap = new Map<string, number>()
+  for (const task of taskRows) {
+    const dateKey = task.startTime.toISOString().slice(0, 10)
+    activityMap.set(dateKey, (activityMap.get(dateKey) ?? 0) + 1)
+  }
+  const dailyActivity = Array.from(activityMap.entries())
+    .map(([date, taskCount]) => ({ date, taskCount }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
   return c.json<{ data: StatsResult }>({
-    data: { tags: tagStats, totalMinutes, completedCount, totalCount },
+    data: { tags: tagStats, totalMinutes, completedCount, totalCount, dailyActivity },
   })
 })

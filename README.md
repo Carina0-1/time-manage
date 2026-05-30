@@ -1,38 +1,33 @@
 # Time Manage
 
-个人时间管理工具，支持日历视图、任务管理、标签分类和时间统计。
+个人时间管理工具，日历视图 + 标签系统 + 时间统计。
 
 ## 技术栈
 
-- **前端**：React 18 + TypeScript + Vite + FullCalendar
-- **后端**：Node.js + Hono + Drizzle ORM
-- **数据库**：PostgreSQL
+- **前端**：React + TypeScript + Vite + FullCalendar
+- **后端**：Hono + Drizzle ORM + PostgreSQL
+- **monorepo**：pnpm workspaces
 
 ## 本地运行
 
 **前置条件**：Node.js、pnpm、PostgreSQL
 
 ```bash
-# 安装依赖
 pnpm install
 
-# 配置后端环境变量
+# 配置数据库
 cp backend/.env.example backend/.env
-# 编辑 backend/.env，填写数据库连接信息
+# 编辑 backend/.env 填写 DATABASE_URL
 
-# 运行数据库迁移
-cd backend && pnpm db:migrate
-
-# 启动（根目录）
+pnpm --filter backend db:migrate
 pnpm dev
 ```
 
-前端：http://localhost:5173  
-后端：http://localhost:3000
+前端 http://localhost:5173 · 后端 http://localhost:3000
 
 ## 功能
 
-- 日/周/月视图日历
-- 拖拽调整任务时间
-- 标签分类与颜色管理
-- 时间统计图表
+- 日/周/月日历，拖拽调整时间
+- 层级标签（`/` 分隔），支持自定义颜色/图标/排序
+- 侧边栏活跃度热力图 + 统计数字
+- 任务时间统计与标签分布图表

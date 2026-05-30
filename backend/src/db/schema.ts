@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, jsonb, primaryKey } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, timestamp, jsonb, primaryKey, integer } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -13,6 +13,7 @@ export const tags = pgTable('tags', {
   name: text('name').notNull(),
   color: text('color').notNull(),
   icon: text('icon'),
+  sortOrder: integer('sort_order').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'),

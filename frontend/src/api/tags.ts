@@ -6,4 +6,7 @@ export const tagsApi = {
   create: (data: CreateTagInput) => api.post<Tag>('/tags', data),
   update: (id: string, data: UpdateTagInput) => api.patch<Tag>(`/tags/${id}`, data),
   remove: (id: string) => api.delete<null>(`/tags/${id}`),
+  reorder: (orders: { id: string; sortOrder: number }[]) =>
+    api.post<null>('/tags/reorder', { orders }),
+  removeWithTasks: (id: string) => api.delete<null>(`/tags/${id}/with-tasks`),
 }

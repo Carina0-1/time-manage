@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -14,6 +14,8 @@ import type {
 import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import dayjs from 'dayjs'
 import { mixWithGray } from '@/utils/colorUtils'
+import { buildTagTree, getDescendantTagIds } from '@/utils/tagTree'
+import type { TagTreeNode } from '@/utils/tagTree'
 import { useTaskStore } from '@/stores/taskStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -46,7 +48,7 @@ function getMirrorTime(durationMs: number): { start: Date; end: Date } | null {
   const lastSlot = slots[slots.length - 1]
   const firstRect = firstSlot.getBoundingClientRect()
   const lastRect = lastSlot.getBoundingClientRect()
-  const slotHeight = firstRect.height
+
 
   // 第一个 slot 的 data-time 就是 slotMinTime，解析成分钟数
   const [fh, fm] = firstSlot.dataset.time!.split(':').map(Number)
@@ -131,7 +133,7 @@ export default function CalendarPage() {
   const calendarRef = useRef<FullCalendar>(null)
   const { tasks, fetchTasks, updateTask } = useTaskStore()
   const { tags, fetchTags } = useTagStore()
-  const { openCreateModal, openEditModal } = useUiStore()
+  const { openCreateModal, openEditModal, activeTagFilter } = useUiStore()
   const draggingId = useRef<string | null>(null)
 
   // 拖拽移动时用 ref 记录事件时长（ms）
@@ -153,7 +155,25 @@ export default function CalendarPage() {
 
   const tagColorMap = new Map(tags.map((t) => [t.id, t.color]))
 
-  const events = tasks.map((task) => {
+  const filteredTagIds = useMemo(() => {
+    if (!activeTagFilter) return null
+    const tree = buildTagTree(tags)
+    function findNode(nodes: TagTreeNode[], path: string): TagTreeNode | null {
+      for (const n of nodes) {
+        if (n.fullPath === path) return n
+        const found = findNode(n.children, path)
+        if (found) return found
+      }
+      return null
+    }
+    const node = findNode(tree, activeTagFilter)
+    if (!node) return null
+    return new Set(getDescendantTagIds(node))
+  }, [activeTagFilter, tags])
+
+  const events = tasks
+    .filter((task) => !filteredTagIds || task.tagIds.some((id) => filteredTagIds.has(id)))
+    .map((task) => {
     const baseColor = task.color ?? (task.tagIds[0] ? tagColorMap.get(task.tagIds[0]) : undefined) ?? '#6366f1'
     const isDone = task.status === 'done'
     const color = isDone ? mixWithGray(baseColor) : baseColor
@@ -368,7 +388,8 @@ function EventContent({
   info: EventContentArg
   onToggleDone: (taskId: string, status: string) => void
 }) {
-  const task = info.event.extendedProps.task as { status: string }
+  const task = info.event.extendedProps.task as { status: string } | undefined
+  if (!task) return <span className={styles.eventTitle}>{info.event.title}</span>
   const isDone = task.status === 'done'
 
   return (

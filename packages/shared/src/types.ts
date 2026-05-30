@@ -33,6 +33,7 @@ export interface Tag {
   name: string
   color: string          // HEX, e.g. "#6366f1"
   icon?: string          // emoji
+  sortOrder: number
   createdAt: string
   updatedAt: string
 }
@@ -46,11 +47,17 @@ export interface TagStats {
   percentage: number
 }
 
+export interface DailyActivity {
+  date: string      // "YYYY-MM-DD"
+  taskCount: number
+}
+
 export interface StatsResult {
   tags: TagStats[]
   totalMinutes: number
   completedCount: number
   totalCount: number
+  dailyActivity: DailyActivity[]
 }
 
 // API 通用响应格式

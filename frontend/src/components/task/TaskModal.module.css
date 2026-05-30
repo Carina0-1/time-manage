@@ -226,3 +226,178 @@
   font-size: 11px;
   color: #ef4444;
 }
+
+.titleWrapper {
+  position: relative;
+}
+
+.hashDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.hashItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.1s;
+}
+
+.hashItem:hover {
+  background: #f5f5f5;
+}
+
+.hashItemActive {
+  background: #eef2ff;
+}
+
+.hashDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hashFullPath {
+  margin-left: auto;
+  font-size: 11px;
+  color: #aaa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+/* 标签下拉选择器 */
+.tagSelector {
+  position: relative;
+}
+
+.tagSelectorTrigger {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #fff;
+  gap: 6px;
+  transition: border-color 0.15s;
+}
+
+.tagSelectorTrigger:hover {
+  border-color: #6366f1;
+}
+
+.tagSelectorPlaceholder {
+  font-size: 13px;
+  color: #aaa;
+  flex: 1;
+}
+
+.tagSelectorChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+
+.tagSelectorChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 12px;
+  border: 1px solid;
+  font-size: 12px;
+}
+
+.tagSelectorChipRemove {
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.6;
+  margin-left: 2px;
+}
+
+.tagSelectorChipRemove:hover {
+  opacity: 1;
+}
+
+.tagSelectorArrow {
+  font-size: 10px;
+  color: #aaa;
+  flex-shrink: 0;
+}
+
+.tagSelectorDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.tagSelectorItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.1s;
+}
+
+.tagSelectorItem:hover {
+  background: #f5f5f5;
+}
+
+.tagSelectorItemSelected {
+  background: #f0f1fe;
+}
+
+.tagSelectorDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tagSelectorName {
+  flex: 1;
+}
+
+.tagSelectorCheck {
+  color: #6366f1;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tagSelectorItemVirtual {
+  opacity: 0.65;
+}
+
+.tagSelectorVirtualHint {
+  margin-left: auto;
+  font-size: 11px;
+  color: #aaa;
+}

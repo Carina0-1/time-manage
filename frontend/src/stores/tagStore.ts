@@ -9,6 +9,7 @@ interface TagStore {
   addTag: (tag: Tag) => void
   updateTag: (id: string, data: Partial<Tag>) => void
   removeTag: (id: string) => void
+  reorderTags: (ordered: Tag[]) => void
 }
 
 export const useTagStore = create<TagStore>((set) => ({
@@ -35,4 +36,7 @@ export const useTagStore = create<TagStore>((set) => ({
 
   removeTag: (id) =>
     set((s) => ({ tags: s.tags.filter((t) => t.id !== id) })),
+
+  reorderTags: (ordered) =>
+    set({ tags: ordered }),
 }))

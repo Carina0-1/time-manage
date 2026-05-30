@@ -29,6 +29,7 @@ export const CreateTagSchema = z.object({
   name: z.string().min(1).max(50),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   icon: z.string().optional(),
+  sortOrder: z.number().int().default(0),
 })
 
 export const UpdateTagSchema = CreateTagSchema.partial().omit({ id: true })

@@ -8,6 +8,13 @@
       "when": 1779960729538,
       "tag": "0000_bitter_hellcat",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780109198074,
+      "tag": "0001_lush_invaders",
+      "breakpoints": true
     }
   ]
 }

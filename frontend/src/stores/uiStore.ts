@@ -14,6 +14,9 @@ interface UiStore {
   openCreateModal: (defaults: CreateTaskDefaults) => void
   openEditModal: (taskId: string) => void
   closeTaskModal: () => void
+  // 侧边栏标签筛选
+  activeTagFilter: string | null
+  setTagFilter: (fullPath: string | null) => void
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -29,4 +32,7 @@ export const useUiStore = create<UiStore>((set) => ({
 
   closeTaskModal: () =>
     set({ taskModalOpen: false, editingTaskId: null, createDefaults: null }),
+
+  activeTagFilter: null,
+  setTagFilter: (fullPath) => set({ activeTagFilter: fullPath }),
 }))
