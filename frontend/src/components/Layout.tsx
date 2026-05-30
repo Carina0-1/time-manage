@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
+import QuickCreatePanel from './task/QuickCreatePanel'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -47,11 +48,13 @@ type TagFormValues = z.infer<typeof TagFormSchema>
 
 export default function Layout() {
   const navigate = useNavigate()
+  const { taskModalOpen } = useUiStore()
   return (
     <div className={styles.shell}>
       <nav className={styles.sidebar}>
-        <div className={styles.logo} onClick={() => navigate('/calendar')} style={{ cursor: 'pointer' }}>
-          时间管理
+        <div className={styles.brand} onClick={() => navigate('/calendar')}>
+          <span className={styles.brandDot} />
+          <span className={styles.brandName}>时间管理</span>
         </div>
         <SidebarStats onClickStats={() => navigate('/stats')} />
         <ActivityHeatmap />
@@ -63,6 +66,7 @@ export default function Layout() {
       <main className={styles.main}>
         <Outlet />
       </main>
+      {taskModalOpen && <QuickCreatePanel />}
     </div>
   )
 }

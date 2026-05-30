@@ -11,8 +11,9 @@ interface UiStore {
   taskModalOpen: boolean
   editingTaskId: string | null
   createDefaults: CreateTaskDefaults | null
-  openCreateModal: (defaults: CreateTaskDefaults) => void
-  openEditModal: (taskId: string) => void
+  panelPos: { x: number; y: number } | null
+  openCreateModal: (defaults: CreateTaskDefaults, pos?: { x: number; y: number }) => void
+  openEditModal: (taskId: string, pos?: { x: number; y: number }) => void
   closeTaskModal: () => void
   // 侧边栏标签筛选
   activeTagFilter: string | null
@@ -23,15 +24,16 @@ export const useUiStore = create<UiStore>((set) => ({
   taskModalOpen: false,
   editingTaskId: null,
   createDefaults: null,
+  panelPos: null,
 
-  openCreateModal: (defaults) =>
-    set({ taskModalOpen: true, editingTaskId: null, createDefaults: defaults }),
+  openCreateModal: (defaults, pos) =>
+    set({ taskModalOpen: true, editingTaskId: null, createDefaults: defaults, panelPos: pos ?? null }),
 
-  openEditModal: (taskId) =>
-    set({ taskModalOpen: true, editingTaskId: taskId, createDefaults: null }),
+  openEditModal: (taskId, pos) =>
+    set({ taskModalOpen: true, editingTaskId: taskId, createDefaults: null, panelPos: pos ?? null }),
 
   closeTaskModal: () =>
-    set({ taskModalOpen: false, editingTaskId: null, createDefaults: null }),
+    set({ taskModalOpen: false, editingTaskId: null, createDefaults: null, panelPos: null }),
 
   activeTagFilter: null,
   setTagFilter: (fullPath) => set({ activeTagFilter: fullPath }),

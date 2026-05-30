@@ -244,29 +244,14 @@ export default function TaskModal() {
             </div>
           </div>
 
-          {/* 优先级 & 状态 */}
-          <div className={styles.timeRow}>
-            <div className={styles.field}>
-              <label>优先级</label>
-              <select {...register('priority')}>
-                <option value="low">低</option>
-                <option value="medium">中</option>
-                <option value="high">高</option>
-              </select>
-            </div>
-            <div className={styles.field}>
-              <label>完成状态</label>
-              <label className={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={watch('status') === 'done'}
-                  onChange={(e) =>
-                    setValue('status', e.target.checked ? 'done' : 'todo', { shouldDirty: true })
-                  }
-                />
-                已完成
-              </label>
-            </div>
+          {/* 优先级 */}
+          <div className={styles.field}>
+            <label>优先级</label>
+            <select {...register('priority')}>
+              <option value="low">低</option>
+              <option value="medium">中</option>
+              <option value="high">高</option>
+            </select>
           </div>
 
           {/* 标签 */}

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTheme } from '@/hooks/useTheme'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -9,135 +10,64 @@ import type {
   DatesSetArg,
   EventContentArg,
   EventDropArg,
-  EventMountArg,
 } from '@fullcalendar/core'
 import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import dayjs from 'dayjs'
-import { mixWithGray } from '@/utils/colorUtils'
 import { buildTagTree, getDescendantTagIds } from '@/utils/tagTree'
 import type { TagTreeNode } from '@/utils/tagTree'
 import { useTaskStore } from '@/stores/taskStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
 import { tasksApi } from '@/api/tasks'
-import TaskModal from '@/components/task/TaskModal'
 import styles from './CalendarPage.module.css'
 
 const fmt = (d: Date) => dayjs(d).format('HH:mm')
 
-// 从 mirror 元素的 style.top 和 slot 容器反推当前拖拽时间
-// 返回 { start: Date, end: Date } 或 null
-function getMirrorTime(durationMs: number): { start: Date; end: Date } | null {
-  const mirror = document.querySelector<HTMLElement>('.fc-event-mirror')
-  if (!mirror) return null
-
-  // mirror 的父容器是 fc-timegrid-col-events，找它对应的日列
-  const col = mirror.closest<HTMLElement>('.fc-timegrid-col[data-date]')
-  const date = col?.dataset.date
-  if (!date) return null
-
-  // slot 容器：fc-timegrid-slots，里面第一个 slot 的 top 是 slotMinTime 对应的位置
-  const slotsContainer = col.closest<HTMLElement>('.fc-timegrid-body') ??
-    document.querySelector<HTMLElement>('.fc-timegrid-body')
-  if (!slotsContainer) return null
-
-  // 取所有 slot，第一个和最后一个确定时间范围和总高度
-  const slots = document.querySelectorAll<HTMLElement>('.fc-timegrid-slot[data-time]')
-  if (slots.length < 2) return null
-  const firstSlot = slots[0]
-  const lastSlot = slots[slots.length - 1]
-  const firstRect = firstSlot.getBoundingClientRect()
-  const lastRect = lastSlot.getBoundingClientRect()
-
-
-  // 第一个 slot 的 data-time 就是 slotMinTime，解析成分钟数
-  const [fh, fm] = firstSlot.dataset.time!.split(':').map(Number)
-  const firstMinutes = fh * 60 + fm
-
-  // mirror 的 top（相对视口）减去第一个 slot 的 top，得到偏移像素
-  const mirrorRect = mirror.getBoundingClientRect()
-  const offsetPx = mirrorRect.top - firstRect.top
-
-  // 每个 slot 的高度对应 slotDuration（默认30分钟，但可能不同）
-  // 用最后一个 slot 算出总分钟数和总高度，推算 px/min
-  const [lh, lm] = lastSlot.dataset.time!.split(':').map(Number)
-  const lastMinutes = lh * 60 + lm
-  const totalMinutes = lastMinutes - firstMinutes
-  const totalHeight = lastRect.top - firstRect.top
-  if (totalHeight <= 0) return null
-
-  const pxPerMin = totalHeight / totalMinutes
-  const offsetMinutes = Math.round(offsetPx / pxPerMin / 5) * 5 // snap 到 5 分钟
-
-  const startMinutes = firstMinutes + offsetMinutes
-  const startDate = new Date(`${date}T00:00:00`)
-  startDate.setMinutes(startDate.getMinutes() + startMinutes)
-  const endDate = new Date(startDate.getTime() + durationMs)
-
-  return { start: startDate, end: endDate }
+// 将标签颜色（hex）映射到颜色组
+function hexToHue(hex: string): number {
+  const r = parseInt(hex.slice(1, 3), 16) / 255
+  const g = parseInt(hex.slice(3, 5), 16) / 255
+  const b = parseInt(hex.slice(5, 7), 16) / 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b)
+  if (max === min) return 0
+  const d = max - min
+  let h = 0
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6
+  else if (max === g) h = ((b - r) / d + 2) / 6
+  else h = ((r - g) / d + 4) / 6
+  return h * 360
 }
 
-const TIME_TAG_BASE: Partial<CSSStyleDeclaration> = {
-  position: 'absolute',
-  left: '4px',
-  fontSize: '11px',
-  fontWeight: '700',
-  fontVariantNumeric: 'tabular-nums',
-  background: 'rgba(0,0,0,0.45)',
-  color: '#fff',
-  padding: '0 4px',
-  borderRadius: '3px',
-  lineHeight: '1.6',
-  pointerEvents: 'none',
-  zIndex: '10',
-  whiteSpace: 'nowrap',
+type ColorGroup = 'green' | 'clay' | 'blue' | 'purple' | 'amber'
+
+function colorToGroup(hex: string): ColorGroup {
+  if (!hex || !hex.startsWith('#') || hex.length < 7) return 'green'
+  const hue = hexToHue(hex)
+  if (hue >= 75 && hue < 165) return 'green'
+  if (hue >= 165 && hue < 255) return 'blue'
+  if (hue >= 255 && hue < 315) return 'purple'
+  if (hue >= 315 || hue < 30) return 'clay'
+  return 'amber' // 30–75
 }
 
-function applyTagStyle(el: HTMLElement, position: 'top' | 'bottom') {
-  Object.assign(el.style, TIME_TAG_BASE, position === 'top' ? { top: '2px' } : { bottom: '2px' })
+const GROUP_VARS: Record<ColorGroup, { bg: string; bar: string; ink: string }> = {
+  green:  { bg: 'var(--ev-green-bg)',  bar: 'var(--ev-green-bar)',  ink: 'var(--ev-green-ink)' },
+  clay:   { bg: 'var(--ev-clay-bg)',   bar: 'var(--ev-clay-bar)',   ink: 'var(--ev-clay-ink)' },
+  blue:   { bg: 'var(--ev-blue-bg)',   bar: 'var(--ev-blue-bar)',   ink: 'var(--ev-blue-ink)' },
+  purple: { bg: 'var(--ev-purple-bg)', bar: 'var(--ev-purple-bar)', ink: 'var(--ev-purple-ink)' },
+  amber:  { bg: 'var(--ev-amber-bg)',  bar: 'var(--ev-amber-bar)',  ink: 'var(--ev-amber-ink)' },
 }
 
-// 往 mirror 注入/更新时间标签（直接找 .fc-event-mirror，用内联样式确保生效）
-function setMirrorTags(start: Date, end: Date) {
-  // mirror 可能没有 fc-event-main，直接找 mirror 元素本身
-  const mirrors = document.querySelectorAll<HTMLElement>('.fc-event-mirror')
-  mirrors.forEach((mirror) => {
-    // 优先找 fc-event-main，没有就直接用 mirror
-    const container = mirror.querySelector<HTMLElement>('.fc-event-main') ?? mirror
-
-    let topTag = container.querySelector<HTMLElement>('[data-timetag="top"]')
-    let bottomTag = container.querySelector<HTMLElement>('[data-timetag="bottom"]')
-
-    if (!topTag) {
-      topTag = document.createElement('span')
-      topTag.dataset.timetag = 'top'
-      applyTagStyle(topTag, 'top')
-      container.appendChild(topTag)
-    }
-    if (!bottomTag) {
-      bottomTag = document.createElement('span')
-      bottomTag.dataset.timetag = 'bottom'
-      applyTagStyle(bottomTag, 'bottom')
-      container.appendChild(bottomTag)
-    }
-    topTag.textContent = fmt(start)
-    bottomTag.textContent = fmt(end)
-  })
-}
-
-function removeMirrorTags() {
-  document.querySelectorAll('[data-timetag]').forEach((n) => n.remove())
-}
+type ViewType = 'timeGridWeek' | 'timeGridDay' | 'dayGridMonth'
 
 export default function CalendarPage() {
   const calendarRef = useRef<FullCalendar>(null)
   const { tasks, fetchTasks, updateTask } = useTaskStore()
   const { tags, fetchTags } = useTagStore()
-  const { openCreateModal, openEditModal, activeTagFilter } = useUiStore()
-  const draggingId = useRef<string | null>(null)
+  const { taskModalOpen, openCreateModal, openEditModal, activeTagFilter } = useUiStore()
 
-  // 拖拽移动时用 ref 记录事件时长（ms）
-  const dragDurationRef = useRef<number>(0)
+  const [currentView, setCurrentView] = useState<ViewType>('timeGridWeek')
+  const [dateTitle, setDateTitle] = useState('')
 
   const handleToggleDone = async (taskId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'done' ? 'todo' : 'done'
@@ -174,36 +104,46 @@ export default function CalendarPage() {
   const events = tasks
     .filter((task) => !filteredTagIds || task.tagIds.some((id) => filteredTagIds.has(id)))
     .map((task) => {
-    const baseColor = task.color ?? (task.tagIds[0] ? tagColorMap.get(task.tagIds[0]) : undefined) ?? '#6366f1'
-    const isDone = task.status === 'done'
-    const color = isDone ? mixWithGray(baseColor) : baseColor
-    return {
-      id: task.id,
-      title: task.title,
-      start: task.startTime,
-      end: task.endTime,
-      allDay: task.isAllDay,
-      backgroundColor: color,
-      borderColor: color,
-      extendedProps: { task },
-    }
-  })
+      const tagColor = task.tagIds[0] ? tagColorMap.get(task.tagIds[0]) : undefined
+      const hexColor = task.color ?? tagColor ?? '#57b683'
+      const group = colorToGroup(hexColor)
+      const vars = GROUP_VARS[group]
+      const isDone = task.status === 'done'
+      return {
+        id: task.id,
+        title: task.title,
+        start: task.startTime,
+        end: task.endTime,
+        allDay: task.isAllDay,
+        // 传递颜色信息给 eventContent
+        backgroundColor: 'transparent',
+        borderColor: 'transparent',
+        extendedProps: { task, group, vars, isDone },
+      }
+    })
 
   const handleDatesSet = (info: DatesSetArg) => {
     fetchTasks(info.startStr, info.endStr)
+    setDateTitle(info.view.title)
+    setCurrentView(info.view.type as ViewType)
   }
 
   const handleSelect = (info: DateSelectArg) => {
-    openCreateModal({ start: info.start, end: info.end, isAllDay: info.allDay })
+    const pos = info.jsEvent ? { x: info.jsEvent.clientX, y: info.jsEvent.clientY } : undefined
+    const start = info.start
+    const durationMs = info.end.getTime() - info.start.getTime()
+    const end = durationMs <= 30 * 60_000
+      ? new Date(start.getTime() + 30 * 60_000)
+      : info.end
+    openCreateModal({ start, end, isAllDay: info.allDay }, pos)
     calendarRef.current?.getApi().unselect()
   }
 
   const handleEventClick = (info: EventClickArg) => {
-    openEditModal(info.event.id)
+    openEditModal(info.event.id, { x: info.jsEvent.clientX, y: info.jsEvent.clientY })
   }
 
   const handleEventDrop = async (info: EventDropArg) => {
-    draggingId.current = null
     const { id, start, end, allDay } = info.event
     if (!start) return
     updateTask(id, {
@@ -229,7 +169,6 @@ export default function CalendarPage() {
   }
 
   const handleEventResize = async (info: EventResizeDoneArg) => {
-    draggingId.current = null
     const { id, start, end } = info.event
     if (!start || !end) return
     updateTask(id, { startTime: start.toISOString(), endTime: end.toISOString() })
@@ -248,135 +187,96 @@ export default function CalendarPage() {
     }
   }
 
-  // resize：用 MutationObserver 监听 fc-event-resizing class，mousemove 实时读取 event 时间
-  const handleEventDidMount = (info: EventMountArg) => {
-    const main = info.el.querySelector<HTMLElement>('.fc-event-main')
-    if (!main) return
-
-    let resizing = false
-
-    const observer = new MutationObserver(() => {
-      const isResizing = info.el.classList.contains('fc-event-resizing')
-      if (isResizing && !resizing) {
-        resizing = true
-        // 立刻注入标签
-        const s = info.event.start
-        const e = info.event.end
-        if (s && e) {
-          let top = main.querySelector<HTMLElement>('[data-timetag="top"]')
-          let bottom = main.querySelector<HTMLElement>('[data-timetag="bottom"]')
-          if (!top) {
-            top = document.createElement('span')
-            top.dataset.timetag = 'top'
-            top.className = `${styles.eventTimeTag} ${styles.eventTimeTagTop}`
-            main.appendChild(top)
-          }
-          if (!bottom) {
-            bottom = document.createElement('span')
-            bottom.dataset.timetag = 'bottom'
-            bottom.className = `${styles.eventTimeTag} ${styles.eventTimeTagBottom}`
-            main.appendChild(bottom)
-          }
-          top.textContent = fmt(s)
-          bottom.textContent = fmt(e)
-        }
-      } else if (!isResizing && resizing) {
-        resizing = false
-        main.querySelectorAll('[data-timetag]').forEach((n) => n.remove())
-      }
-    })
-
-    const onMouseMove = () => {
-      if (!resizing) return
-      const s = info.event.start
-      const e = info.event.end
-      if (!s || !e) return
-      const top = main.querySelector<HTMLElement>('[data-timetag="top"]')
-      const bottom = main.querySelector<HTMLElement>('[data-timetag="bottom"]')
-      if (top) top.textContent = fmt(s)
-      if (bottom) bottom.textContent = fmt(e)
-    }
-
-    observer.observe(info.el, { attributes: true, attributeFilter: ['class'] })
-    window.addEventListener('mousemove', onMouseMove)
-
-    // FullCalendar 销毁事件时清理（用 willUnmount 事件）
-    info.el.addEventListener('fullcalendar:willUnmount' as never, () => {
-      observer.disconnect()
-      window.removeEventListener('mousemove', onMouseMove)
-    })
-  }
-
   return (
     <div className={styles.page}>
-      <FullCalendar
-        ref={calendarRef}
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView="timeGridWeek"
-        headerToolbar={{
-          left: 'prev,next today',
-          center: 'title',
-          right: 'dayGridMonth,timeGridWeek,timeGridDay',
-        }}
-        buttonText={{
-          today: '今天',
-          month: '月',
-          week: '周',
-          day: '日',
-        }}
-        locale="zh-cn"
-        firstDay={1}
-        slotMinTime="06:00:00"
-        slotMaxTime="24:00:00"
-        allDayText="全天"
-        snapDuration="00:05:00"
-        editable={true}
-        selectable={true}
-        selectMirror={true}
-        dayMaxEvents={true}
-        weekends={true}
-        events={events}
-        datesSet={handleDatesSet}
-        select={handleSelect}
-        eventClick={handleEventClick}
-        eventDrop={handleEventDrop}
-        eventResize={handleEventResize}
-        eventDragStart={(info) => {
-          const start = info.event.start!
-          const end = info.event.end!
-          dragDurationRef.current = end.getTime() - start.getTime()
-
-          // 立即注入初始时间标签（mirror 此时已在 DOM 中）
-          requestAnimationFrame(() => setMirrorTags(start, end))
-
-          const onMove = () => {
-            const times = getMirrorTime(dragDurationRef.current)
-            if (!times) return
-            setMirrorTags(times.start, times.end)
-          }
-          window.addEventListener('mousemove', onMove)
-          ;(info.el as HTMLElement & { _dragMoveHandler?: () => void })._dragMoveHandler = onMove
-        }}
-        eventDragStop={(info) => {
-          draggingId.current = null
-          removeMirrorTags()
-          const handler = (info.el as HTMLElement & { _dragMoveHandler?: () => void })._dragMoveHandler
-          if (handler) {
-            window.removeEventListener('mousemove', handler)
-            delete (info.el as HTMLElement & { _dragMoveHandler?: () => void })._dragMoveHandler
-          }
-        }}
-        eventResizeStop={() => draggingId.current = null}
-        eventDidMount={handleEventDidMount}
-        eventContent={(info) => (
-          <EventContent
-            info={info}
-            onToggleDone={(taskId, status) => handleToggleDone(taskId, status)}
-          />
-        )}
-        height="100%"
+      <CalendarTopBar
+        calendarRef={calendarRef}
+        currentView={currentView}
+        dateTitle={dateTitle}
       />
-      <TaskModal />
+      <div className={styles.calendarWrap}>
+        <FullCalendar
+          ref={calendarRef}
+          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          initialView="timeGridWeek"
+          headerToolbar={false}
+          locale="zh-cn"
+          firstDay={1}
+          slotMinTime="06:00:00"
+          slotMaxTime="24:00:00"
+          allDayText="全天"
+          snapDuration="00:05:00"
+          editable={true}
+          selectable={!taskModalOpen}
+          selectMirror={true}
+          dayMaxEvents={true}
+          weekends={true}
+          events={events}
+          datesSet={handleDatesSet}
+          select={handleSelect}
+          eventClick={handleEventClick}
+          eventDrop={handleEventDrop}
+          eventResize={handleEventResize}
+          eventContent={(info) => (
+            <EventContent
+              info={info}
+              onToggleDone={(taskId, status) => handleToggleDone(taskId, status)}
+            />
+          )}
+          height="100%"
+        />
+      </div>
+    </div>
+  )
+}
+
+function CalendarTopBar({
+  calendarRef,
+  currentView,
+  dateTitle,
+}: {
+  calendarRef: React.RefObject<FullCalendar>
+  currentView: ViewType
+  dateTitle: string
+}) {
+  const api = () => calendarRef.current?.getApi()
+  const { theme, toggle } = useTheme()
+
+  const views: { key: ViewType; label: string }[] = [
+    { key: 'dayGridMonth', label: '月' },
+    { key: 'timeGridWeek', label: '周' },
+    { key: 'timeGridDay',  label: '日' },
+  ]
+
+  return (
+    <div className={styles.topbar}>
+      <div className={styles.navGroup}>
+        <button className={styles.iconBtn} onClick={() => api()?.prev()} aria-label="上一期">‹</button>
+        <button className={styles.iconBtn} onClick={() => api()?.next()} aria-label="下一期">›</button>
+        <button className={styles.todayBtn} onClick={() => api()?.today()}>今天</button>
+      </div>
+      <div className={styles.dateTitle}>{dateTitle}</div>
+      <div className={styles.rightGroup}>
+        <button
+          className={styles.iconBtn}
+          onClick={toggle}
+          aria-label="切换主题"
+          title={theme === 'dark' ? '切换到浅色' : '切换到深色'}
+        >
+          {theme === 'dark' ? '☀' : '☾'}
+        </button>
+        <div className={styles.seg}>
+          {views.map(({ key, label }) => (
+            <button
+              key={key}
+              className={currentView === key ? styles.segBtnActive : styles.segBtn}
+              onClick={() => api()?.changeView(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -388,23 +288,63 @@ function EventContent({
   info: EventContentArg
   onToggleDone: (taskId: string, status: string) => void
 }) {
-  const task = info.event.extendedProps.task as { status: string } | undefined
-  if (!task) return <span className={styles.eventTitle}>{info.event.title}</span>
-  const isDone = task.status === 'done'
+  const { task, vars, isDone } = info.event.extendedProps as {
+    task: { status: string } | undefined
+    vars: { bg: string; bar: string; ink: string }
+    isDone: boolean
+  }
 
+  if (!task || !vars) return <span style={{ fontSize: 12, padding: '1px 4px' }}>{info.event.title}</span>
+
+  const isTimeGrid = info.view.type.startsWith('timeGrid')
+
+  const cardStyle: React.CSSProperties = {
+    background: vars.bg,
+    borderLeft: `3px solid ${vars.bar}`,
+    color: vars.ink,
+    height: '100%',
+    overflow: 'hidden',
+    borderRadius: 'var(--r-sm)',
+  }
+
+  if (isTimeGrid) {
+    const start = info.event.start
+    const end = info.event.end
+    const timeRange = (!info.event.allDay && start && end)
+      ? `${fmt(start)} – ${fmt(end)}`
+      : null
+
+    return (
+      <div className={`${styles.evCard} ${isDone ? styles.evDone : ''}`} style={cardStyle}>
+        <div className={styles.evTitle}>
+          <button
+            className={styles.evChk}
+            style={{ borderColor: vars.bar, ...(isDone ? { background: vars.bar } : {}) }}
+            onClick={(e) => { e.stopPropagation(); onToggleDone(info.event.id, task.status) }}
+            title={isDone ? '标记为未完成' : '标记为已完成'}
+          >
+            {isDone && <span style={{ color: '#fff', fontSize: 9 }}>✓</span>}
+          </button>
+          <span className={styles.evText}>{info.event.title}</span>
+        </div>
+        {timeRange && <div className={styles.evTime}>{timeRange}</div>}
+      </div>
+    )
+  }
+
+  // 月视图：chip 样式
   return (
-    <div className={`${styles.eventContent} ${isDone ? styles.eventDone : ''}`}>
+    <div
+      className={`${styles.evChip} ${isDone ? styles.evChipDone : ''}`}
+      style={{ background: vars.bg, borderLeft: `3px solid ${vars.bar}`, color: vars.ink }}
+    >
       <button
-        className={styles.checkBtn}
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggleDone(info.event.id, task.status)
-        }}
+        className={styles.evChipDot}
+        style={{ background: vars.bar }}
+        onClick={(e) => { e.stopPropagation(); onToggleDone(info.event.id, task.status) }}
         title={isDone ? '标记为未完成' : '标记为已完成'}
-      >
-        {isDone ? '✓' : '○'}
-      </button>
-      <span className={styles.eventTitle}>{info.event.title}</span>
+      />
+      <span className={styles.evChipText}>{info.event.title}</span>
     </div>
   )
 }

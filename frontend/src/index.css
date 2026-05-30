@@ -1,3 +1,67 @@
+/* ============ Design tokens ============ */
+:root {
+  --font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r-sm: 7px;
+  --r-md: 11px;
+  --r-lg: 16px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --canvas: #f2f1ed;
+  --panel: #ffffff;
+  --panel-2: #faf9f6;
+  --ink: #3a3833;
+  --ink-soft: #6f6c64;
+  --ink-faint: #a3a097;
+  --line: #ecebe5;
+  --line-strong: #e2e0d8;
+  --accent: #44b97c;
+  --accent-ink: #2e8d5b;
+  --accent-soft: #eaf6ee;
+  --shadow: 0 1px 2px rgba(40, 38, 32, 0.04), 0 8px 28px rgba(40, 38, 32, 0.06);
+  --shadow-sm: 0 1px 2px rgba(40, 38, 32, 0.05);
+  --today-wash: #f6fbf8;
+  --heat-0: #ecebe5;
+  --heat-1: #c6e8d4;
+  --heat-2: #8fd0aa;
+  --heat-3: #57b683;
+  --heat-4: #2e8d5b;
+
+  --ev-green-bg:  #e9f5ee; --ev-green-bar:  #57b683; --ev-green-ink:  #2c7a52;
+  --ev-clay-bg:   #f6ece6; --ev-clay-bar:   #c98a6a; --ev-clay-ink:   #9a5a3c;
+  --ev-blue-bg:   #e9eff6; --ev-blue-bar:   #7196c4; --ev-blue-ink:   #4a6e9c;
+  --ev-purple-bg: #efebf6; --ev-purple-bar: #9b8bc6; --ev-purple-ink: #6a5a99;
+  --ev-amber-bg:  #f7f0e2; --ev-amber-bar:  #cbab64; --ev-amber-ink:  #9a7c34;
+}
+
+[data-theme="dark"] {
+  --canvas: #1b1a18;
+  --panel: #242220;
+  --panel-2: #201f1c;
+  --ink: #e7e4dd;
+  --ink-soft: #a8a49b;
+  --ink-faint: #706c63;
+  --line: #322f2b;
+  --line-strong: #3a3733;
+  --accent: #4fc488;
+  --accent-ink: #79d3a3;
+  --accent-soft: #1f2e26;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --today-wash: #20271f;
+  --heat-0: #38352f;
+  --heat-1: #1f3d2d;
+  --heat-2: #2a5a3e;
+  --heat-3: #3a7a55;
+  --heat-4: #4fc488;
+
+  --ev-green-bg:  #20302a; --ev-green-bar:  #4aa777; --ev-green-ink:  #79cda1;
+  --ev-clay-bg:   #322820; --ev-clay-bar:   #b07c5e; --ev-clay-ink:   #d6a585;
+  --ev-blue-bg:   #222a33; --ev-blue-bar:   #6286b2; --ev-blue-ink:   #9bb6db;
+  --ev-purple-bg: #2a2632; --ev-purple-bar: #8979b0; --ev-purple-ink: #b6a6dc;
+  --ev-amber-bg:  #322c1e; --ev-amber-bar:  #b89a56; --ev-amber-ink:  #d8bd7c;
+}
+
+/* ============ Reset ============ */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -6,64 +70,154 @@
 
 html, body, #root {
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  font-size: 14px;
-  color: #1a1a1a;
-  background: #f5f5f5;
 }
 
-/* FullCalendar 基础样式覆盖 */
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--canvas);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background 0.3s var(--ease), color 0.3s var(--ease);
+}
+
+/* ============ FullCalendar overrides ============ */
 .fc {
   height: 100%;
-  font-family: inherit;
+  font-family: var(--font);
   font-size: 13px;
+  color: var(--ink);
 }
 
-.fc .fc-toolbar-title {
-  font-size: 16px;
+/* 去掉所有 FC 默认边框颜色，统一用 token */
+.fc .fc-scrollgrid,
+.fc .fc-scrollgrid td,
+.fc .fc-scrollgrid th {
+  border-color: var(--line) !important;
+}
+
+/* 列头 */
+.fc .fc-col-header-cell {
+  padding: 10px 0;
   font-weight: 600;
-}
-
-.fc .fc-button {
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  color: #333;
   font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  cursor: pointer;
+  color: var(--ink-soft);
+  background: transparent;
+}
+.fc .fc-col-header-cell-cushion {
+  color: var(--ink-soft);
+  text-decoration: none;
 }
 
-.fc .fc-button:hover {
-  background: #f0f0f0;
+/* 今天列头 */
+.fc .fc-day-today .fc-col-header-cell-cushion {
+  color: var(--accent-ink);
 }
 
-.fc .fc-button-primary:not(:disabled).fc-button-active,
-.fc .fc-button-primary:not(:disabled):active {
-  background: #6366f1;
-  border-color: #6366f1;
+/* 今天背景 */
+.fc .fc-day-today {
+  background: var(--today-wash) !important;
+}
+
+/* 时间槽高度 */
+.fc .fc-timegrid-slot {
+  height: 60px;
+}
+.fc .fc-timegrid-slot-label {
+  font-size: 11px;
+  color: var(--ink-faint);
+  vertical-align: top;
+}
+.fc .fc-timegrid-slot-label-cushion {
+  padding: 4px 8px 0 0;
+}
+
+/* 时间轴线 */
+.fc .fc-timegrid-slot-lane {
+  border-color: var(--line) !important;
+}
+
+/* 全天行 */
+.fc .fc-timegrid-axis-cushion,
+.fc .fc-daygrid-day-top {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.fc .fc-daygrid-day-number {
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 550;
+  padding: 6px 8px;
+}
+.fc .fc-day-today .fc-daygrid-day-number {
+  background: var(--accent);
   color: #fff;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 4px;
 }
 
+/* 事件通用 */
 .fc .fc-daygrid-event,
 .fc .fc-timegrid-event {
-  border-radius: 4px;
-  border: none;
+  border-radius: var(--r-sm) !important;
+  border: none !important;
   font-size: 12px;
-  padding: 1px 4px;
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
 }
-
 .fc .fc-timegrid-event .fc-event-main {
   position: relative;
-  overflow: visible;
+  overflow: hidden;
+  padding: 0;
+}
+.fc .fc-daygrid-event .fc-event-main {
+  padding: 0;
 }
 
-.fc .fc-timegrid-slot {
-  height: 32px;
+/* 事件 hover */
+.fc .fc-event:hover {
+  filter: brightness(0.97);
+  box-shadow: var(--shadow);
 }
 
-.fc .fc-col-header-cell {
-  font-weight: 600;
-  padding: 6px 0;
+/* 选中镜像 */
+.fc .fc-highlight {
+  background: var(--accent-soft) !important;
+  border-radius: var(--r-sm);
+}
+.fc .fc-event-mirror {
+  opacity: 0.75;
+}
+
+/* 当前时间线 */
+.fc .fc-timegrid-now-indicator-line {
+  border-color: var(--accent);
+}
+.fc .fc-timegrid-now-indicator-arrow {
+  border-color: var(--accent);
+}
+
+/* 月视图外部日期 */
+.fc .fc-day-other .fc-daygrid-day-number {
+  color: var(--ink-faint);
+}
+.fc .fc-day-other {
+  background: var(--panel-2);
+}
+
+/* 滚动条 */
+.fc .fc-scroller::-webkit-scrollbar {
+  width: 6px;
+}
+.fc .fc-scroller::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 99px;
 }
