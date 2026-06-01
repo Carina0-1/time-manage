@@ -247,7 +247,7 @@ function CalendarTopBar({
   currentView,
   dateTitle,
 }: {
-  calendarRef: React.RefObject<FullCalendar>
+  calendarRef: React.RefObject<FullCalendar | null>
   currentView: ViewType
   dateTitle: string
 }) {

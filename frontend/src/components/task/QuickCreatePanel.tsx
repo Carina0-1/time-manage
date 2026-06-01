@@ -61,7 +61,6 @@ export default function QuickCreatePanel() {
         title: editingTask.title,
         description: editingTask.description ?? undefined,
         tagIds: editingTask.tagIds,
-        priority: editingTask.priority,
       })
     } else {
       reset({ id: nanoid(), title: '', tagIds: [] })
