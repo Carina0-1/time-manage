@@ -10,7 +10,7 @@ import { tasksRouter } from './routes/tasks.js'
 import { tagsRouter } from './routes/tags.js'
 import { statsRouter } from './routes/stats.js'
 
-const app = new Hono()
+export const app = new Hono()
 
 app.use('*', logger())
 app.use('*', cors({
@@ -35,7 +35,9 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal server error' }, 500)
 })
 
-const port = Number(process.env.PORT ?? 3000)
-console.log(`Server running on http://localhost:${port}`)
-
-serve({ fetch: app.fetch, port })
+// 本地开发启动
+if (process.env.NODE_ENV !== 'production') {
+  const port = Number(process.env.PORT ?? 3000)
+  console.log(`Server running on http://localhost:${port}`)
+  serve({ fetch: app.fetch, port })
+}

@@ -83,6 +83,18 @@ export default function CalendarPage() {
     fetchTags()
   }, [fetchTags])
 
+  // 初次加载时滚动到当前时间（偏移 -30 分钟，让时间线不贴顶）
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const now = new Date()
+      const totalMinutes = Math.max(0, now.getHours() * 60 + now.getMinutes() - 30)
+      const h = String(Math.floor(totalMinutes / 60)).padStart(2, '0')
+      const m = String(totalMinutes % 60).padStart(2, '0')
+      calendarRef.current?.getApi().scrollToTime(`${h}:${m}:00`)
+    }, 0)
+    return () => clearTimeout(id)
+  }, [])
+
   const tagColorMap = new Map(tags.map((t) => [t.id, t.color]))
 
   const filteredTagIds = useMemo(() => {
