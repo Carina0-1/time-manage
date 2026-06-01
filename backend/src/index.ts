@@ -35,7 +35,8 @@ app.onError((err, c) => {
 
 // 本地开发启动
 if (process.env.NODE_ENV !== 'production') {
-  await import('dotenv/config')
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('dotenv').config()
   const port = Number(process.env.PORT ?? 3000)
   console.log(`Server running on http://localhost:${port}`)
   serve({ fetch: app.fetch, port })

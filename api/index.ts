@@ -1,5 +1,3 @@
-import { handle } from 'hono/vercel'
 import { app } from '../backend/src/index'
 
-export const config = { runtime: 'nodejs' }
-export default handle(app)
+export default app.fetch
