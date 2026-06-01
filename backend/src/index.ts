@@ -3,8 +3,6 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { HTTPException } from 'hono/http-exception'
-import 'dotenv/config'
-
 import { authMiddleware } from './middleware/auth.js'
 import { tasksRouter } from './routes/tasks.js'
 import { tagsRouter } from './routes/tags.js'
@@ -37,6 +35,7 @@ app.onError((err, c) => {
 
 // 本地开发启动
 if (process.env.NODE_ENV !== 'production') {
+  await import('dotenv/config')
   const port = Number(process.env.PORT ?? 3000)
   console.log(`Server running on http://localhost:${port}`)
   serve({ fetch: app.fetch, port })
