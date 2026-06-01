@@ -1,4 +1,3 @@
-import 'dotenv/config'
-import { app } from '../backend/src/index.js'
+import { app } from '../backend/dist/index.js'
 
 export default app.fetch
