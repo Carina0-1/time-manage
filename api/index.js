@@ -5477,7 +5477,7 @@ var require_main = __commonJS({
 // api/source.ts
 var source_exports = {};
 __export(source_exports, {
-  default: () => source_default
+  default: () => handler
 });
 module.exports = __toCommonJS(source_exports);
 
@@ -6110,16 +6110,16 @@ var createAdaptorServer = (options) => {
     autoCleanupIncoming: options.autoCleanupIncoming
   });
   const createServer = options.createServer || import_http.createServer;
-  const server = createServer(options.serverOptions || {}, requestListener);
-  return server;
+  const server2 = createServer(options.serverOptions || {}, requestListener);
+  return server2;
 };
 var serve = (options, listeningListener) => {
-  const server = createAdaptorServer(options);
-  server.listen(options?.port ?? 3e3, options.hostname, () => {
-    const serverInfo = server.address();
+  const server2 = createAdaptorServer(options);
+  server2.listen(options?.port ?? 3e3, options.hostname, () => {
+    const serverInfo = server2.address();
     listeningListener && listeningListener(serverInfo);
   });
-  return server;
+  return server2;
 };
 
 // node_modules/.pnpm/hono@4.12.23/node_modules/hono/dist/compose.js
@@ -6134,16 +6134,16 @@ var compose = (middleware, onError, onNotFound) => {
       index = i;
       let res;
       let isError = false;
-      let handler;
+      let handler2;
       if (middleware[i]) {
-        handler = middleware[i][0][0];
+        handler2 = middleware[i][0][0];
         context.req.routeIndex = i;
       } else {
-        handler = i === middleware.length && next || void 0;
+        handler2 = i === middleware.length && next || void 0;
       }
-      if (handler) {
+      if (handler2) {
         try {
-          res = await handler(context, () => dispatch(i + 1));
+          res = await handler2(context, () => dispatch(i + 1));
         } catch (err) {
           if (err instanceof Error && onError) {
             context.error = err;
@@ -7262,8 +7262,8 @@ var Hono = class _Hono {
         } else {
           this.#addRoute(method, this.#path, args1);
         }
-        args.forEach((handler) => {
-          this.#addRoute(method, this.#path, handler);
+        args.forEach((handler2) => {
+          this.#addRoute(method, this.#path, handler2);
         });
         return this;
       };
@@ -7272,8 +7272,8 @@ var Hono = class _Hono {
       for (const p of [path].flat()) {
         this.#path = p;
         for (const m of [method].flat()) {
-          handlers.map((handler) => {
-            this.#addRoute(m.toUpperCase(), this.#path, handler);
+          handlers.map((handler2) => {
+            this.#addRoute(m.toUpperCase(), this.#path, handler2);
           });
         }
       }
@@ -7286,8 +7286,8 @@ var Hono = class _Hono {
         this.#path = "*";
         handlers.unshift(arg1);
       }
-      handlers.forEach((handler) => {
-        this.#addRoute(METHOD_NAME_ALL, this.#path, handler);
+      handlers.forEach((handler2) => {
+        this.#addRoute(METHOD_NAME_ALL, this.#path, handler2);
       });
       return this;
     };
@@ -7329,14 +7329,14 @@ var Hono = class _Hono {
   route(path, app2) {
     const subApp = this.basePath(path);
     app2.routes.map((r) => {
-      let handler;
+      let handler2;
       if (app2.errorHandler === errorHandler) {
-        handler = r.handler;
+        handler2 = r.handler;
       } else {
-        handler = async (c, next) => (await compose([], app2.errorHandler)(c, () => r.handler(c, next))).res;
-        handler[COMPOSED_HANDLER] = r.handler;
+        handler2 = async (c, next) => (await compose([], app2.errorHandler)(c, () => r.handler(c, next))).res;
+        handler2[COMPOSED_HANDLER] = r.handler;
       }
-      subApp.#addRoute(r.method, r.path, handler, r.basePath);
+      subApp.#addRoute(r.method, r.path, handler2, r.basePath);
     });
     return this;
   }
@@ -7374,8 +7374,8 @@ var Hono = class _Hono {
    * })
    * ```
    */
-  onError = (handler) => {
-    this.errorHandler = handler;
+  onError = (handler2) => {
+    this.errorHandler = handler2;
     return this;
   };
   /**
@@ -7393,8 +7393,8 @@ var Hono = class _Hono {
    * })
    * ```
    */
-  notFound = (handler) => {
-    this.#notFoundHandler = handler;
+  notFound = (handler2) => {
+    this.#notFoundHandler = handler2;
     return this;
   };
   /**
@@ -7464,26 +7464,26 @@ var Hono = class _Hono {
         return new Request(url, request);
       };
     })();
-    const handler = async (c, next) => {
+    const handler2 = async (c, next) => {
       const res = await applicationHandler(replaceRequest(c.req.raw), ...getOptions(c));
       if (res) {
         return res;
       }
       await next();
     };
-    this.#addRoute(METHOD_NAME_ALL, mergePath(path, "*"), handler);
+    this.#addRoute(METHOD_NAME_ALL, mergePath(path, "*"), handler2);
     return this;
   }
-  #addRoute(method, path, handler, baseRoutePath) {
+  #addRoute(method, path, handler2, baseRoutePath) {
     method = method.toUpperCase();
     path = mergePath(this._basePath, path);
     const r = {
       basePath: baseRoutePath !== void 0 ? mergePath(this._basePath, baseRoutePath) : this._basePath,
       path,
       method,
-      handler
+      handler: handler2
     };
-    this.router.add(method, path, [handler, r]);
+    this.router.add(method, path, [handler2, r]);
     this.routes.push(r);
   }
   #handleError(err, c) {
@@ -7872,7 +7872,7 @@ var RegExpRouter = class {
     this.#middleware = { [METHOD_NAME_ALL]: /* @__PURE__ */ Object.create(null) };
     this.#routes = { [METHOD_NAME_ALL]: /* @__PURE__ */ Object.create(null) };
   }
-  add(method, path, handler) {
+  add(method, path, handler2) {
     const middleware = this.#middleware;
     const routes = this.#routes;
     if (!middleware || !routes) {
@@ -7903,14 +7903,14 @@ var RegExpRouter = class {
       Object.keys(middleware).forEach((m) => {
         if (method === METHOD_NAME_ALL || method === m) {
           Object.keys(middleware[m]).forEach((p) => {
-            re.test(p) && middleware[m][p].push([handler, paramCount]);
+            re.test(p) && middleware[m][p].push([handler2, paramCount]);
           });
         }
       });
       Object.keys(routes).forEach((m) => {
         if (method === METHOD_NAME_ALL || method === m) {
           Object.keys(routes[m]).forEach(
-            (p) => re.test(p) && routes[m][p].push([handler, paramCount])
+            (p) => re.test(p) && routes[m][p].push([handler2, paramCount])
           );
         }
       });
@@ -7924,7 +7924,7 @@ var RegExpRouter = class {
           routes[m][path2] ||= [
             ...findMiddleware(middleware[m], path2) || findMiddleware(middleware[METHOD_NAME_ALL], path2) || []
           ];
-          routes[m][path2].push([handler, paramCount - len + i + 1]);
+          routes[m][path2].push([handler2, paramCount - len + i + 1]);
         }
       });
     }
@@ -7969,11 +7969,11 @@ var SmartRouter = class {
   constructor(init) {
     this.#routers = init.routers;
   }
-  add(method, path, handler) {
+  add(method, path, handler2) {
     if (!this.#routes) {
       throw new Error(MESSAGE_MATCHER_IS_ALREADY_BUILT);
     }
-    this.#routes.push([method, path, handler]);
+    this.#routes.push([method, path, handler2]);
   }
   match(method, path) {
     if (!this.#routes) {
@@ -8030,17 +8030,17 @@ var Node2 = class _Node2 {
   #patterns;
   #order = 0;
   #params = emptyParams;
-  constructor(method, handler, children) {
+  constructor(method, handler2, children) {
     this.#children = children || /* @__PURE__ */ Object.create(null);
     this.#methods = [];
-    if (method && handler) {
+    if (method && handler2) {
       const m = /* @__PURE__ */ Object.create(null);
-      m[method] = { handler, possibleKeys: [], score: 0 };
+      m[method] = { handler: handler2, possibleKeys: [], score: 0 };
       this.#methods = [m];
     }
     this.#patterns = [];
   }
-  insert(method, path, handler) {
+  insert(method, path, handler2) {
     this.#order = ++this.#order;
     let curNode = this;
     const parts = splitRoutingPath(path);
@@ -8066,7 +8066,7 @@ var Node2 = class _Node2 {
     }
     curNode.#methods.push({
       [method]: {
-        handler,
+        handler: handler2,
         possibleKeys: possibleKeys.filter((v, i, a) => a.indexOf(v) === i),
         score: this.#order
       }
@@ -8187,7 +8187,7 @@ var Node2 = class _Node2 {
         return a.score - b.score;
       });
     }
-    return [handlerSets.map(({ handler, params }) => [handler, params])];
+    return [handlerSets.map(({ handler: handler2, params }) => [handler2, params])];
   }
 };
 
@@ -8198,15 +8198,15 @@ var TrieRouter = class {
   constructor() {
     this.#node = new Node2();
   }
-  add(method, path, handler) {
+  add(method, path, handler2) {
     const results = checkOptionalParameter(path);
     if (results) {
       for (let i = 0, len = results.length; i < len; i++) {
-        this.#node.insert(method, results[i], handler);
+        this.#node.insert(method, results[i], handler2);
       }
       return;
     }
-    this.#node.insert(method, path, handler);
+    this.#node.insert(method, path, handler2);
   }
   match(method, path) {
     return this.#node.search(method, path);
@@ -19462,4 +19462,7 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 // api/source.ts
-var source_default = app.fetch;
+var server = createAdaptorServer(app);
+function handler(req, res) {
+  server.emit("request", req, res);
+}
