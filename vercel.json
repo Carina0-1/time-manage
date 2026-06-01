@@ -1,8 +1,22 @@
 {
-  "buildCommand": "pnpm --filter shared build && pnpm --filter frontend build",
-  "outputDirectory": "frontend/dist",
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/health", "destination": "/api/index" }
+  "version": 2,
+  "builds": [
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist",
+        "buildCommand": "cd .. && pnpm --filter shared build && pnpm --filter frontend build"
+      }
+    },
+    {
+      "src": "api/index.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/index.ts" },
+    { "src": "/health", "dest": "/api/index.ts" },
+    { "src": "/(.*)", "dest": "/frontend/dist/$1" }
   ]
 }
