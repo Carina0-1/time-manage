@@ -3,12 +3,6 @@
   "outputDirectory": "frontend/dist",
   "installCommand": "pnpm install",
   "framework": null,
-  "functions": {
-    "api/index.ts": {
-      "runtime": "@vercel/node@5.3.3",
-      "includeFiles": "backend/**"
-    }
-  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/health", "destination": "/api/index" },
