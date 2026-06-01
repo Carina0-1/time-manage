@@ -6110,16 +6110,16 @@ var createAdaptorServer = (options) => {
     autoCleanupIncoming: options.autoCleanupIncoming
   });
   const createServer = options.createServer || import_http.createServer;
-  const server2 = createServer(options.serverOptions || {}, requestListener);
-  return server2;
+  const server = createServer(options.serverOptions || {}, requestListener);
+  return server;
 };
 var serve = (options, listeningListener) => {
-  const server2 = createAdaptorServer(options);
-  server2.listen(options?.port ?? 3e3, options.hostname, () => {
-    const serverInfo = server2.address();
+  const server = createAdaptorServer(options);
+  server.listen(options?.port ?? 3e3, options.hostname, () => {
+    const serverInfo = server.address();
     listeningListener && listeningListener(serverInfo);
   });
-  return server2;
+  return server;
 };
 
 // node_modules/.pnpm/hono@4.12.23/node_modules/hono/dist/compose.js
@@ -19463,7 +19463,27 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 // api/source.ts
-var server = createAdaptorServer(app);
-function handler(req, res) {
-  server.emit("request", req, res);
+async function handler(req, res) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
+  }
+  const body = chunks.length > 0 ? Buffer.concat(chunks) : void 0;
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value) headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+  }
+  const proto = req.headers["x-forwarded-proto"] ?? "https";
+  const host = req.headers.host ?? "localhost";
+  const url = `${proto}://${host}${req.url}`;
+  const request = new Request(url, {
+    method: req.method,
+    headers,
+    body: body && body.length > 0 ? body : void 0
+  });
+  const response = await app.fetch(request);
+  res.statusCode = response.status;
+  response.headers.forEach((value, key) => res.setHeader(key, value));
+  const responseBody = await response.arrayBuffer();
+  res.end(Buffer.from(responseBody));
 }
