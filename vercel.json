@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm --filter shared build && pnpm --filter frontend build && pnpm --filter backend build",
+  "buildCommand": "pnpm --filter shared build && pnpm --filter frontend build",
   "outputDirectory": "frontend/dist",
   "installCommand": "pnpm install",
   "framework": null,
