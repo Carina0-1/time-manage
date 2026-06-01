@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm --filter shared build && pnpm --filter frontend build && node_modules/.bin/esbuild api/index.ts --bundle --platform=node --format=cjs --outfile=api/index.js --external:pg-native",
+  "buildCommand": "pnpm --filter shared build && pnpm --filter frontend build && node_modules/.bin/esbuild api/source.ts --bundle --platform=node --format=cjs --outfile=api/index.js --external:pg-native",
   "outputDirectory": "frontend/dist",
   "installCommand": "pnpm install",
   "framework": null,
