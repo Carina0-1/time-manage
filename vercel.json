@@ -5,7 +5,8 @@
   "framework": null,
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/auth/(.*)", "destination": "/api/index" },
     { "source": "/health", "destination": "/api/index" },
-    { "source": "/((?!api).*)", "destination": "/index.html" }
+    { "source": "/((?!api|auth).*)", "destination": "/index.html" }
   ]
 }
