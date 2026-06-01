@@ -2,8 +2,10 @@ import { pgTable, text, boolean, timestamp, jsonb, primaryKey, integer } from 'd
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
-  email: text('email').notNull().unique(),
+  username: text('username').notNull().unique(),
+  email: text('email'),
   name: text('name'),
+  passwordHash: text('password_hash'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 

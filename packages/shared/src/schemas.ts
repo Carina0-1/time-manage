@@ -56,3 +56,10 @@ export type CreateTagInput = z.infer<typeof CreateTagSchema>
 export type UpdateTagInput = z.infer<typeof UpdateTagSchema>
 export type StatsQuery = z.infer<typeof StatsQuerySchema>
 export type SyncUpload = z.infer<typeof SyncUploadSchema>
+
+export const LoginSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+})
+
+export type LoginInput = z.infer<typeof LoginSchema>

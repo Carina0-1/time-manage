@@ -60,6 +60,17 @@ export interface StatsResult {
   dailyActivity: DailyActivity[]
 }
 
+export interface AuthUser {
+  id: string
+  username: string
+  name: string | null
+}
+
+export interface LoginResponse {
+  token: string
+  user: AuthUser
+}
+
 // API 通用响应格式
 export interface ApiResponse<T> {
   data: T

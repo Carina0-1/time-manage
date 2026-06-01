@@ -10,6 +10,7 @@ import type { TagTreeNode } from '@/utils/tagTree'
 import { useTagStore } from '@/stores/tagStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useAuthStore } from '@/stores/authStore'
 import { tagsApi } from '@/api/tags'
 import { statsApi } from '@/api/stats'
 
@@ -49,6 +50,13 @@ type TagFormValues = z.infer<typeof TagFormSchema>
 export default function Layout() {
   const navigate = useNavigate()
   const { taskModalOpen } = useUiStore()
+  const { user, logout } = useAuthStore()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <div className={styles.shell}>
       <nav className={styles.sidebar}>
@@ -59,8 +67,9 @@ export default function Layout() {
         <SidebarStats onClickStats={() => navigate('/stats')} />
         <ActivityHeatmap />
         <TagTreeNav />
-        <div className={styles.motto}>
-          时间管理的目的是实现你的目标
+        <div className={styles.sidebarFooter}>
+          <span className={styles.sidebarUsername}>{user?.username}</span>
+          <button className={styles.logoutBtn} onClick={handleLogout}>退出</button>
         </div>
       </nav>
       <main className={styles.main}>

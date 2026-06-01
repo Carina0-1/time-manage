@@ -226,8 +226,7 @@
 
 /* Motto */
 .motto {
-  margin-top: auto;
-  padding: 16px 8px 8px;
+  padding: 16px 8px 4px;
   font-size: 13.5px;
   line-height: 1.7;
   color: var(--accent-ink);
@@ -236,6 +235,40 @@
 }
 .motto::before { content: "\201C"; color: var(--ink-faint); }
 .motto::after  { content: "\201D"; color: var(--ink-faint); }
+
+.sidebarFooter {
+  margin-top: auto;
+  padding: 10px 8px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-top: 1px solid var(--line);
+}
+
+.sidebarUsername {
+  font-size: 13px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logoutBtn {
+  font-size: 12px;
+  color: var(--ink-faint);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+}
+
+.logoutBtn:hover {
+  color: var(--ink-soft);
+  background: var(--hover);
+}
 
 /* Main area — white card */
 .main {

@@ -1,16 +1,22 @@
+import { useAuthStore } from '@/stores/authStore'
+
 const BASE = '/api'
-// 开发阶段固定 token，Phase 5 接入 better-auth 后替换
-const TOKEN = 'dev'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = useAuthStore.getState().token
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${TOKEN}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   })
+  if (res.status === 401) {
+    useAuthStore.getState().logout()
+    window.location.href = '/login'
+    throw new Error('Unauthorized')
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error ?? res.statusText)

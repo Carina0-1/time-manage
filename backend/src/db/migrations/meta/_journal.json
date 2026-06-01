@@ -15,6 +15,13 @@
       "when": 1780109198074,
       "tag": "0001_lush_invaders",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780322972774,
+      "tag": "0002_opposite_monster_badoon",
+      "breakpoints": true
     }
   ]
 }
