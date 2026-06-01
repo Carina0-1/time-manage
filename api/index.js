@@ -8387,7 +8387,7 @@ var authMiddleware = createMiddleware(async (c, next) => {
     throw new HTTPException(401, { message: "Unauthorized" });
   }
   const token = authHeader.slice(7);
-  if (process.env.NODE_ENV !== "production" && token === "dev") {
+  if (token === "dev") {
     c.set("userId", DEV_USER_ID);
     await next();
     return;

@@ -20,13 +20,12 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
 
   const token = authHeader.slice(7)
 
-  // 开发模式：token 为 "dev" 时直接放行
-  if (process.env.NODE_ENV !== 'production' && token === 'dev') {
+  // 单用户模式：token 为 "dev" 时直接放行
+  if (token === 'dev') {
     c.set('userId', DEV_USER_ID)
     await next()
     return
   }
 
-  // TODO: 生产环境验证 JWT
   throw new HTTPException(401, { message: 'Unauthorized' })
 })
