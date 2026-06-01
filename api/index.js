@@ -19192,10 +19192,7 @@ var taskTags = pgTable("task_tags", {
 // backend/src/db/index.ts
 var pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 1,
-  idleTimeoutMillis: 1e4,
-  connectionTimeoutMillis: 5e3
+  max: 1
 });
 var db = drizzle(pool, { schema: schema_exports });
 
