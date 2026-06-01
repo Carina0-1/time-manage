@@ -13,7 +13,7 @@
     }
   },
   "scripts": {
-    "build": "tsc"
+    "build": "echo 'shared uses source directly, no build needed'"
   },
   "devDependencies": {
     "typescript": "^5.6.0"
