@@ -207,17 +207,14 @@
 .expandIcon {
   font-size: 10px;
   width: 14px;
-  color: var(--ink-faint);
   flex-shrink: 0;
   text-align: center;
-  margin-left: auto;
-  padding: 2px;
-  border-radius: 3px;
-  transition: background 0.1s;
+  color: var(--ink-faint);
+  visibility: hidden;
 }
-.expandIcon:hover {
-  background: var(--hover);
-  color: var(--ink-soft);
+.expandIconVisible {
+  visibility: visible;
+  cursor: pointer;
 }
 .tagNavDot {
   width: 8px;

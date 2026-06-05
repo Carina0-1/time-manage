@@ -63,7 +63,8 @@ export default function TaskModal() {
 
   // # 下拉按树序排列并过滤
   const matchedNodes = useMemo(() => {
-    const nodes = flattenTree(buildTagTree(tags))
+    const sorted = [...tags].sort((a, b) => a.sortOrder - b.sortOrder)
+    const nodes = flattenTree(buildTagTree(sorted, true))
     if (!hashQuery) return nodes
     const q = hashQuery.toLowerCase()
     return nodes.filter((n) => n.tag.name.toLowerCase().includes(q))
@@ -325,7 +326,10 @@ function TagSelector({
   }, [open])
 
   const selectedTags = tags.filter((t) => selectedTagIds.includes(t.id))
-  const sortedNodes = useMemo(() => flattenTree(buildTagTree(tags)), [tags])
+  const sortedNodes = useMemo(() => {
+    const sorted = [...tags].sort((a, b) => a.sortOrder - b.sortOrder)
+    return flattenTree(buildTagTree(sorted, true))
+  }, [tags])
 
   // 选中节点：虚拟节点先自动创建真实标签，再 toggle
   const handleSelect = async (node: ReturnType<typeof flattenTree>[number]) => {

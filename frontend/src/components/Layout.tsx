@@ -397,19 +397,17 @@ function TagNodeItem({
         {...dragHandlers}
       >
         {draggable && <span className={styles.dragHandle}>⠿</span>}
+        <span
+          className={`${styles.expandIcon} ${hasChildren && hovered ? styles.expandIconVisible : ''}`}
+          onClick={hasChildren ? (e) => { e.stopPropagation(); setExpanded(!expanded) } : undefined}
+        >
+          {hasChildren && hovered ? (expanded ? '▾' : '▸') : null}
+        </span>
         <span className={styles.tagNavDot} style={{ background: rootColor ?? node.tag.color }} />
         {node.tag.icon && <span>{node.tag.icon}</span>}
         <span className={styles.tagNavLabel}>{node.segment}</span>
         {isRealTag && hovered && (
           <button className={styles.tagMenuBtn} onClick={handleMenuBtn} title="标签操作">…</button>
-        )}
-        {hasChildren && (
-          <span
-            className={styles.expandIcon}
-            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
-          >
-            {expanded ? '▾' : '▸'}
-          </span>
         )}
       </div>
       {hasChildren && expanded && node.children.map((child) => (
