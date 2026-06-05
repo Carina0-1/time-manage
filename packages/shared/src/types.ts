@@ -52,12 +52,26 @@ export interface DailyActivity {
   taskCount: number
 }
 
+export interface DailyMinutes {
+  date: string        // "YYYY-MM-DD"
+  totalMinutes: number
+}
+
+export interface DailyTagMinutes {
+  date: string        // "YYYY-MM-DD"
+  tagName: string     // 一级标签名
+  color: string
+  minutes: number
+}
+
 export interface StatsResult {
   tags: TagStats[]
   totalMinutes: number
   completedCount: number
   totalCount: number
   dailyActivity: DailyActivity[]
+  dailyMinutes: DailyMinutes[]
+  dailyTagMinutes: DailyTagMinutes[]
 }
 
 export interface AuthUser {

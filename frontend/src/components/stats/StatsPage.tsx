@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
 } from 'recharts'
 import dayjs from 'dayjs'
 import { statsApi } from '@/api/stats'
@@ -72,13 +72,27 @@ export default function StatsPage() {
     return map
   }, [tags])
 
+  // 一级标签名 -> 根颜色（用于 dailyTagMinutes 颜色替换）
+  const rootColorByName = useMemo(() => {
+    const map = new Map<string, string>()
+    const roots = buildTagTree([...tags].sort((a, b) => a.sortOrder - b.sortOrder), true)
+    for (const node of roots) {
+      map.set(node.fullPath, node.tag.color)
+    }
+    return map
+  }, [tags])
+
   const statsWithRootColor = useMemo(() => {
     if (!stats) return null
     return {
       ...stats,
       tags: stats.tags.map((t) => ({ ...t, color: rootColorMap.get(t.tagId) ?? t.color })),
+      dailyTagMinutes: stats.dailyTagMinutes.map((d) => ({
+        ...d,
+        color: rootColorByName.get(d.tagName) ?? d.color,
+      })),
     }
-  }, [stats, rootColorMap])
+  }, [stats, rootColorMap, rootColorByName])
 
   const completionRate = stats
     ? stats.totalCount > 0 ? Math.round((stats.completedCount / stats.totalCount) * 100) : 0
@@ -227,6 +241,56 @@ export default function StatsPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* 每日总时长 */}
+              {statsWithRootColor.dailyMinutes.length > 0 && (
+                <div className={styles.chartCard} style={{ gridColumn: '1 / -1' }}>
+                  <h2>每日任务总时长</h2>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={statsWithRootColor.dailyMinutes} margin={{ left: 8, right: 16 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="date" tickFormatter={(d) => d.slice(5)} fontSize={12} />
+                      <YAxis tickFormatter={(v) => `${Math.floor(v / 60)}h`} fontSize={12} />
+                      <Tooltip formatter={(v) => fmtMinutes(Number(v))} labelFormatter={(d) => String(d)} />
+                      <Bar dataKey="totalMinutes" fill="var(--accent)" radius={[4, 4, 0, 0]} name="总时长" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* 每日各一级标签时长 */}
+              {(() => {
+                const rows = statsWithRootColor.dailyTagMinutes
+                if (rows.length === 0) return null
+                // 转换为 recharts 分组格式：每行一天，字段名为标签名
+                const dateSet = [...new Set(rows.map((r) => r.date))].sort()
+                const tagNames = [...new Set(rows.map((r) => r.tagName))].sort()
+                const colorByTag = new Map(rows.map((r) => [r.tagName, r.color]))
+                const chartData = dateSet.map((date) => {
+                  const row: Record<string, string | number> = { date }
+                  for (const name of tagNames) {
+                    row[name] = rows.find((r) => r.date === date && r.tagName === name)?.minutes ?? 0
+                  }
+                  return row
+                })
+                return (
+                  <div className={styles.chartCard} style={{ gridColumn: '1 / -1' }}>
+                    <h2>每日各目标时长</h2>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={chartData} margin={{ left: 8, right: 16 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="date" tickFormatter={(d) => d.slice(5)} fontSize={12} />
+                        <YAxis tickFormatter={(v) => `${Math.floor(v / 60)}h`} fontSize={12} />
+                        <Tooltip formatter={(v) => fmtMinutes(Number(v))} labelFormatter={(d) => String(d)} />
+                        <Legend />
+                        {tagNames.map((name) => (
+                          <Bar key={name} dataKey={name} fill={colorByTag.get(name)} radius={[4, 4, 0, 0]} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )
+              })()}
             </div>
           )}
         </>

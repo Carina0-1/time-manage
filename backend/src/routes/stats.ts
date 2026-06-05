@@ -35,7 +35,7 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
 
   if (taskRows.length === 0) {
     return c.json<{ data: StatsResult }>({
-      data: { tags: [], totalMinutes: 0, completedCount: 0, totalCount: 0, dailyActivity: [] },
+      data: { tags: [], totalMinutes: 0, completedCount: 0, totalCount: 0, dailyActivity: [], dailyMinutes: [], dailyTagMinutes: [] },
     })
   }
 
@@ -101,7 +101,44 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
     .map(([date, taskCount]) => ({ date, taskCount }))
     .sort((a, b) => a.date.localeCompare(b.date))
 
+  // 按天分组计算每日总时长
+  const dailyMinutesMap = new Map<string, number>()
+  for (const task of taskRows) {
+    const dateKey = task.startTime.toISOString().slice(0, 10)
+    const minutes = minutesByTaskId.get(task.id) ?? 0
+    dailyMinutesMap.set(dateKey, (dailyMinutesMap.get(dateKey) ?? 0) + minutes)
+  }
+  const dailyMinutes = Array.from(dailyMinutesMap.entries())
+    .map(([date, totalMinutes]) => ({ date, totalMinutes }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  // 按天 + 一级标签分组计算时长
+  // taskId -> dateKey
+  const taskDateMap = new Map<string, string>()
+  for (const task of taskRows) {
+    taskDateMap.set(task.id, task.startTime.toISOString().slice(0, 10))
+  }
+  // key: "date|rootTagName" -> minutes
+  const dailyTagMap = new Map<string, { minutes: number; color: string }>()
+  for (const rel of relations) {
+    const tag = tagMap.get(rel.tagId)
+    if (!tag) continue
+    const rootTagName = tag.name.split('/')[0]
+    const date = taskDateMap.get(rel.taskId)
+    if (!date) continue
+    const key = `${date}|${rootTagName}`
+    const prev = dailyTagMap.get(key)
+    const minutes = minutesByTaskId.get(rel.taskId) ?? 0
+    dailyTagMap.set(key, { minutes: (prev?.minutes ?? 0) + minutes, color: tag.color })
+  }
+  const dailyTagMinutes = Array.from(dailyTagMap.entries())
+    .map(([key, val]) => {
+      const [date, tagName] = key.split('|')
+      return { date, tagName, color: val.color, minutes: val.minutes }
+    })
+    .sort((a, b) => a.date.localeCompare(b.date) || a.tagName.localeCompare(b.tagName))
+
   return c.json<{ data: StatsResult }>({
-    data: { tags: tagStats, totalMinutes, completedCount, totalCount, dailyActivity },
+    data: { tags: tagStats, totalMinutes, completedCount, totalCount, dailyActivity, dailyMinutes, dailyTagMinutes },
   })
 })
