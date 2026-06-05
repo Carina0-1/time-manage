@@ -206,10 +206,18 @@
 }
 .expandIcon {
   font-size: 10px;
-  width: 12px;
+  width: 14px;
   color: var(--ink-faint);
   flex-shrink: 0;
   text-align: center;
+  margin-left: auto;
+  padding: 2px;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+.expandIcon:hover {
+  background: var(--hover);
+  color: var(--ink-soft);
 }
 .tagNavDot {
   width: 8px;

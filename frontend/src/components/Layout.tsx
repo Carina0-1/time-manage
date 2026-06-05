@@ -392,6 +392,7 @@ function TagNodeItem({
   onDragOver,
   onDrop,
   onDragEnd,
+  rootColor,
 }: {
   node: TagTreeNode
   activeFilter: string | null
@@ -403,6 +404,7 @@ function TagNodeItem({
   onDragOver?: () => void
   onDrop?: () => void
   onDragEnd?: () => void
+  rootColor?: string
 }) {
   const [expanded, setExpanded] = useState(true)
   const [hovered, setHovered] = useState(false)
@@ -433,28 +435,26 @@ function TagNodeItem({
     <>
       <div
         className={`${styles.tagNavItem} ${isActive ? styles.tagNavItemActive : ''} ${hasActiveDescendant && !isActive ? styles.tagNavItemParentActive : ''} ${isDragOver ? styles.tagNavItemDragOver : ''} ${draggable ? styles.tagNavItemDraggable : ''}`}
-        style={{ paddingLeft: `${12 + node.depth * 14}px` }}
+        style={{ paddingLeft: `${10 + node.depth * 18}px` }}
         onClick={() => onSelect(node.fullPath)}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         {...dragHandlers}
       >
         {draggable && <span className={styles.dragHandle}>⠿</span>}
-        {hasChildren ? (
+        <span className={styles.tagNavDot} style={{ background: rootColor ?? node.tag.color }} />
+        {node.tag.icon && <span>{node.tag.icon}</span>}
+        <span className={styles.tagNavLabel}>{node.segment}</span>
+        {isRealTag && hovered && (
+          <button className={styles.tagMenuBtn} onClick={handleMenuBtn} title="标签操作">…</button>
+        )}
+        {hasChildren && (
           <span
             className={styles.expandIcon}
             onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
           >
             {expanded ? '▾' : '▸'}
           </span>
-        ) : (
-          <span className={styles.expandIcon} />
-        )}
-        <span className={styles.tagNavDot} style={{ background: node.tag.color }} />
-        {node.tag.icon && <span>{node.tag.icon}</span>}
-        <span className={styles.tagNavLabel}>{node.segment}</span>
-        {isRealTag && hovered && (
-          <button className={styles.tagMenuBtn} onClick={handleMenuBtn} title="标签操作">…</button>
         )}
       </div>
       {hasChildren && expanded && node.children.map((child) => (
@@ -464,6 +464,7 @@ function TagNodeItem({
           activeFilter={activeFilter}
           onSelect={onSelect}
           onContextMenu={onContextMenu}
+          rootColor={rootColor ?? node.tag.color}
         />
       ))}
     </>
