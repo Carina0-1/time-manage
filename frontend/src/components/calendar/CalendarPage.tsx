@@ -95,7 +95,20 @@ export default function CalendarPage() {
     return () => clearTimeout(id)
   }, [])
 
-  const tagColorMap = new Map(tags.map((t) => [t.id, t.color]))
+  // 子标签颜色继承根标签颜色（与侧边栏视觉一致）
+  const tagColorMap = useMemo(() => {
+    const map = new Map<string, string>()
+    const roots = buildTagTree([...tags].sort((a, b) => a.sortOrder - b.sortOrder), true)
+    function walk(nodes: typeof roots, rootColor: string | null) {
+      for (const node of nodes) {
+        const color = rootColor ?? node.tag.color
+        if (node.tag.name === node.fullPath) map.set(node.tag.id, color)
+        if (node.children.length > 0) walk(node.children, color)
+      }
+    }
+    walk(roots, null)
+    return map
+  }, [tags])
 
   const filteredTagIds = useMemo(() => {
     if (!activeTagFilter) return null

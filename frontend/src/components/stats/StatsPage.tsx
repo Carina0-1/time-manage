@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -6,6 +6,7 @@ import {
 import dayjs from 'dayjs'
 import { statsApi } from '@/api/stats'
 import { useTagStore } from '@/stores/tagStore'
+import { buildTagTree } from '@/utils/tagTree'
 import type { StatsResult } from '@time-manage/shared'
 import styles from './StatsPage.module.css'
 
@@ -39,7 +40,7 @@ function fmtMinutes(min: number) {
 }
 
 export default function StatsPage() {
-  const { fetchTags } = useTagStore()
+  const { fetchTags, tags } = useTagStore()
   const [range, setRange] = useState<Range>('week')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
@@ -55,6 +56,29 @@ export default function StatsPage() {
       .then(setStats)
       .finally(() => setLoading(false))
   }, [range, customStart, customEnd])
+
+  // 子标签颜色继承根标签（与侧边栏、日历视图保持一致）
+  const rootColorMap = useMemo(() => {
+    const map = new Map<string, string>()
+    const roots = buildTagTree([...tags].sort((a, b) => a.sortOrder - b.sortOrder), true)
+    function walk(nodes: typeof roots, rootColor: string | null) {
+      for (const node of nodes) {
+        const color = rootColor ?? node.tag.color
+        if (node.tag.name === node.fullPath) map.set(node.tag.id, color)
+        if (node.children.length > 0) walk(node.children, color)
+      }
+    }
+    walk(roots, null)
+    return map
+  }, [tags])
+
+  const statsWithRootColor = useMemo(() => {
+    if (!stats) return null
+    return {
+      ...stats,
+      tags: stats.tags.map((t) => ({ ...t, color: rootColorMap.get(t.tagId) ?? t.color })),
+    }
+  }, [stats, rootColorMap])
 
   const completionRate = stats
     ? stats.totalCount > 0 ? Math.round((stats.completedCount / stats.totalCount) * 100) : 0
@@ -92,17 +116,17 @@ export default function StatsPage() {
 
       {loading && <div className={styles.loading}>加载中…</div>}
 
-      {!loading && stats && (
+      {!loading && statsWithRootColor && (
         <>
           {/* 汇总卡片 */}
           <div className={styles.cards}>
             <div className={styles.card}>
               <div className={styles.cardLabel}>总时长</div>
-              <div className={styles.cardValue}>{fmtMinutes(stats.totalMinutes)}</div>
+              <div className={styles.cardValue}>{fmtMinutes(statsWithRootColor.totalMinutes)}</div>
             </div>
             <div className={styles.card}>
               <div className={styles.cardLabel}>任务数</div>
-              <div className={styles.cardValue}>{stats.totalCount}</div>
+              <div className={styles.cardValue}>{statsWithRootColor.totalCount}</div>
             </div>
             <div className={styles.card}>
               <div className={styles.cardLabel}>完成率</div>
@@ -110,11 +134,11 @@ export default function StatsPage() {
             </div>
             <div className={styles.card}>
               <div className={styles.cardLabel}>已完成</div>
-              <div className={styles.cardValue}>{stats.completedCount}</div>
+              <div className={styles.cardValue}>{statsWithRootColor.completedCount}</div>
             </div>
           </div>
 
-          {stats.tags.length === 0 ? (
+          {statsWithRootColor.tags.length === 0 ? (
             <div className={styles.empty}>该时间段内暂无数据</div>
           ) : (
             <div className={styles.charts}>
@@ -124,7 +148,7 @@ export default function StatsPage() {
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
                     <Pie
-                      data={stats.tags}
+                      data={statsWithRootColor.tags}
                       dataKey="totalMinutes"
                       nameKey="tagName"
                       cx="50%"
@@ -136,7 +160,7 @@ export default function StatsPage() {
                       }}
                       labelLine={true}
                     >
-                      {stats.tags.map((tag) => (
+                      {statsWithRootColor.tags.map((tag) => (
                         <Cell key={tag.tagId} fill={tag.color} />
                       ))}
                     </Pie>
@@ -149,7 +173,7 @@ export default function StatsPage() {
               <div className={styles.chartCard}>
                 <h2>各标签时长明细</h2>
                 <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={stats.tags} layout="vertical" margin={{ left: 16, right: 24 }}>
+                  <BarChart data={statsWithRootColor.tags} layout="vertical" margin={{ left: 16, right: 24 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                     <XAxis
                       type="number"
@@ -159,7 +183,7 @@ export default function StatsPage() {
                     <YAxis type="category" dataKey="tagName" width={64} fontSize={12} />
                     <Tooltip formatter={(v) => fmtMinutes(Number(v))} />
                     <Bar dataKey="totalMinutes" radius={[0, 4, 4, 0]}>
-                      {stats.tags.map((tag) => (
+                      {statsWithRootColor.tags.map((tag) => (
                         <Cell key={tag.tagId} fill={tag.color} />
                       ))}
                     </Bar>
@@ -180,7 +204,7 @@ export default function StatsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {stats.tags.map((tag) => (
+                    {statsWithRootColor.tags.map((tag) => (
                       <tr key={tag.tagId}>
                         <td>
                           <span className={styles.tagBadge} style={{ background: tag.color + '20', color: tag.color }}>
