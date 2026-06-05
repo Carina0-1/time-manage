@@ -33,9 +33,21 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
       lte(tasks.endTime, endDate),
     ))
 
+  // 生成查询范围内所有日期列表（YYYY-MM-DD，按本地时区）
+  const allDates: string[] = []
+  const cur = new Date(startDate)
+  cur.setUTCHours(0, 0, 0, 0)
+  const endDay = new Date(endDate)
+  endDay.setUTCHours(0, 0, 0, 0)
+  while (cur <= endDay) {
+    allDates.push(cur.toISOString().slice(0, 10))
+    cur.setUTCDate(cur.getUTCDate() + 1)
+  }
+
   if (taskRows.length === 0) {
+    const dailyMinutes = allDates.map((date) => ({ date, totalMinutes: 0 }))
     return c.json<{ data: StatsResult }>({
-      data: { tags: [], totalMinutes: 0, completedCount: 0, totalCount: 0, dailyActivity: [], dailyMinutes: [], dailyTagMinutes: [] },
+      data: { tags: [], totalMinutes: 0, completedCount: 0, totalCount: 0, dailyActivity: [], dailyMinutes, dailyTagMinutes: [] },
     })
   }
 
@@ -101,16 +113,14 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
     .map(([date, taskCount]) => ({ date, taskCount }))
     .sort((a, b) => a.date.localeCompare(b.date))
 
-  // 按天分组计算每日总时长
-  const dailyMinutesMap = new Map<string, number>()
+  // 按天分组计算每日总时长，所有日期都填充（无任务的天补 0）
+  const dailyMinutesMap = new Map<string, number>(allDates.map((d) => [d, 0]))
   for (const task of taskRows) {
     const dateKey = task.startTime.toISOString().slice(0, 10)
     const minutes = minutesByTaskId.get(task.id) ?? 0
     dailyMinutesMap.set(dateKey, (dailyMinutesMap.get(dateKey) ?? 0) + minutes)
   }
-  const dailyMinutes = Array.from(dailyMinutesMap.entries())
-    .map(([date, totalMinutes]) => ({ date, totalMinutes }))
-    .sort((a, b) => a.date.localeCompare(b.date))
+  const dailyMinutes = allDates.map((date) => ({ date, totalMinutes: dailyMinutesMap.get(date) ?? 0 }))
 
   // 按天 + 一级标签分组计算时长
   // taskId -> dateKey
