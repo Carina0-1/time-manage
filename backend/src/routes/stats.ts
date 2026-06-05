@@ -141,12 +141,21 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
     const minutes = minutesByTaskId.get(rel.taskId) ?? 0
     dailyTagMap.set(key, { minutes: (prev?.minutes ?? 0) + minutes, color: tag.color })
   }
-  const dailyTagMinutes = Array.from(dailyTagMap.entries())
-    .map(([key, val]) => {
-      const [date, tagName] = key.split('|')
-      return { date, tagName, color: val.color, minutes: val.minutes }
+  // 收集所有出现过的一级标签（名称+颜色）
+  const rootTagMeta = new Map<string, string>() // tagName -> color
+  for (const [key, val] of dailyTagMap.entries()) {
+    const tagName = key.split('|')[1]
+    if (!rootTagMeta.has(tagName)) rootTagMeta.set(tagName, val.color)
+  }
+
+  // 所有日期 × 所有一级标签，缺失的补 0
+  const dailyTagMinutes = allDates.flatMap((date) =>
+    Array.from(rootTagMeta.entries()).map(([tagName, color]) => {
+      const key = `${date}|${tagName}`
+      const minutes = dailyTagMap.get(key)?.minutes ?? 0
+      return { date, tagName, color, minutes }
     })
-    .sort((a, b) => a.date.localeCompare(b.date) || a.tagName.localeCompare(b.tagName))
+  ).sort((a, b) => a.date.localeCompare(b.date) || a.tagName.localeCompare(b.tagName))
 
   return c.json<{ data: StatsResult }>({
     data: { tags: tagStats, totalMinutes, completedCount, totalCount, dailyActivity, dailyMinutes, dailyTagMinutes },
