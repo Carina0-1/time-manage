@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import QuickCreatePanel from './task/QuickCreatePanel'
 import { useForm } from 'react-hook-form'
@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { nanoid } from 'nanoid'
 import { buildTagTree } from '@/utils/tagTree'
 import type { TagTreeNode } from '@/utils/tagTree'
+import type { Tag } from '@time-manage/shared'
 import { useTagStore } from '@/stores/tagStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -185,70 +186,11 @@ function ActivityHeatmap() {
 function TagTreeNav() {
   const { tags, reorderTags } = useTagStore()
   const { activeTagFilter, setTagFilter } = useUiStore()
-  const [sortOrder, setSortOrder] = useState<'name' | 'manual'>('manual')
 
-  const sortedTags = useMemo(() => {
-    if (sortOrder === 'name') return [...tags].sort((a, b) => a.name.localeCompare(b.name))
-    return [...tags].sort((a, b) => a.sortOrder - b.sortOrder)
-  }, [tags, sortOrder])
+  const sortedTags = useMemo(() => [...tags].sort((a, b) => a.sortOrder - b.sortOrder), [tags])
   const tree = useMemo(() => buildTagTree(sortedTags, true), [sortedTags])
 
-  // drag state: track which root fullPath is being dragged and hovered
-  const dragSrcPath = useRef<string | null>(null)
-  const [dragOverPath, setDragOverPath] = useState<string | null>(null)
-
-  const handleDragStart = (fullPath: string) => {
-    dragSrcPath.current = fullPath
-  }
-
-  const handleDragOver = (fullPath: string) => {
-    if (dragSrcPath.current && dragSrcPath.current !== fullPath) {
-      setDragOverPath(fullPath)
-    }
-  }
-
-  const handleDrop = async (targetPath: string) => {
-    const srcPath = dragSrcPath.current
-    if (!srcPath || srcPath === targetPath) return
-    dragSrcPath.current = null
-    setDragOverPath(null)
-
-    // Reorder root nodes: move srcPath to position of targetPath
-    const rootPaths = tree.map((n) => n.fullPath)
-    const srcIdx = rootPaths.indexOf(srcPath)
-    const tgtIdx = rootPaths.indexOf(targetPath)
-    if (srcIdx === -1 || tgtIdx === -1) return
-
-    const newRootPaths = [...rootPaths]
-    newRootPaths.splice(srcIdx, 1)
-    newRootPaths.splice(tgtIdx, 0, srcPath)
-
-    // Map root fullPath -> all tags under that root (by name prefix)
-    const getTagsForRoot = (rootPath: string) =>
-      tags.filter((t) => t.name === rootPath || t.name.startsWith(rootPath + '/'))
-
-    const reordered: typeof tags = []
-    for (const path of newRootPaths) {
-      reordered.push(...getTagsForRoot(path))
-    }
-    // Tags not captured (shouldn't happen) at the end
-    const captured = new Set(reordered.map((t) => t.id))
-    for (const t of tags) { if (!captured.has(t.id)) reordered.push(t) }
-
-    const withOrder = reordered.map((t, i) => ({ ...t, sortOrder: i }))
-    reorderTags(withOrder)
-    try {
-      await tagsApi.reorder(withOrder.map(({ id, sortOrder }) => ({ id, sortOrder })))
-    } catch {
-      reorderTags(tags) // revert on error
-    }
-  }
-
-  const handleDragEnd = () => {
-    dragSrcPath.current = null
-    setDragOverPath(null)
-  }
-
+  const [showSortModal, setShowSortModal] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingTagId, setEditingTagId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ tagId: string; x: number; y: number } | null>(null)
@@ -326,10 +268,10 @@ function TagTreeNav() {
         <div className={styles.tagHeaderActions}>
           <button
             className={styles.tagSortBtn}
-            onClick={() => setSortOrder(o => o === 'name' ? 'manual' : 'name')}
-            title="切换排序方式"
+            onClick={() => setShowSortModal(true)}
+            title="排序标签"
           >
-            {sortOrder === 'name' ? '名称▾' : '手动▾'}
+            排序
           </button>
           <button className={styles.tagAddBtn} onClick={openCreate} title="新建标签">＋</button>
         </div>
@@ -341,14 +283,27 @@ function TagTreeNav() {
           activeFilter={activeTagFilter}
           onSelect={(path) => setTagFilter(activeTagFilter === path ? null : path)}
           onContextMenu={(tagId, x, y) => setContextMenu({ tagId, x, y })}
-          draggable={sortOrder === 'manual'}
-          isDragOver={dragOverPath === node.fullPath}
-          onDragStart={() => handleDragStart(node.fullPath)}
-          onDragOver={() => handleDragOver(node.fullPath)}
-          onDrop={() => handleDrop(node.fullPath)}
-          onDragEnd={handleDragEnd}
         />
       ))}
+
+      {/* 排序弹窗 */}
+      {showSortModal && (
+        <TagSortModal
+          tags={sortedTags}
+          tree={tree}
+          onSave={async (reordered) => {
+            const withOrder = reordered.map((t, i) => ({ ...t, sortOrder: i }))
+            reorderTags(withOrder)
+            setShowSortModal(false)
+            try {
+              await tagsApi.reorder(withOrder.map(({ id, sortOrder }) => ({ id, sortOrder })))
+            } catch {
+              reorderTags(tags)
+            }
+          }}
+          onClose={() => setShowSortModal(false)}
+        />
+      )}
 
       {/* 上下文菜单 */}
       {contextMenu && (
@@ -468,6 +423,122 @@ function TagNodeItem({
         />
       ))}
     </>
+  )
+}
+
+function TagSortModal({
+  tags,
+  tree,
+  onSave,
+  onClose,
+}: {
+  tags: Tag[]
+  tree: TagTreeNode[]
+  onSave: (reordered: Tag[]) => void
+  onClose: () => void
+}) {
+  // localOrder holds root-level fullPaths in current drag order
+  const [rootOrder, setRootOrder] = useState(() => tree.map((n) => n.fullPath))
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
+    () => new Set(tree.filter((n) => n.children.length > 0).map((n) => n.fullPath))
+  )
+
+  const dragSrc = useRef<string | null>(null)
+  const [dragOver, setDragOver] = useState<string | null>(null)
+
+  const toggleExpand = (path: string) => {
+    setExpandedPaths((prev) => {
+      const next = new Set(prev)
+      next.has(path) ? next.delete(path) : next.add(path)
+      return next
+    })
+  }
+
+  const handleDragStart = (path: string) => { dragSrc.current = path }
+  const handleDragOver = (path: string) => {
+    if (dragSrc.current && dragSrc.current !== path) setDragOver(path)
+  }
+  const handleDrop = (targetPath: string) => {
+    const src = dragSrc.current
+    if (!src || src === targetPath) return
+    dragSrc.current = null
+    setDragOver(null)
+    setRootOrder((prev) => {
+      const next = [...prev]
+      const si = next.indexOf(src)
+      const ti = next.indexOf(targetPath)
+      if (si === -1 || ti === -1) return prev
+      next.splice(si, 1)
+      next.splice(ti, 0, src)
+      return next
+    })
+  }
+  const handleDragEnd = () => { dragSrc.current = null; setDragOver(null) }
+
+  const handleSave = () => {
+    const getTagsForRoot = (rootPath: string) =>
+      tags.filter((t) => t.name === rootPath || t.name.startsWith(rootPath + '/'))
+    const reordered: Tag[] = []
+    for (const path of rootOrder) reordered.push(...getTagsForRoot(path))
+    const captured = new Set(reordered.map((t) => t.id))
+    for (const t of tags) { if (!captured.has(t.id)) reordered.push(t) }
+    onSave(reordered)
+  }
+
+  // Build display tree in current rootOrder
+  const orderedTree = useMemo(() => {
+    const nodeByPath = new Map(tree.map((n) => [n.fullPath, n]))
+    return rootOrder.map((p) => nodeByPath.get(p)).filter(Boolean) as TagTreeNode[]
+  }, [tree, rootOrder])
+
+  const renderNode = (node: TagTreeNode, depth = 0): React.ReactNode => {
+    const hasChildren = node.children.length > 0
+    const expanded = expandedPaths.has(node.fullPath)
+    const isOver = dragOver === node.fullPath
+    return (
+      <div key={node.fullPath}>
+        <div
+          className={`${styles.sortRow} ${isOver ? styles.sortRowDragOver : ''}`}
+          style={{ paddingLeft: `${16 + depth * 20}px` }}
+          draggable={depth === 0}
+          onDragStart={depth === 0 ? () => handleDragStart(node.fullPath) : undefined}
+          onDragOver={depth === 0 ? (e) => { e.preventDefault(); handleDragOver(node.fullPath) } : undefined}
+          onDrop={depth === 0 ? (e) => { e.preventDefault(); handleDrop(node.fullPath) } : undefined}
+          onDragEnd={depth === 0 ? handleDragEnd : undefined}
+        >
+          {hasChildren ? (
+            <span className={styles.sortExpandBtn} onClick={() => toggleExpand(node.fullPath)}>
+              {expanded ? '▾' : '▸'}
+            </span>
+          ) : (
+            <span className={styles.sortExpandBtn} />
+          )}
+          <span className={styles.tagNavDot} style={{ background: node.tag.color }} />
+          {node.tag.icon && <span className={styles.sortIcon}>{node.tag.icon}</span>}
+          <span className={styles.sortLabel}>{node.segment}</span>
+          {depth === 0 && <span className={styles.sortHandle}>☰</span>}
+        </div>
+        {hasChildren && expanded && node.children.map((child) => renderNode(child, depth + 1))}
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles.formModalOverlay}>
+      <div className={styles.sortModal}>
+        <div className={styles.sortModalHeader}>
+          <span>标签排序</span>
+          <button className={styles.formModalClose} onClick={onClose}>✕</button>
+        </div>
+        <div className={styles.sortModalBody}>
+          {orderedTree.map((node) => renderNode(node))}
+        </div>
+        <div className={styles.sortModalFooter}>
+          <button className={styles.sortSaveBtn} onClick={handleSave}>保存</button>
+          <button className={styles.sortCancelBtn} onClick={onClose}>取消</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
