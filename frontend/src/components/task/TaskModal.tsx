@@ -64,7 +64,20 @@ export default function TaskModal() {
   // # 下拉按树序排列并过滤
   const matchedNodes = useMemo(() => {
     const sorted = [...tags].sort((a, b) => a.sortOrder - b.sortOrder)
-    const nodes = flattenTree(buildTagTree(sorted, true))
+    const roots = buildTagTree(sorted, true)
+    const rootColorMap = new Map<string, string>()
+    function walk(nodes: typeof roots, rootColor: string | null) {
+      for (const node of nodes) {
+        const color = rootColor ?? node.tag.color
+        if (node.tag.name === node.fullPath) rootColorMap.set(node.tag.id, color)
+        if (node.children.length > 0) walk(node.children, color)
+      }
+    }
+    walk(roots, null)
+    const nodes = flattenTree(roots).map((node) => ({
+      ...node,
+      tag: { ...node.tag, color: rootColorMap.get(node.tag.id) ?? node.tag.color },
+    }))
     if (!hashQuery) return nodes
     const q = hashQuery.toLowerCase()
     return nodes.filter((n) => n.tag.name.toLowerCase().includes(q))
@@ -325,11 +338,25 @@ function TagSelector({
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  const selectedTags = tags.filter((t) => selectedTagIds.includes(t.id))
   const sortedNodes = useMemo(() => {
     const sorted = [...tags].sort((a, b) => a.sortOrder - b.sortOrder)
-    return flattenTree(buildTagTree(sorted, true))
+    const roots = buildTagTree(sorted, true)
+    // 构建 tagId -> 根标签颜色的映射
+    const rootColorMap = new Map<string, string>()
+    function walk(nodes: typeof roots, rootColor: string | null) {
+      for (const node of nodes) {
+        const color = rootColor ?? node.tag.color
+        if (node.tag.name === node.fullPath) rootColorMap.set(node.tag.id, color)
+        if (node.children.length > 0) walk(node.children, color)
+      }
+    }
+    walk(roots, null)
+    return flattenTree(roots).map((node) => ({
+      ...node,
+      tag: { ...node.tag, color: rootColorMap.get(node.tag.id) ?? node.tag.color },
+    }))
   }, [tags])
+  const selectedTags = sortedNodes.filter((n) => selectedTagIds.includes(n.tag.id)).map((n) => n.tag)
 
   // 选中节点：虚拟节点先自动创建真实标签，再 toggle
   const handleSelect = async (node: ReturnType<typeof flattenTree>[number]) => {
