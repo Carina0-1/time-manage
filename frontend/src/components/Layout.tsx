@@ -62,7 +62,7 @@ export default function Layout() {
       <nav className={styles.sidebar}>
         <div className={styles.brand} onClick={() => navigate('/calendar')}>
           <span className={styles.brandDot} />
-          <span className={styles.brandName}>时间管理</span>
+          <span className={styles.brandName}>TiGo</span>
         </div>
         <SidebarStats onClickStats={() => navigate('/stats')} />
         <ActivityHeatmap />

@@ -30,7 +30,7 @@ export default function LoginPage() {
   return (
     <div className={styles.page}>
       <form className={styles.card} onSubmit={handleSubmit}>
-        <div className={styles.brand}>时间管理</div>
+        <div className={styles.brand}>TiGo</div>
         <div className={styles.field}>
           <label className={styles.label}>账号</label>
           <input
