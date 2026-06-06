@@ -138,6 +138,7 @@
   font-family: inherit;
   outline: none;
   width: 100%;
+  min-height: 100px;
 }
 
 .textarea:focus {
@@ -280,124 +281,156 @@
   max-width: 120px;
 }
 
-/* 标签下拉选择器 */
-.tagSelector {
+/* chip 行：目标 + 标签并排 */
+.chipRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 通用 chip 选择器 */
+.chipSelector {
   position: relative;
 }
 
-.tagSelectorTrigger {
-  display: flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 4px 8px;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  cursor: pointer;
-  background: #fff;
-  gap: 6px;
-  transition: border-color 0.15s;
-}
-
-.tagSelectorTrigger:hover {
-  border-color: #6366f1;
-}
-
-.tagSelectorPlaceholder {
-  font-size: 13px;
-  color: #aaa;
-  flex: 1;
-}
-
-.tagSelectorChips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  flex: 1;
-}
-
-.tagSelectorChip {
+.chipTrigger {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 6px;
-  border-radius: 12px;
-  border: 1px solid;
-  font-size: 12px;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 20px;
+  font-size: 12.5px;
+  cursor: pointer;
+  background: #fff;
+  color: #999;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+  user-select: none;
 }
 
-.tagSelectorChipRemove {
-  cursor: pointer;
+.chipTrigger:hover {
+  border-color: #bbb;
+  color: #555;
+}
+
+.chipTriggerActive {
+  font-weight: 500;
+}
+
+.chipLabel {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipSep {
+  opacity: 0.5;
+  font-size: 11px;
+}
+
+.chipPlaceholder {
+  color: #bbb;
+}
+
+.chipRemove {
   font-size: 14px;
   line-height: 1;
-  opacity: 0.6;
-  margin-left: 2px;
+  opacity: 0.55;
+  cursor: pointer;
+  margin-left: 1px;
 }
+.chipRemove:hover { opacity: 1; }
 
-.tagSelectorChipRemove:hover {
-  opacity: 1;
-}
-
-.tagSelectorArrow {
-  font-size: 10px;
-  color: #aaa;
-  flex-shrink: 0;
-}
-
-.tagSelectorDropdown {
+/* chip 下拉 */
+.chipDropdown {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   left: 0;
-  right: 0;
+  min-width: 200px;
   background: #fff;
   border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  z-index: 100;
-  max-height: 340px;
+  z-index: 200;
+  max-height: 300px;
   overflow-y: auto;
 }
 
-.tagSelectorItem {
+.chipDropdownEmpty {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.chipDropdownItem {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   cursor: pointer;
-  font-size: 13.5px;
+  font-size: 13px;
   transition: background 0.1s;
 }
+.chipDropdownItem:hover { background: #f5f5f5; }
+.chipDropdownItemSelected { background: #f0f1fe; }
+.chipDropdownItemVirtual { opacity: 0.65; }
 
-.tagSelectorItem:hover {
-  background: #f5f5f5;
+.chipDropdownPhase {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 7px 28px;
+  cursor: pointer;
+  font-size: 12.5px;
+  transition: background 0.1s;
 }
+.chipDropdownPhase:hover { background: #f5f5f5; }
 
-.tagSelectorItemSelected {
-  background: #f0f1fe;
-}
-
-.tagSelectorDot {
+.chipDropdownDot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.tagSelectorName {
+.chipDropdownPhaseDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  flex-shrink: 0;
+  background: transparent;
+}
+
+.chipDropdownName {
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.tagSelectorCheck {
+.chipDropdownNameDone {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+.chipDropdownCheck {
   color: #6366f1;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
-.tagSelectorItemVirtual {
-  opacity: 0.65;
-}
-
-.tagSelectorVirtualHint {
-  margin-left: auto;
+.chipDropdownVirtual {
   font-size: 11px;
   color: #aaa;
+  flex-shrink: 0;
+}
+
+.inboxHint {
+  font-size: 11.5px;
+  color: #999;
+  margin-top: -8px;
 }

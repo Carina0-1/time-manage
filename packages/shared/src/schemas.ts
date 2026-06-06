@@ -12,10 +12,12 @@ export const CreateTaskSchema = z.object({
   id: z.string(),
   title: z.string().min(1).max(200),
   description: z.string().optional(),
-  startTime: z.string().datetime(),
-  endTime: z.string().datetime(),
+  startTime: z.string().datetime().optional(),
+  endTime: z.string().datetime().optional(),
   isAllDay: z.boolean().default(false),
   tagIds: z.array(z.string()).default([]),
+  goalId: z.string().optional(),
+  phaseId: z.string().optional(),
   status: z.enum(['todo', 'in_progress', 'done', 'cancelled']).default('todo'),
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
   recurrence: RecurrenceSchema.optional(),
@@ -23,6 +25,26 @@ export const CreateTaskSchema = z.object({
 })
 
 export const UpdateTaskSchema = CreateTaskSchema.partial().omit({ id: true })
+
+export const CreateGoalSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(100),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  icon: z.string().optional(),
+  sortOrder: z.number().int().default(0),
+})
+
+export const UpdateGoalSchema = CreateGoalSchema.partial().omit({ id: true })
+
+export const CreatePhaseSchema = z.object({
+  id: z.string(),
+  goalId: z.string(),
+  name: z.string().min(1).max(100),
+  isDone: z.boolean().default(false),
+  sortOrder: z.number().int().default(0),
+})
+
+export const UpdatePhaseSchema = CreatePhaseSchema.partial().omit({ id: true, goalId: true })
 
 export const CreateTagSchema = z.object({
   id: z.string(),
@@ -52,6 +74,10 @@ export const SyncUploadSchema = z.object({
 
 export type CreateTaskInput = z.infer<typeof CreateTaskSchema>
 export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>
+export type CreateGoalInput = z.infer<typeof CreateGoalSchema>
+export type UpdateGoalInput = z.infer<typeof UpdateGoalSchema>
+export type CreatePhaseInput = z.infer<typeof CreatePhaseSchema>
+export type UpdatePhaseInput = z.infer<typeof UpdatePhaseSchema>
 export type CreateTagInput = z.infer<typeof CreateTagSchema>
 export type UpdateTagInput = z.infer<typeof UpdateTagSchema>
 export type StatsQuery = z.infer<typeof StatsQuerySchema>

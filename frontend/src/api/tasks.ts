@@ -9,6 +9,8 @@ export const tasksApi = {
     const qs = params.toString()
     return api.get<Task[]>(`/tasks${qs ? `?${qs}` : ''}`)
   },
+  listInbox: (goalId: string) => api.get<Task[]>(`/tasks?inbox=true&goalId=${goalId}`),
+  listAllByGoal: (goalId: string) => api.get<Task[]>(`/tasks?all=true&goalId=${goalId}`),
   create: (data: CreateTaskInput) => api.post<Task>('/tasks', data),
   update: (id: string, data: UpdateTaskInput) => api.patch<Task>(`/tasks/${id}`, data),
   remove: (id: string) => api.delete<null>(`/tasks/${id}`),

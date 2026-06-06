@@ -1,3 +1,277 @@
+/* ============ Goal section ============ */
+.goalSection {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+  margin-bottom: 8px;
+}
+.goalSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 8px 8px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.goalSectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.goalAddBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 17px;
+  color: var(--ink-faint);
+  padding: 0 2px;
+  line-height: 1;
+  transition: color 0.15s;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+.goalAddBtn:hover {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+
+/* Goal row */
+.goalRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--ink);
+  transition: background 0.12s var(--ease);
+  user-select: none;
+  flex-shrink: 0;
+  position: relative;
+}
+.goalRow:hover { background: var(--panel); }
+.goalRowActive {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.goalExpandIcon {
+  font-size: 9px;
+  width: 14px;
+  flex-shrink: 0;
+  text-align: center;
+  color: var(--ink-faint);
+}
+.goalDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.goalName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.goalProgress {
+  font-size: 11px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.goalMenuBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--ink-faint);
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  border-radius: 3px;
+  transition: color 0.1s, background 0.1s;
+  display: none;
+}
+.goalRow:hover .goalMenuBtn { display: flex; align-items: center; justify-content: center; }
+.goalMenuBtn:hover {
+  color: var(--ink-soft);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Phase row */
+.phaseRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px 5px 28px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+  transition: background 0.12s var(--ease);
+  user-select: none;
+  flex-shrink: 0;
+  position: relative;
+}
+.phaseRow:hover { background: var(--panel); }
+.phaseRowActive {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.phaseCheckbox {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 3px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, border-color 0.1s;
+  cursor: pointer;
+}
+.phaseCheckboxDone {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-size: 9px;
+}
+.phaseName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phaseNameDone {
+  text-decoration: line-through;
+  color: var(--ink-faint);
+}
+.phaseTaskCount {
+  font-size: 11px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* Phase actions row (add phase + inbox button) */
+.phaseActions {
+  display: flex;
+  align-items: center;
+  padding: 2px 8px 2px 28px;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.addPhaseBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  padding: 4px 4px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  transition: color 0.12s, background 0.12s;
+}
+.addPhaseBtn:hover { color: var(--accent-ink); background: var(--accent-soft); }
+
+.goalInboxBtn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 0.12s;
+  opacity: 0.6;
+}
+.goalInboxBtn:hover { background: var(--panel); opacity: 1; }
+.goalInboxBtnActive { background: var(--accent-soft); opacity: 1; }
+
+/* Add phase row */
+.addPhaseRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 28px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  transition: color 0.12s, background 0.12s;
+  flex-shrink: 0;
+}
+.addPhaseRow:hover { color: var(--accent-ink); background: var(--accent-soft); }
+.addPhaseInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 12.5px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--ink);
+  font-family: var(--font);
+  border-bottom: 1px solid var(--accent);
+}
+
+/* Inbox entry */
+.goalDivider {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 8px;
+  flex-shrink: 0;
+}
+.inboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  transition: background 0.12s var(--ease);
+  user-select: none;
+  flex-shrink: 0;
+}
+.inboxRow:hover { background: var(--panel); color: var(--ink); }
+.inboxRowActive { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+.inboxBadge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 1px 5px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+/* Goal form modal */
+.goalFormModal {
+  background: var(--panel);
+  border-radius: var(--r-md);
+  width: 290px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
 /* ============ App shell ============ */
 .shell {
   display: grid;

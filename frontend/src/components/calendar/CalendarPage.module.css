@@ -73,6 +73,35 @@
   color: var(--ink);
 }
 
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid;
+  border-radius: 14px;
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+  font-family: var(--font);
+  flex-shrink: 0;
+}
+.filterChip:hover { opacity: 0.75; }
+.filterChipDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.filterChipClose {
+  font-size: 13px;
+  opacity: 0.7;
+  line-height: 1;
+}
+
 .rightGroup {
   display: flex;
   align-items: center;

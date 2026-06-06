@@ -9,6 +9,7 @@ import { buildTagTree, flattenTree, isVirtualNode } from '@/utils/tagTree'
 import { useTaskStore } from '@/stores/taskStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useGoalStore } from '@/stores/goalStore'
 import { tasksApi } from '@/api/tasks'
 import { tagsApi } from '@/api/tags'
 import styles from './QuickCreatePanel.module.css'
@@ -18,6 +19,8 @@ const PanelFormSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().optional(),
   tagIds: z.array(z.string()),
+  goalId: z.string().optional(),
+  phaseId: z.string().optional(),
 })
 
 type PanelFormValues = z.infer<typeof PanelFormSchema>
@@ -26,24 +29,17 @@ export default function QuickCreatePanel() {
   const { taskModalOpen, editingTaskId, createDefaults, panelPos, closeTaskModal } = useUiStore()
   const { tasks, addTask, updateTask, removeTask } = useTaskStore()
   const { tags, addTag } = useTagStore()
+  const { goals } = useGoalStore()
 
   const editingTask = editingTaskId ? tasks.find((t) => t.id === editingTaskId) : null
 
   const panelRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ left: -9999, top: -9999 })
-  // 用 ref 避免 stale closure 问题
   const getValuesRef = useRef<(() => PanelFormValues) | null>(null)
   const doSaveRef = useRef<(data: PanelFormValues) => Promise<void>>(async () => {})
   const isSavingRef = useRef(false)
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    watch,
-    getValues,
-  } = useForm<PanelFormValues>({
+  const { register, handleSubmit, reset, setValue, watch, getValues } = useForm<PanelFormValues>({
     resolver: zodResolver(PanelFormSchema),
     defaultValues: { id: nanoid(), title: '', tagIds: [] },
   })
@@ -51,6 +47,8 @@ export default function QuickCreatePanel() {
   getValuesRef.current = getValues
 
   const selectedTagIds = watch('tagIds') ?? []
+  const selectedGoalId = watch('goalId')
+  const selectedPhaseId = watch('phaseId')
 
   useEffect(() => {
     if (!taskModalOpen) return
@@ -61,13 +59,14 @@ export default function QuickCreatePanel() {
         title: editingTask.title,
         description: editingTask.description ?? undefined,
         tagIds: editingTask.tagIds,
+        goalId: editingTask.goalId ?? undefined,
+        phaseId: editingTask.phaseId ?? undefined,
       })
     } else {
-      reset({ id: nanoid(), title: '', tagIds: [] })
+      reset({ id: nanoid(), title: '', tagIds: [], goalId: undefined, phaseId: undefined })
     }
   }, [taskModalOpen, editingTaskId, createDefaults, reset])
 
-  // Position panel near click, flip if near viewport edge
   useLayoutEffect(() => {
     if (!taskModalOpen || !panelPos || !panelRef.current) return
     const el = panelRef.current
@@ -92,21 +91,19 @@ export default function QuickCreatePanel() {
     if (isSavingRef.current) return
     isSavingRef.current = true
 
-    const start = editingTask
-      ? new Date(editingTask.startTime)
-      : (createDefaults?.start ?? new Date())
-    const end = editingTask
-      ? new Date(editingTask.endTime)
-      : (createDefaults?.end ?? new Date())
+    const startRaw = editingTask?.startTime ? new Date(editingTask.startTime) : createDefaults?.start
+    const endRaw = editingTask?.endTime ? new Date(editingTask.endTime) : createDefaults?.end
     const isAllDay = editingTask ? editingTask.isAllDay : (createDefaults?.isAllDay ?? false)
 
     const input = {
       ...data,
       tagIds: data.tagIds.slice(0, 1),
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
+      goalId: data.goalId || undefined,
+      phaseId: data.phaseId || undefined,
+      startTime: startRaw?.toISOString(),
+      endTime: endRaw?.toISOString(),
       isAllDay,
-      priority: editingTask?.priority ?? 'medium',
+      priority: 'medium',
       status: editingTask?.status ?? 'todo',
       color: editingTask?.color ?? undefined,
     } as CreateTaskInput
@@ -126,7 +123,6 @@ export default function QuickCreatePanel() {
 
   doSaveRef.current = doSave
 
-  // 点击外部：title 非空则保存，否则放弃
   useEffect(() => {
     if (!taskModalOpen) return
     const handler = (e: MouseEvent) => {
@@ -142,7 +138,6 @@ export default function QuickCreatePanel() {
     return () => document.removeEventListener('mousedown', handler)
   }, [taskModalOpen, closeTaskModal])
 
-  // Escape：放弃
   useEffect(() => {
     if (!taskModalOpen) return
     const handler = (e: KeyboardEvent) => {
@@ -163,18 +158,51 @@ export default function QuickCreatePanel() {
     closeTaskModal()
   }
 
-  // Time display
-  const startDate = editingTask ? new Date(editingTask.startTime) : createDefaults?.start
-  const endDate = editingTask ? new Date(editingTask.endTime) : createDefaults?.end
+  const startDate = editingTask?.startTime ? new Date(editingTask.startTime) : createDefaults?.start
+  const endDate = editingTask?.endTime ? new Date(editingTask.endTime) : createDefaults?.end
   const isAllDay = editingTask ? editingTask.isAllDay : createDefaults?.isAllDay
 
   const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
-  const dateLabel = startDate
-    ? `${dayjs(startDate).format('M月D日')} 周${WEEKDAYS[startDate.getDay()]}`
-    : ''
+  const dateLabel = startDate ? `${dayjs(startDate).format('M月D日')} 周${WEEKDAYS[startDate.getDay()]}` : ''
   const timeLabel = (!isAllDay && startDate && endDate)
     ? `${dayjs(startDate).format('HH:mm')}-${dayjs(endDate).format('HH:mm')}`
     : '全天'
+
+  // Goal selection
+  const selectedGoal = goals.find((g) => g.id === selectedGoalId)
+  const selectedPhase = selectedGoal?.phases.find((p) => p.id === selectedPhaseId)
+  const [goalOpen, setGoalOpen] = useState(false)
+  const goalRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!goalOpen) return
+    const handler = (e: MouseEvent) => {
+      if (goalRef.current && !goalRef.current.contains(e.target as Node)) setGoalOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [goalOpen])
+
+  const handleGoalClick = (goalId: string) => {
+    if (selectedGoalId === goalId) {
+      setValue('goalId', undefined, { shouldDirty: true })
+      setValue('phaseId', undefined, { shouldDirty: true })
+      setGoalOpen(false)
+    } else {
+      setValue('goalId', goalId, { shouldDirty: true })
+      setValue('phaseId', undefined, { shouldDirty: true })
+      // keep open for phase selection
+    }
+  }
+
+  const handlePhaseClick = (phaseId: string) => {
+    if (selectedPhaseId === phaseId) {
+      setValue('phaseId', undefined, { shouldDirty: true })
+    } else {
+      setValue('phaseId', phaseId, { shouldDirty: true })
+    }
+    setGoalOpen(false)
+  }
 
   // Tag selection
   const selectedTag = tags.find((t) => t.id === selectedTagIds[0])
@@ -185,9 +213,7 @@ export default function QuickCreatePanel() {
   useEffect(() => {
     if (!tagOpen) return
     const handler = (e: MouseEvent) => {
-      if (tagRef.current && !tagRef.current.contains(e.target as Node)) {
-        setTagOpen(false)
-      }
+      if (tagRef.current && !tagRef.current.contains(e.target as Node)) setTagOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -214,11 +240,7 @@ export default function QuickCreatePanel() {
   if (!taskModalOpen) return null
 
   return (
-    <div
-      ref={panelRef}
-      className={styles.panel}
-      style={{ left: pos.left, top: pos.top }}
-    >
+    <div ref={panelRef} className={styles.panel} style={{ left: pos.left, top: pos.top }}>
       {/* 顶部信息行 */}
       <div className={styles.header}>
         <span className={styles.dateTime}>{dateLabel} · {timeLabel}</span>
@@ -230,38 +252,105 @@ export default function QuickCreatePanel() {
       </div>
 
       <form onSubmit={handleSubmit(doSave)} className={styles.form}>
-        {/* 标题 */}
         <input
           {...register('title')}
           placeholder="准备做什么?"
           className={styles.titleInput}
           autoFocus
         />
-
-        {/* 备注 */}
         <textarea
           {...register('description')}
           placeholder="备注（可选）"
-          rows={2}
+          rows={5}
           className={styles.textarea}
         />
 
-        {/* 底部：标签 + 回车提示 */}
+        {/* 底部：目标 + 标签 */}
         <div className={styles.footer}>
-          <div className={styles.tagArea} ref={tagRef}>
+          {/* 目标 chip */}
+          <div className={styles.chipArea} ref={goalRef}>
             <button
               type="button"
-              className={styles.tagBtn}
+              className={styles.chipBtn}
+              onClick={() => setGoalOpen((o) => !o)}
+              style={selectedGoal ? {
+                color: selectedGoal.color,
+                borderColor: selectedGoal.color + '66',
+                background: selectedGoal.color + '12',
+              } : {}}
+            >
+              {selectedGoal ? (
+                <>
+                  {selectedGoal.icon && <span>{selectedGoal.icon}</span>}
+                  <span className={styles.chipBtnLabel}>{selectedGoal.name}</span>
+                  {selectedPhase && (
+                    <>
+                      <span className={styles.chipSep}>/</span>
+                      <span className={styles.chipBtnLabel}>{selectedPhase.name}</span>
+                    </>
+                  )}
+                  <span
+                    className={styles.chipRemove}
+                    onMouseDown={(e) => {
+                      e.stopPropagation()
+                      setValue('goalId', undefined, { shouldDirty: true })
+                      setValue('phaseId', undefined, { shouldDirty: true })
+                    }}
+                  >×</span>
+                </>
+              ) : (
+                <span className={styles.chipPlaceholder}>● 目标</span>
+              )}
+            </button>
+
+            {goalOpen && (
+              <div className={styles.chipDropdown}>
+                {goals.length === 0 ? (
+                  <div className={styles.chipDropdownEmpty}>暂无目标</div>
+                ) : goals.map((goal) => (
+                  <div key={goal.id}>
+                    <div
+                      className={`${styles.chipDropdownItem} ${selectedGoalId === goal.id ? styles.chipDropdownItemSelected : ''}`}
+                      onMouseDown={(e) => { e.preventDefault(); handleGoalClick(goal.id) }}
+                    >
+                      <span className={styles.chipDropdownDot} style={{ background: goal.color }} />
+                      {goal.icon && <span>{goal.icon}</span>}
+                      <span className={styles.chipDropdownName}>{goal.name}</span>
+                      {selectedGoalId === goal.id && <span className={styles.chipDropdownCheck}>✓</span>}
+                    </div>
+                    {selectedGoalId === goal.id && goal.phases.map((phase) => (
+                      <div
+                        key={phase.id}
+                        className={`${styles.chipDropdownPhase} ${selectedPhaseId === phase.id ? styles.chipDropdownItemSelected : ''}`}
+                        onMouseDown={(e) => { e.preventDefault(); handlePhaseClick(phase.id) }}
+                      >
+                        <span className={styles.chipDropdownPhaseDot} style={{ borderColor: goal.color }} />
+                        <span className={`${styles.chipDropdownName} ${phase.isDone ? styles.chipDropdownNameDone : ''}`}>
+                          {phase.name}
+                        </span>
+                        {selectedPhaseId === phase.id && <span className={styles.chipDropdownCheck}>✓</span>}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 标签 chip */}
+          <div className={styles.chipArea} ref={tagRef}>
+            <button
+              type="button"
+              className={styles.chipBtn}
               onClick={() => setTagOpen((o) => !o)}
-              style={selectedTag ? { color: selectedTag.color, borderColor: selectedTag.color + '66' } : {}}
-              title={selectedTag?.name}
+              style={selectedTag ? { color: selectedTag.color, borderColor: selectedTag.color + '66', background: selectedTag.color + '12' } : {}}
             >
               {selectedTag ? (
                 <>
                   {selectedTag.icon && <span>{selectedTag.icon}</span>}
-                  <span className={styles.tagBtnLabel}>{selectedTag.name}</span>
+                  <span className={styles.chipBtnLabel}>{selectedTag.name}</span>
                   <span
-                    className={styles.tagRemove}
+                    className={styles.chipRemove}
                     onMouseDown={(e) => {
                       e.stopPropagation()
                       setValue('tagIds', [], { shouldDirty: true })
@@ -269,26 +358,27 @@ export default function QuickCreatePanel() {
                   >×</span>
                 </>
               ) : (
-                <span className={styles.tagPlaceholder}># 标签</span>
+                <span className={styles.chipPlaceholder}># 标签</span>
               )}
             </button>
+
             {tagOpen && tags.length > 0 && (
-              <div className={styles.tagDropdown}>
+              <div className={styles.chipDropdown}>
                 {sortedNodes.map((node) => {
                   const virt = isVirtualNode(node)
                   const sel = !virt && selectedTagIds.includes(node.tag.id)
                   return (
                     <div
                       key={node.fullPath}
-                      className={`${styles.tagItem} ${sel ? styles.tagItemSelected : ''} ${virt ? styles.tagItemVirtual : ''}`}
+                      className={`${styles.chipDropdownItem} ${sel ? styles.chipDropdownItemSelected : ''} ${virt ? styles.chipDropdownItemVirtual : ''}`}
                       style={{ paddingLeft: `${10 + node.depth * 14}px` }}
                       onMouseDown={(e) => { e.preventDefault(); handleTagSelect(node) }}
                     >
-                      <span className={styles.tagDot} style={{ background: node.tag.color }} />
+                      <span className={styles.chipDropdownDot} style={{ background: node.tag.color }} />
                       {node.tag.icon && <span>{node.tag.icon}</span>}
-                      <span>{node.segment}</span>
-                      {virt && <span className={styles.tagVirtual}>自动创建</span>}
-                      {sel && <span className={styles.tagCheck}>✓</span>}
+                      <span className={styles.chipDropdownName}>{node.segment}</span>
+                      {virt && <span className={styles.chipDropdownVirtual}>自动创建</span>}
+                      {sel && <span className={styles.chipDropdownCheck}>✓</span>}
                     </div>
                   )
                 })}

@@ -1,7 +1,7 @@
 .panel {
   position: fixed;
   z-index: 2000;
-  width: 320px;
+  width: 360px;
   background: var(--panel);
   border-radius: var(--r-md);
   box-shadow: var(--shadow);
@@ -77,15 +77,16 @@
 .footer {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 8px 10px 10px;
   border-top: 1px solid var(--line);
+  flex-wrap: wrap;
 }
 
-/* Tag area */
-.tagArea { position: relative; }
+/* 通用 chip 选择器 */
+.chipArea { position: relative; }
 
-.tagBtn {
+.chipBtn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -96,35 +97,43 @@
   font-size: 12px;
   cursor: pointer;
   color: var(--ink-faint);
-  transition: border-color 0.15s, color 0.15s;
-  max-width: 160px;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  max-width: 140px;
   overflow: hidden;
   white-space: nowrap;
-  text-overflow: ellipsis;
   font-family: var(--font);
 }
-.tagBtn:hover {
+.chipBtn:hover {
   border-color: var(--ink-soft);
   color: var(--ink-soft);
 }
 
-.tagBtnLabel {
+.chipBtnLabel {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  max-width: 80px;
 }
 
-.tagPlaceholder { color: var(--ink-faint); }
+.chipSep {
+  opacity: 0.4;
+  font-size: 10px;
+  flex-shrink: 0;
+}
 
-.tagRemove {
+.chipPlaceholder { color: var(--ink-faint); }
+
+.chipRemove {
   cursor: pointer;
   margin-left: 2px;
   opacity: 0.5;
+  flex-shrink: 0;
 }
-.tagRemove:hover { opacity: 1; }
+.chipRemove:hover { opacity: 1; }
 
-.tagDropdown {
+/* chip 下拉 */
+.chipDropdown {
   position: absolute;
   bottom: calc(100% + 4px);
   left: 0;
@@ -134,12 +143,18 @@
   border-radius: var(--r-md);
   box-shadow: var(--shadow);
   min-width: 180px;
-  max-height: 200px;
+  max-height: 220px;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-.tagItem {
+.chipDropdownEmpty {
+  padding: 10px 12px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.chipDropdownItem {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -149,25 +164,60 @@
   color: var(--ink);
   transition: background 0.1s;
 }
-.tagItem:hover { background: var(--panel-2); }
-.tagItemSelected { background: var(--accent-soft); color: var(--accent-ink); }
-.tagItemVirtual { opacity: 0.65; }
+.chipDropdownItem:hover { background: var(--panel-2); }
+.chipDropdownItemSelected { background: var(--accent-soft); color: var(--accent-ink); }
+.chipDropdownItemVirtual { opacity: 0.65; }
 
-.tagDot {
+.chipDropdownPhase {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 26px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  transition: background 0.1s;
+}
+.chipDropdownPhase:hover { background: var(--panel-2); }
+
+.chipDropdownDot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.tagVirtual {
+.chipDropdownPhaseDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.chipDropdownName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipDropdownNameDone {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+.chipDropdownCheck {
+  margin-left: auto;
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.chipDropdownVirtual {
   font-size: 10px;
   color: var(--ink-faint);
   margin-left: auto;
-}
-
-.tagCheck {
-  margin-left: auto;
-  color: var(--accent-ink);
-  font-size: 12px;
 }

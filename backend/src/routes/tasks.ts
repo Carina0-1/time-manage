@@ -12,17 +12,32 @@ export const tasksRouter = new Hono<AuthEnv>()
 const QuerySchema = z.object({
   start: z.string().optional(),
   end: z.string().optional(),
+  goalId: z.string().optional(),
+  phaseId: z.string().optional(),
+  inbox: z.string().optional(),  // "true" 表示只返回无排期任务
+  all: z.string().optional(),    // "true" 表示返回所有任务（含有排期和无排期）
 })
 
-// GET /tasks?start=&end=
+// GET /tasks?start=&end=&goalId=&phaseId=&inbox=true&all=true
 tasksRouter.get('/', zValidator('query', QuerySchema), async (c) => {
   const userId = c.get('userId')
-  const { start, end } = c.req.valid('query')
+  const { start, end, goalId, phaseId, inbox, all } = c.req.valid('query')
 
   const conditions = [eq(tasks.userId, userId), isNull(tasks.deletedAt)]
-  // 任务与查询范围有交集：task.start < end AND task.end > start
-  if (end) conditions.push(lte(tasks.startTime, new Date(end)))
-  if (start) conditions.push(gte(tasks.endTime, new Date(start)))
+
+  if (all === 'true') {
+    // 全部任务：不过滤时间，goalId 筛选在下方统一处理
+  } else if (inbox === 'true') {
+    // Inbox：无排期时间的任务
+    conditions.push(isNull(tasks.startTime))
+  } else {
+    // 日历视图：只返回有时间的任务
+    if (end) conditions.push(lte(tasks.startTime, new Date(end)))
+    if (start) conditions.push(gte(tasks.endTime, new Date(start)))
+  }
+
+  if (goalId) conditions.push(eq(tasks.goalId, goalId))
+  if (phaseId) conditions.push(eq(tasks.phaseId, phaseId))
 
   const rows = await db
     .select()
@@ -58,8 +73,8 @@ tasksRouter.post('/', zValidator('json', CreateTaskSchema), async (c) => {
   const [task] = await db.insert(tasks).values({
     ...body,
     userId,
-    startTime: new Date(body.startTime),
-    endTime: new Date(body.endTime),
+    startTime: body.startTime ? new Date(body.startTime) : null,
+    endTime: body.endTime ? new Date(body.endTime) : null,
     createdAt: now,
     updatedAt: now,
   }).returning()
@@ -78,8 +93,8 @@ tasksRouter.patch('/:id', zValidator('json', UpdateTaskSchema), async (c) => {
   const { tagIds, ...body } = c.req.valid('json')
 
   const updateData: Record<string, unknown> = { ...body, updatedAt: new Date() }
-  if (body.startTime) updateData.startTime = new Date(body.startTime)
-  if (body.endTime) updateData.endTime = new Date(body.endTime)
+  if (body.startTime !== undefined) updateData.startTime = body.startTime ? new Date(body.startTime) : null
+  if (body.endTime !== undefined) updateData.endTime = body.endTime ? new Date(body.endTime) : null
 
   const [task] = await db
     .update(tasks)

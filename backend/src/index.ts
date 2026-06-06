@@ -8,6 +8,8 @@ import { authRouter } from './routes/auth.js'
 import { tasksRouter } from './routes/tasks.js'
 import { tagsRouter } from './routes/tags.js'
 import { statsRouter } from './routes/stats.js'
+import { goalsRouter } from './routes/goals.js'
+import { phasesRouter } from './routes/phases.js'
 
 export const app = new Hono()
 
@@ -25,6 +27,8 @@ app.use('/api/*', authMiddleware)
 app.route('/api/tasks', tasksRouter)
 app.route('/api/tags', tagsRouter)
 app.route('/api/stats', statsRouter)
+app.route('/api/goals', goalsRouter)
+app.route('/api/phases', phasesRouter)
 
 // 统一错误处理
 app.onError((err, c) => {

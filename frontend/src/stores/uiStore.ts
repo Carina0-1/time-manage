@@ -1,10 +1,14 @@
 import { create } from 'zustand'
 
 interface CreateTaskDefaults {
-  start: Date
-  end: Date
+  start?: Date
+  end?: Date
   isAllDay: boolean
+  prefillTaskId?: string
+  goalId?: string
 }
+
+export type GoalFilter = { type: 'goal'; id: string } | { type: 'phase'; id: string }
 
 interface UiStore {
   // 任务弹窗
@@ -18,6 +22,9 @@ interface UiStore {
   // 侧边栏标签筛选
   activeTagFilter: string | null
   setTagFilter: (fullPath: string | null) => void
+  // 侧边栏目标筛选
+  activeGoalFilter: GoalFilter | null
+  setGoalFilter: (filter: GoalFilter | null) => void
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -37,4 +44,7 @@ export const useUiStore = create<UiStore>((set) => ({
 
   activeTagFilter: null,
   setTagFilter: (fullPath) => set({ activeTagFilter: fullPath }),
+
+  activeGoalFilter: null,
+  setGoalFilter: (filter) => set({ activeGoalFilter: filter }),
 }))

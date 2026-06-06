@@ -6,33 +6,36 @@ import dayjs from 'dayjs'
 import { z } from 'zod'
 import type { CreateTaskInput, Tag } from '@time-manage/shared'
 import { buildTagTree, flattenTree, isVirtualNode } from '@/utils/tagTree'
-
-// 前端表单 schema：时间字段接受 datetime-local 原生格式 "YYYY-MM-DDTHH:mm"
-const TaskFormSchema = z.object({
-  id: z.string(),
-  title: z.string().min(1, '请填写任务名称').max(200),
-  description: z.string().optional(),
-  startTime: z.string().min(1, '请选择开始时间'),
-  endTime: z.string().min(1, '请选择结束时间'),
-  isAllDay: z.boolean(),
-  tagIds: z.array(z.string()),
-  status: z.enum(['todo', 'in_progress', 'done', 'cancelled']),
-  priority: z.enum(['low', 'medium', 'high']),
-  color: z.string().nullish(),
-})
-
-type TaskFormValues = z.infer<typeof TaskFormSchema>
 import { useTaskStore } from '@/stores/taskStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useGoalStore } from '@/stores/goalStore'
+import type { GoalWithPhases } from '@/stores/goalStore'
 import { tasksApi } from '@/api/tasks'
 import { tagsApi } from '@/api/tags'
 import styles from './TaskModal.module.css'
 
+const TaskFormSchema = z.object({
+  id: z.string(),
+  title: z.string().min(1, '请填写任务名称').max(200),
+  description: z.string().optional(),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
+  isAllDay: z.boolean(),
+  tagIds: z.array(z.string()),
+  goalId: z.string().optional(),
+  phaseId: z.string().optional(),
+  status: z.enum(['todo', 'in_progress', 'done', 'cancelled']),
+  color: z.string().nullish(),
+})
+
+type TaskFormValues = z.infer<typeof TaskFormSchema>
+
 export default function TaskModal() {
-  const { taskModalOpen, editingTaskId, createDefaults, closeTaskModal } = useUiStore()
+  const { taskModalOpen, panelPos, editingTaskId, createDefaults, closeTaskModal } = useUiStore()
   const { tasks, addTask, updateTask, removeTask } = useTaskStore()
   const { tags } = useTagStore()
+  const { goals } = useGoalStore()
 
   const editingTask = editingTaskId ? tasks.find((t) => t.id === editingTaskId) : null
 
@@ -50,11 +53,12 @@ export default function TaskModal() {
       tagIds: [],
       isAllDay: false,
       status: 'todo',
-      priority: 'medium',
     },
   })
 
   const selectedTagIds = watch('tagIds') ?? []
+  const selectedGoalId = watch('goalId')
+  const selectedPhaseId = watch('phaseId')
 
   // # 快速打标签状态
   const [hashQuery, setHashQuery] = useState<string | null>(null)
@@ -83,7 +87,6 @@ export default function TaskModal() {
     return nodes.filter((n) => n.tag.name.toLowerCase().includes(q))
   }, [hashQuery, tags])
 
-  // datetime-local 输入框需要 "YYYY-MM-DDTHH:mm" 格式
   const toLocalInput = (iso: string) => dayjs(iso).format('YYYY-MM-DDTHH:mm')
 
   useEffect(() => {
@@ -95,24 +98,26 @@ export default function TaskModal() {
         id: editingTask.id,
         title: editingTask.title,
         description: editingTask.description ?? undefined,
-        startTime: toLocalInput(editingTask.startTime),
-        endTime: toLocalInput(editingTask.endTime),
+        startTime: editingTask.startTime ? toLocalInput(editingTask.startTime) : '',
+        endTime: editingTask.endTime ? toLocalInput(editingTask.endTime) : '',
         isAllDay: editingTask.isAllDay,
         tagIds: editingTask.tagIds,
+        goalId: editingTask.goalId ?? undefined,
+        phaseId: editingTask.phaseId ?? undefined,
         status: editingTask.status,
-        priority: editingTask.priority,
         color: editingTask.color ?? undefined,
       })
     } else if (createDefaults) {
       reset({
         id: nanoid(),
         title: '',
-        startTime: toLocalInput(createDefaults.start.toISOString()),
-        endTime: toLocalInput(createDefaults.end.toISOString()),
+        startTime: createDefaults.start ? toLocalInput(createDefaults.start.toISOString()) : '',
+        endTime: createDefaults.end ? toLocalInput(createDefaults.end.toISOString()) : '',
         isAllDay: createDefaults.isAllDay,
         tagIds: [],
+        goalId: createDefaults.goalId,
+        phaseId: undefined,
         status: 'todo',
-        priority: 'medium',
       })
     }
   }, [taskModalOpen, editingTaskId, createDefaults, reset])
@@ -120,9 +125,10 @@ export default function TaskModal() {
   const onSubmit = async (data: TaskFormValues) => {
     const input = {
       ...data,
+      priority: 'medium',
       tagIds: selectedTagIds.slice(0, 1),
-      startTime: new Date(data.startTime!).toISOString(),
-      endTime: new Date(data.endTime!).toISOString(),
+      startTime: data.startTime ? new Date(data.startTime).toISOString() : undefined,
+      endTime: data.endTime ? new Date(data.endTime).toISOString() : undefined,
     } as CreateTaskInput
     if (editingTask) {
       const updated = await tasksApi.update(editingTask.id, input)
@@ -142,12 +148,10 @@ export default function TaskModal() {
   }
 
   const toggleTag = (tagId: string) => {
-    // 单标签：已选则取消，未选则替换
     const next = selectedTagIds[0] === tagId ? [] : [tagId]
     setValue('tagIds', next, { shouldDirty: true })
   }
 
-  // # 打标签：选中后清除标题里的 #query，写入 tagId
   const selectHashTag = (tag: Tag) => {
     const el = titleRef.current
     const currentTitle = el?.value ?? ''
@@ -162,7 +166,6 @@ export default function TaskModal() {
 
   const { ref: titleRegRef, onBlur: titleOnBlur } = register('title')
 
-  // title input 的 onChange，检测 # 触发下拉
   const onTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setValue('title', val, { shouldValidate: false, shouldDirty: true })
@@ -195,7 +198,10 @@ export default function TaskModal() {
     }
   }
 
-  if (!taskModalOpen) return null
+  if (!taskModalOpen || panelPos) return null
+
+  const selectedGoal = goals.find((g) => g.id === selectedGoalId)
+  const selectedPhase = selectedGoal?.phases.find((p) => p.id === selectedPhaseId)
 
   return (
     <div className={styles.overlay} onClick={closeTaskModal}>
@@ -246,6 +252,27 @@ export default function TaskModal() {
             {errors.title && <span className={styles.error}>{errors.title.message}</span>}
           </div>
 
+          {/* 目标 + 阶段（chip 触发下拉，与标签交互一致） */}
+          <div className={styles.chipRow}>
+            <GoalSelector
+              goals={goals}
+              selectedGoalId={selectedGoalId}
+              selectedPhaseId={selectedPhaseId}
+              onSelectGoal={(id) => {
+                setValue('goalId', id, { shouldDirty: true })
+                setValue('phaseId', undefined, { shouldDirty: true })
+              }}
+              onSelectPhase={(id) => setValue('phaseId', id, { shouldDirty: true })}
+              selectedGoal={selectedGoal}
+              selectedPhase={selectedPhase}
+            />
+            <TagSelector
+              tags={tags}
+              selectedTagIds={selectedTagIds}
+              onToggle={toggleTag}
+            />
+          </div>
+
           {/* 时间 */}
           <div className={styles.timeRow}>
             <div className={styles.field}>
@@ -257,32 +284,14 @@ export default function TaskModal() {
               <input type="datetime-local" {...register('endTime')} />
             </div>
           </div>
-
-          {/* 优先级 */}
-          <div className={styles.field}>
-            <label>优先级</label>
-            <select {...register('priority')}>
-              <option value="low">低</option>
-              <option value="medium">中</option>
-              <option value="high">高</option>
-            </select>
-          </div>
-
-          {/* 标签 */}
-          {tags.length > 0 && (
-            <TagSelector
-              tags={tags}
-              selectedTagIds={selectedTagIds}
-              onToggle={toggleTag}
-            />
-          )}
+          <div className={styles.inboxHint}>不填时间则任务进入 Inbox</div>
 
           {/* 备注 */}
           <div className={styles.field}>
             <textarea
               {...register('description')}
               placeholder="备注（可选）"
-              rows={2}
+              rows={4}
               className={styles.textarea}
             />
           </div>
@@ -290,11 +299,7 @@ export default function TaskModal() {
           {/* 操作按钮 */}
           <div className={styles.actions}>
             {editingTask && (
-              <button
-                type="button"
-                className={styles.deleteBtn}
-                onClick={handleDelete}
-              >
+              <button type="button" className={styles.deleteBtn} onClick={handleDelete}>
                 删除
               </button>
             )}
@@ -313,6 +318,129 @@ export default function TaskModal() {
   )
 }
 
+function GoalSelector({
+  goals,
+  selectedGoalId,
+  selectedPhaseId,
+  onSelectGoal,
+  onSelectPhase,
+  selectedGoal,
+  selectedPhase,
+}: {
+  goals: GoalWithPhases[]
+  selectedGoalId: string | undefined
+  selectedPhaseId: string | undefined
+  onSelectGoal: (id: string | undefined) => void
+  onSelectPhase: (id: string | undefined) => void
+  selectedGoal: GoalWithPhases | undefined
+  selectedPhase: { id: string; name: string; isDone: boolean } | undefined
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const handleGoalClick = (goalId: string) => {
+    if (selectedGoalId === goalId) {
+      onSelectGoal(undefined)
+      onSelectPhase(undefined)
+      setOpen(false)
+    } else {
+      onSelectGoal(goalId)
+      onSelectPhase(undefined)
+      // keep open to allow phase selection
+    }
+  }
+
+  const handlePhaseClick = (phaseId: string) => {
+    if (selectedPhaseId === phaseId) {
+      onSelectPhase(undefined)
+    } else {
+      onSelectPhase(phaseId)
+    }
+    setOpen(false)
+  }
+
+  return (
+    <div className={styles.chipSelector} ref={ref}>
+      <div
+        className={`${styles.chipTrigger} ${selectedGoal ? styles.chipTriggerActive : ''}`}
+        style={selectedGoal ? {
+          background: selectedGoal.color + '18',
+          color: selectedGoal.color,
+          borderColor: selectedGoal.color + '88',
+        } : {}}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {selectedGoal ? (
+          <>
+            {selectedGoal.icon && <span>{selectedGoal.icon}</span>}
+            <span className={styles.chipLabel}>{selectedGoal.name}</span>
+            {selectedPhase && (
+              <>
+                <span className={styles.chipSep}>/</span>
+                <span className={styles.chipLabel}>{selectedPhase.name}</span>
+              </>
+            )}
+            <span
+              className={styles.chipRemove}
+              onMouseDown={(e) => {
+                e.stopPropagation()
+                onSelectGoal(undefined)
+                onSelectPhase(undefined)
+              }}
+            >×</span>
+          </>
+        ) : (
+          <span className={styles.chipPlaceholder}>● 目标</span>
+        )}
+      </div>
+
+      {open && (
+        <div className={styles.chipDropdown}>
+          {goals.length === 0 ? (
+            <div className={styles.chipDropdownEmpty}>暂无目标</div>
+          ) : (
+            goals.map((goal) => (
+              <div key={goal.id}>
+                <div
+                  className={`${styles.chipDropdownItem} ${selectedGoalId === goal.id ? styles.chipDropdownItemSelected : ''}`}
+                  onMouseDown={(e) => { e.preventDefault(); handleGoalClick(goal.id) }}
+                >
+                  <span className={styles.chipDropdownDot} style={{ background: goal.color }} />
+                  {goal.icon && <span>{goal.icon}</span>}
+                  <span className={styles.chipDropdownName}>{goal.name}</span>
+                  {selectedGoalId === goal.id && <span className={styles.chipDropdownCheck}>✓</span>}
+                </div>
+                {selectedGoalId === goal.id && goal.phases.length > 0 && goal.phases.map((phase) => (
+                  <div
+                    key={phase.id}
+                    className={`${styles.chipDropdownPhase} ${selectedPhaseId === phase.id ? styles.chipDropdownItemSelected : ''}`}
+                    onMouseDown={(e) => { e.preventDefault(); handlePhaseClick(phase.id) }}
+                  >
+                    <span className={styles.chipDropdownPhaseDot} style={{ borderColor: goal.color }} />
+                    <span className={`${styles.chipDropdownName} ${phase.isDone ? styles.chipDropdownNameDone : ''}`}>
+                      {phase.name}
+                    </span>
+                    {selectedPhaseId === phase.id && <span className={styles.chipDropdownCheck}>✓</span>}
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TagSelector({
   tags,
   selectedTagIds,
@@ -326,13 +454,10 @@ function TagSelector({
   const ref = useRef<HTMLDivElement>(null)
   const { addTag } = useTagStore()
 
-  // 点击外部关闭
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -341,7 +466,6 @@ function TagSelector({
   const sortedNodes = useMemo(() => {
     const sorted = [...tags].sort((a, b) => a.sortOrder - b.sortOrder)
     const roots = buildTagTree(sorted, true)
-    // 构建 tagId -> 根标签颜色的映射
     const rootColorMap = new Map<string, string>()
     function walk(nodes: typeof roots, rootColor: string | null) {
       for (const node of nodes) {
@@ -356,12 +480,11 @@ function TagSelector({
       tag: { ...node.tag, color: rootColorMap.get(node.tag.id) ?? node.tag.color },
     }))
   }, [tags])
+
   const selectedTags = sortedNodes.filter((n) => selectedTagIds.includes(n.tag.id)).map((n) => n.tag)
 
-  // 选中节点：虚拟节点先自动创建真实标签，再 toggle
   const handleSelect = async (node: ReturnType<typeof flattenTree>[number]) => {
     if (isVirtualNode(node)) {
-      // 继承子标签的颜色
       const created = await tagsApi.create({
         id: nanoid(),
         name: node.fullPath,
@@ -374,59 +497,58 @@ function TagSelector({
     } else {
       onToggle(node.tag.id)
     }
+    setOpen(false)
   }
 
-  return (
-    <div className={styles.field}>
-      <label>标签</label>
-      <div className={styles.tagSelector} ref={ref}>
-        {/* 触发按钮 */}
-        <div
-          className={styles.tagSelectorTrigger}
-          onClick={() => setOpen((o) => !o)}
-        >
-          {selectedTags.length === 0 ? (
-            <span className={styles.tagSelectorPlaceholder}>选择标签…</span>
-          ) : (
-            <span
-              className={styles.tagSelectorChip}
-              style={{ background: selectedTags[0].color + '22', color: selectedTags[0].color, borderColor: selectedTags[0].color }}
-            >
-              {selectedTags[0].icon && <span>{selectedTags[0].icon}</span>}
-              {selectedTags[0].name}
-              <span
-                className={styles.tagSelectorChipRemove}
-                onMouseDown={(e) => { e.stopPropagation(); onToggle(selectedTags[0].id) }}
-              >×</span>
-            </span>
-          )}
-          <span className={styles.tagSelectorArrow}>{open ? '▴' : '▾'}</span>
-        </div>
+  const selectedTag = selectedTags[0]
 
-        {/* 下拉列表（树序 + 缩进，含虚拟节点） */}
-        {open && (
-          <div className={styles.tagSelectorDropdown}>
-            {sortedNodes.map((node) => {
-              const isVirtual = isVirtualNode(node)
-              const selected = !isVirtual && selectedTagIds.includes(node.tag.id)
-              return (
-                <div
-                  key={node.fullPath}
-                  className={`${styles.tagSelectorItem} ${selected ? styles.tagSelectorItemSelected : ''} ${isVirtual ? styles.tagSelectorItemVirtual : ''}`}
-                  style={{ paddingLeft: `${12 + node.depth * 16}px` }}
-                  onMouseDown={(e) => { e.preventDefault(); handleSelect(node) }}
-                >
-                  <span className={styles.tagSelectorDot} style={{ background: node.tag.color }} />
-                  {node.tag.icon && <span>{node.tag.icon}</span>}
-                  <span className={styles.tagSelectorName}>{node.segment}</span>
-                  {isVirtual && <span className={styles.tagSelectorVirtualHint}>自动创建</span>}
-                  {selected && <span className={styles.tagSelectorCheck}>✓</span>}
-                </div>
-              )
-            })}
-          </div>
+  return (
+    <div className={styles.chipSelector} ref={ref}>
+      <div
+        className={`${styles.chipTrigger} ${selectedTag ? styles.chipTriggerActive : ''}`}
+        style={selectedTag ? {
+          background: selectedTag.color + '18',
+          color: selectedTag.color,
+          borderColor: selectedTag.color + '88',
+        } : {}}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {selectedTag ? (
+          <>
+            {selectedTag.icon && <span>{selectedTag.icon}</span>}
+            <span className={styles.chipLabel}>{selectedTag.name}</span>
+            <span
+              className={styles.chipRemove}
+              onMouseDown={(e) => { e.stopPropagation(); onToggle(selectedTag.id) }}
+            >×</span>
+          </>
+        ) : (
+          <span className={styles.chipPlaceholder}># 标签</span>
         )}
       </div>
+
+      {open && tags.length > 0 && (
+        <div className={styles.chipDropdown}>
+          {sortedNodes.map((node) => {
+            const isVirtual = isVirtualNode(node)
+            const selected = !isVirtual && selectedTagIds.includes(node.tag.id)
+            return (
+              <div
+                key={node.fullPath}
+                className={`${styles.chipDropdownItem} ${selected ? styles.chipDropdownItemSelected : ''} ${isVirtual ? styles.chipDropdownItemVirtual : ''}`}
+                style={{ paddingLeft: `${12 + node.depth * 16}px` }}
+                onMouseDown={(e) => { e.preventDefault(); handleSelect(node) }}
+              >
+                <span className={styles.chipDropdownDot} style={{ background: node.tag.color }} />
+                {node.tag.icon && <span>{node.tag.icon}</span>}
+                <span className={styles.chipDropdownName}>{node.segment}</span>
+                {isVirtual && <span className={styles.chipDropdownVirtual}>自动创建</span>}
+                {selected && <span className={styles.chipDropdownCheck}>✓</span>}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

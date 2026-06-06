@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { eq, and, isNull, gte, lte, inArray } from 'drizzle-orm'
+import { eq, and, isNull, isNotNull, gte, lte, inArray } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { tasks, taskTags, tags } from '../db/schema.js'
+import { tasks, taskTags, tags, goals } from '../db/schema.js'
 import { z } from 'zod'
 import type { StatsResult } from '@time-manage/shared'
 import type { AuthEnv } from '../middleware/auth.js'
@@ -22,13 +22,15 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
   const startDate = new Date(start)
   const endDate = new Date(end)
 
-  // 查询时间范围内所有未删除的任务
+  // 查询时间范围内所有已排期的未删除任务（Inbox 任务无时间，不计入统计）
   const taskRows = await db
     .select()
     .from(tasks)
     .where(and(
       eq(tasks.userId, userId),
       isNull(tasks.deletedAt),
+      isNotNull(tasks.startTime),
+      isNotNull(tasks.endTime),
       gte(tasks.startTime, startDate),
       lte(tasks.endTime, endDate),
     ))
@@ -47,7 +49,7 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
   if (taskRows.length === 0) {
     const dailyMinutes = allDates.map((date) => ({ date, totalMinutes: 0 }))
     return c.json<{ data: StatsResult }>({
-      data: { tags: [], totalMinutes: 0, completedCount: 0, totalCount: 0, dailyActivity: [], dailyMinutes, dailyTagMinutes: [] },
+      data: { tags: [], totalMinutes: 0, completedCount: 0, totalCount: 0, dailyActivity: [], dailyMinutes, dailyTagMinutes: [], dailyGoalMinutes: [] },
     })
   }
 
@@ -55,9 +57,10 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
   const totalCount = taskRows.length
   const completedCount = taskRows.filter((t) => t.status === 'done').length
 
-  // 计算每个任务的时长（分钟）
+  // 计算每个任务的时长（分钟，Inbox 任务已过滤）
   const minutesByTaskId = new Map<string, number>()
   for (const task of taskRows) {
+    if (!task.startTime || !task.endTime) continue
     const minutes = Math.round((task.endTime.getTime() - task.startTime.getTime()) / 60000)
     minutesByTaskId.set(task.id, minutes)
   }
@@ -106,6 +109,7 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
   // 按天分组计算每日任务数
   const activityMap = new Map<string, number>()
   for (const task of taskRows) {
+    if (!task.startTime) continue
     const dateKey = task.startTime.toISOString().slice(0, 10)
     activityMap.set(dateKey, (activityMap.get(dateKey) ?? 0) + 1)
   }
@@ -116,6 +120,7 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
   // 按天分组计算每日总时长，所有日期都填充（无任务的天补 0）
   const dailyMinutesMap = new Map<string, number>(allDates.map((d) => [d, 0]))
   for (const task of taskRows) {
+    if (!task.startTime) continue
     const dateKey = task.startTime.toISOString().slice(0, 10)
     const minutes = minutesByTaskId.get(task.id) ?? 0
     dailyMinutesMap.set(dateKey, (dailyMinutesMap.get(dateKey) ?? 0) + minutes)
@@ -126,6 +131,7 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
   // taskId -> dateKey
   const taskDateMap = new Map<string, string>()
   for (const task of taskRows) {
+    if (!task.startTime) continue
     taskDateMap.set(task.id, task.startTime.toISOString().slice(0, 10))
   }
   // key: "date|rootTagName" -> minutes
@@ -157,7 +163,37 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
     })
   ).sort((a, b) => a.date.localeCompare(b.date) || a.tagName.localeCompare(b.tagName))
 
+  // 按天 + 目标分组计算时长
+  const goalIds = [...new Set(taskRows.map((t) => t.goalId).filter(Boolean))] as string[]
+  const goalRows = goalIds.length > 0
+    ? await db.select().from(goals).where(inArray(goals.id, goalIds))
+    : []
+  const goalMap = new Map(goalRows.map((g) => [g.id, g]))
+
+  // key: "date|goalId" -> minutes
+  const dailyGoalMap = new Map<string, number>()
+  for (const task of taskRows) {
+    if (!task.goalId || !task.startTime) continue
+    const date = task.startTime.toISOString().slice(0, 10)
+    const key = `${date}|${task.goalId}`
+    dailyGoalMap.set(key, (dailyGoalMap.get(key) ?? 0) + (minutesByTaskId.get(task.id) ?? 0))
+  }
+
+  // 所有日期 × 所有目标，缺失的补 0
+  const dailyGoalMinutes = allDates.flatMap((date) =>
+    goalIds.map((goalId) => {
+      const g = goalMap.get(goalId)
+      return {
+        date,
+        goalId,
+        goalName: g?.name ?? goalId,
+        color: g?.color ?? '#888',
+        minutes: dailyGoalMap.get(`${date}|${goalId}`) ?? 0,
+      }
+    })
+  ).sort((a, b) => a.date.localeCompare(b.date) || a.goalName.localeCompare(b.goalName))
+
   return c.json<{ data: StatsResult }>({
-    data: { tags: tagStats, totalMinutes, completedCount, totalCount, dailyActivity, dailyMinutes, dailyTagMinutes },
+    data: { tags: tagStats, totalMinutes, completedCount, totalCount, dailyActivity, dailyMinutes, dailyTagMinutes, dailyGoalMinutes },
   })
 })

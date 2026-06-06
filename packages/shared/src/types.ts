@@ -15,14 +15,38 @@ export interface Task {
   userId: string
   title: string
   description?: string
-  startTime: string      // ISO 8601
-  endTime: string        // ISO 8601
+  startTime?: string     // ISO 8601，Inbox 任务为空
+  endTime?: string       // ISO 8601，Inbox 任务为空
   isAllDay: boolean
   tagIds: string[]
+  goalId?: string
+  phaseId?: string
   status: TaskStatus
   priority: Priority
   recurrence?: Recurrence
   color?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Goal {
+  id: string
+  userId: string
+  name: string
+  color: string
+  icon?: string
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Phase {
+  id: string
+  goalId: string
+  userId: string
+  name: string
+  isDone: boolean
+  sortOrder: number
   createdAt: string
   updatedAt: string
 }
@@ -64,6 +88,14 @@ export interface DailyTagMinutes {
   minutes: number
 }
 
+export interface DailyGoalMinutes {
+  date: string        // "YYYY-MM-DD"
+  goalId: string
+  goalName: string
+  color: string
+  minutes: number
+}
+
 export interface StatsResult {
   tags: TagStats[]
   totalMinutes: number
@@ -72,6 +104,7 @@ export interface StatsResult {
   dailyActivity: DailyActivity[]
   dailyMinutes: DailyMinutes[]
   dailyTagMinutes: DailyTagMinutes[]
+  dailyGoalMinutes: DailyGoalMinutes[]
 }
 
 export interface AuthUser {

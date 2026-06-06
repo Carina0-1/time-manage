@@ -174,10 +174,47 @@ export default function StatsPage() {
                 </div>
               )}
 
+              {/* 每日各目标时长 */}
+              {(() => {
+                const rows = statsWithRootColor.dailyGoalMinutes
+                if (!rows || rows.length === 0) return null
+                const hasAny = rows.some((r) => r.minutes > 0)
+                if (!hasAny) return null
+                const dateSet = [...new Set(rows.map((r) => r.date))].sort()
+                const goalNames = [...new Set(rows.map((r) => r.goalName))]
+                const colorByGoal = new Map(rows.map((r) => [r.goalName, r.color]))
+                const chartData = dateSet.map((date) => {
+                  const row: Record<string, string | number> = { date }
+                  for (const name of goalNames) {
+                    row[name] = rows.find((r) => r.date === date && r.goalName === name)?.minutes ?? 0
+                  }
+                  return row
+                })
+                return (
+                  <div className={styles.chartCard} style={{ gridColumn: '1 / -1' }}>
+                    <h2>每日各目标时长</h2>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={chartData} margin={{ left: 8, right: 16, top: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="date" tickFormatter={(d) => d.slice(5)} fontSize={12} />
+                        <YAxis tickFormatter={(v) => `${Math.floor(v / 60)}h`} fontSize={12} domain={[0, (max: number) => Math.ceil(max * 1.2)]} />
+                        <Tooltip formatter={(v) => fmtMinutes(Number(v))} labelFormatter={(d) => String(d)} />
+                        <Legend />
+                        {goalNames.map((name) => (
+                          <Bar key={name} dataKey={name} fill={colorByGoal.get(name)} radius={[4, 4, 0, 0]} maxBarSize={28}>
+                            <LabelList dataKey={name} position="top" fontSize={10} formatter={(v: unknown) => typeof v === 'number' && v > 0 ? fmtMinutes(v) : ''} />
+                          </Bar>
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )
+              })()}
+
               {/* 每日各一级标签时长 */}
               {(() => {
                 const rows = statsWithRootColor.dailyTagMinutes
-                if (rows.length === 0) return null
+                if (rows.length === 0 || !rows.some((r) => r.minutes > 0)) return null
                 const dateSet = [...new Set(rows.map((r) => r.date))].sort()
                 const tagNames = [...new Set(rows.map((r) => r.tagName))].sort()
                 const colorByTag = new Map(rows.map((r) => [r.tagName, r.color]))
@@ -190,7 +227,7 @@ export default function StatsPage() {
                 })
                 return (
                   <div className={styles.chartCard} style={{ gridColumn: '1 / -1' }}>
-                    <h2>每日各目标时长</h2>
+                    <h2>每日各标签时长</h2>
                     <ResponsiveContainer width="100%" height={220}>
                       <BarChart data={chartData} margin={{ left: 8, right: 16, top: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />

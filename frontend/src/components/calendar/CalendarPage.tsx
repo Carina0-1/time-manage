@@ -18,6 +18,8 @@ import type { TagTreeNode } from '@/utils/tagTree'
 import { useTaskStore } from '@/stores/taskStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useGoalStore } from '@/stores/goalStore'
+import type { GoalFilter } from '@/stores/uiStore'
 import { tasksApi } from '@/api/tasks'
 import styles from './CalendarPage.module.css'
 
@@ -64,7 +66,8 @@ export default function CalendarPage() {
   const calendarRef = useRef<FullCalendar>(null)
   const { tasks, fetchTasks, updateTask } = useTaskStore()
   const { tags, fetchTags } = useTagStore()
-  const { taskModalOpen, openCreateModal, openEditModal, activeTagFilter } = useUiStore()
+  const { goals } = useGoalStore()
+  const { taskModalOpen, openCreateModal, openEditModal, activeTagFilter, activeGoalFilter, setGoalFilter } = useUiStore()
 
   const [currentView, setCurrentView] = useState<ViewType>('timeGridWeek')
   const [dateTitle, setDateTitle] = useState('')
@@ -95,21 +98,6 @@ export default function CalendarPage() {
     return () => clearTimeout(id)
   }, [])
 
-  // 子标签颜色继承根标签颜色（与侧边栏视觉一致）
-  const tagColorMap = useMemo(() => {
-    const map = new Map<string, string>()
-    const roots = buildTagTree([...tags].sort((a, b) => a.sortOrder - b.sortOrder), true)
-    function walk(nodes: typeof roots, rootColor: string | null) {
-      for (const node of nodes) {
-        const color = rootColor ?? node.tag.color
-        if (node.tag.name === node.fullPath) map.set(node.tag.id, color)
-        if (node.children.length > 0) walk(node.children, color)
-      }
-    }
-    walk(roots, null)
-    return map
-  }, [tags])
-
   const filteredTagIds = useMemo(() => {
     if (!activeTagFilter) return null
     const tree = buildTagTree(tags)
@@ -126,11 +114,27 @@ export default function CalendarPage() {
     return new Set(getDescendantTagIds(node))
   }, [activeTagFilter, tags])
 
+  const goalColorMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const goal of goals) map.set(goal.id, goal.color)
+    return map
+  }, [goals])
+
+  const filteredGoalTaskIds = useMemo(() => {
+    if (!activeGoalFilter) return null
+    if (activeGoalFilter.type === 'goal') {
+      return new Set(tasks.filter((t) => t.goalId === activeGoalFilter.id).map((t) => t.id))
+    }
+    return new Set(tasks.filter((t) => t.phaseId === activeGoalFilter.id).map((t) => t.id))
+  }, [activeGoalFilter, tasks])
+
   const events = tasks
+    .filter((task) => task.startTime && task.endTime)  // Inbox 任务不显示在日历
     .filter((task) => !filteredTagIds || task.tagIds.some((id) => filteredTagIds.has(id)))
+    .filter((task) => !filteredGoalTaskIds || filteredGoalTaskIds.has(task.id))
     .map((task) => {
-      const tagColor = task.tagIds[0] ? tagColorMap.get(task.tagIds[0]) : undefined
-      const hexColor = task.color ?? tagColor ?? '#57b683'
+      const goalColor = task.goalId ? goalColorMap.get(task.goalId) : undefined
+      const hexColor = task.color ?? goalColor ?? '#57b683'
       const group = colorToGroup(hexColor)
       const vars = GROUP_VARS[group]
       const isDone = task.status === 'done'
@@ -218,6 +222,9 @@ export default function CalendarPage() {
         calendarRef={calendarRef}
         currentView={currentView}
         dateTitle={dateTitle}
+        activeGoalFilter={activeGoalFilter}
+        onClearGoalFilter={() => setGoalFilter(null)}
+        goals={goals}
       />
       <div className={styles.calendarWrap}>
         <FullCalendar
@@ -259,10 +266,16 @@ function CalendarTopBar({
   calendarRef,
   currentView,
   dateTitle,
+  activeGoalFilter,
+  onClearGoalFilter,
+  goals,
 }: {
   calendarRef: React.RefObject<FullCalendar | null>
   currentView: ViewType
   dateTitle: string
+  activeGoalFilter: GoalFilter | null
+  onClearGoalFilter: () => void
+  goals: import('@/stores/goalStore').GoalWithPhases[]
 }) {
   const api = () => calendarRef.current?.getApi()
   const { theme, toggle } = useTheme()
@@ -273,6 +286,29 @@ function CalendarTopBar({
     { key: 'timeGridDay',  label: '日' },
   ]
 
+  const filterLabel = activeGoalFilter
+    ? activeGoalFilter.type === 'goal'
+      ? goals.find((g) => g.id === activeGoalFilter.id)?.name ?? '目标'
+      : (() => {
+          for (const g of goals) {
+            const p = g.phases.find((p) => p.id === activeGoalFilter.id)
+            if (p) return p.name
+          }
+          return '阶段'
+        })()
+    : null
+
+  const filterColor = activeGoalFilter
+    ? activeGoalFilter.type === 'goal'
+      ? goals.find((g) => g.id === activeGoalFilter.id)?.color
+      : (() => {
+          for (const g of goals) {
+            if (g.phases.some((p) => p.id === activeGoalFilter.id)) return g.color
+          }
+          return undefined
+        })()
+    : undefined
+
   return (
     <div className={styles.topbar}>
       <div className={styles.navGroup}>
@@ -281,6 +317,18 @@ function CalendarTopBar({
         <button className={styles.todayBtn} onClick={() => api()?.today()}>今天</button>
       </div>
       <div className={styles.dateTitle}>{dateTitle}</div>
+      {filterLabel && (
+        <button
+          className={styles.filterChip}
+          style={{ borderColor: filterColor, color: filterColor, background: filterColor ? filterColor + '22' : undefined }}
+          onClick={onClearGoalFilter}
+          title="取消筛选"
+        >
+          <span className={styles.filterChipDot} style={{ background: filterColor }} />
+          {filterLabel}
+          <span className={styles.filterChipClose}>×</span>
+        </button>
+      )}
       <div className={styles.rightGroup}>
         <button
           className={styles.iconBtn}

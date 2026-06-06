@@ -4,6 +4,7 @@ import Layout from '@/components/Layout'
 import LoginPage from '@/components/LoginPage'
 import CalendarPage from '@/components/calendar/CalendarPage'
 import StatsPage from '@/components/stats/StatsPage'
+import InboxPage from '@/components/inbox/InboxPage'
 import { useAuthStore } from '@/stores/authStore'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -33,6 +34,7 @@ export default function App() {
       >
         <Route index element={<Navigate to="/calendar" replace />} />
         <Route path="calendar" element={<CalendarPage />} />
+        <Route path="inbox/:goalId" element={<InboxPage />} />
         <Route path="stats" element={<StatsPage />} />
       </Route>
     </Routes>

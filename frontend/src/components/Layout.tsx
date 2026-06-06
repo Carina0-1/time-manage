@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import QuickCreatePanel from './task/QuickCreatePanel'
+import TaskModal from './task/TaskModal'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -12,7 +13,9 @@ import { useTagStore } from '@/stores/tagStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
+import { useGoalStore } from '@/stores/goalStore'
 import { tagsApi } from '@/api/tags'
+import { goalsApi } from '@/api/goals'
 import { statsApi } from '@/api/stats'
 
 import styles from './Layout.module.css'
@@ -50,7 +53,7 @@ type TagFormValues = z.infer<typeof TagFormSchema>
 
 export default function Layout() {
   const navigate = useNavigate()
-  const { taskModalOpen } = useUiStore()
+  const { taskModalOpen, panelPos } = useUiStore()
   const { user, logout } = useAuthStore()
 
   const handleLogout = () => {
@@ -67,6 +70,7 @@ export default function Layout() {
         </div>
         <SidebarStats onClickStats={() => navigate('/stats')} />
         <ActivityHeatmap />
+        <GoalTreeNav />
         <TagTreeNav />
         <div className={styles.sidebarFooter}>
           <span className={styles.sidebarUsername}>{user?.username}</span>
@@ -76,7 +80,8 @@ export default function Layout() {
       <main className={styles.main}>
         <Outlet />
       </main>
-      {taskModalOpen && <QuickCreatePanel />}
+      {taskModalOpen && panelPos && <QuickCreatePanel />}
+      {taskModalOpen && !panelPos && <TaskModal />}
     </div>
   )
 }
@@ -178,6 +183,392 @@ function ActivityHeatmap() {
             />
           ))
         )}
+      </div>
+    </div>
+  )
+}
+
+function GoalTreeNav() {
+  const { goals, fetchGoals, addGoal, updateGoal, removeGoal, addPhase, updatePhase } = useGoalStore()
+  const { activeGoalFilter, setGoalFilter } = useUiStore()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const [expandedGoals, setExpandedGoals] = useState<Set<string>>(new Set())
+  const [addingPhaseGoalId, setAddingPhaseGoalId] = useState<string | null>(null)
+  const [newPhaseName, setNewPhaseName] = useState('')
+  const [goalContextMenu, setGoalContextMenu] = useState<{ goalId: string; x: number; y: number } | null>(null)
+  const [showGoalForm, setShowGoalForm] = useState(false)
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null)
+
+  const {
+    register: goalRegister,
+    handleSubmit: goalHandleSubmit,
+    reset: goalReset,
+    setValue: goalSetValue,
+    watch: goalWatch,
+    formState: { errors: goalErrors, isSubmitting: goalIsSubmitting },
+  } = useForm<GoalFormValues>({
+    resolver: zodResolver(GoalFormSchema),
+    defaultValues: { color: PRESET_COLORS[0] },
+  })
+  const selectedGoalColor = goalWatch('color')
+
+  useEffect(() => {
+    fetchGoals()
+  }, [fetchGoals])
+
+  const toggleExpand = (goalId: string) => {
+    setExpandedGoals((prev) => {
+      const next = new Set(prev)
+      next.has(goalId) ? next.delete(goalId) : next.add(goalId)
+      return next
+    })
+  }
+
+  const handleGoalClick = (goalId: string) => {
+    if (activeGoalFilter?.type === 'goal' && activeGoalFilter.id === goalId) {
+      setGoalFilter(null)
+    } else {
+      setGoalFilter({ type: 'goal', id: goalId })
+    }
+    if (location.pathname !== '/calendar') navigate('/calendar')
+  }
+
+  const handlePhaseClick = (e: React.MouseEvent, phaseId: string) => {
+    e.stopPropagation()
+    if (activeGoalFilter?.type === 'phase' && activeGoalFilter.id === phaseId) {
+      setGoalFilter(null)
+    } else {
+      setGoalFilter({ type: 'phase', id: phaseId })
+    }
+    if (location.pathname !== '/calendar') navigate('/calendar')
+  }
+
+  const handlePhaseCheck = async (e: React.MouseEvent, goalId: string, phaseId: string, isDone: boolean) => {
+    e.stopPropagation()
+    updatePhase(goalId, phaseId, { isDone: !isDone })
+    try {
+      await goalsApi.updatePhase(phaseId, { isDone: !isDone })
+    } catch {
+      updatePhase(goalId, phaseId, { isDone })
+    }
+  }
+
+  const handleAddPhase = async (goalId: string) => {
+    const name = newPhaseName.trim()
+    if (!name) { setAddingPhaseGoalId(null); return }
+    const goal = goals.find((g) => g.id === goalId)
+    if (!goal) return
+    const id = nanoid()
+    const sortOrder = goal.phases.length
+    const phase = await goalsApi.createPhase({ id, goalId, name, sortOrder, isDone: false })
+    addPhase(goalId, { ...phase, taskCount: 0 })
+    setNewPhaseName('')
+    setAddingPhaseGoalId(null)
+  }
+
+  const openGoalCreate = () => {
+    setEditingGoalId(null)
+    goalReset({ name: '', color: PRESET_COLORS[0], icon: '' })
+    setShowGoalForm(true)
+  }
+
+  const openGoalEdit = (goalId: string) => {
+    const goal = goals.find((g) => g.id === goalId)
+    if (!goal) return
+    setEditingGoalId(goalId)
+    goalReset({ name: goal.name, color: goal.color, icon: goal.icon ?? '' })
+    setShowGoalForm(true)
+    setGoalContextMenu(null)
+  }
+
+  const handleGoalDelete = async (goalId: string) => {
+    await goalsApi.remove(goalId)
+    removeGoal(goalId)
+    if (activeGoalFilter?.id === goalId) setGoalFilter(null)
+    setGoalContextMenu(null)
+  }
+
+  const onGoalSubmit = async (data: GoalFormValues) => {
+    if (editingGoalId) {
+      const updated = await goalsApi.update(editingGoalId, data)
+      updateGoal(editingGoalId, updated)
+    } else {
+      const nextOrder = goals.length > 0 ? Math.max(...goals.map((g) => g.sortOrder)) + 1 : 0
+      const created = await goalsApi.create({ id: nanoid(), sortOrder: nextOrder, ...data })
+      addGoal(created)
+      setExpandedGoals((prev) => new Set([...prev, created.id]))
+    }
+    setShowGoalForm(false)
+  }
+
+  return (
+    <div className={styles.goalSection}>
+      <div className={styles.goalSectionHeader}>
+        <span className={styles.goalSectionTitle}>目标</span>
+        <button className={styles.goalAddBtn} onClick={openGoalCreate} title="新建目标">＋</button>
+      </div>
+
+      {goals.map((goal) => {
+        const expanded = expandedGoals.has(goal.id)
+        const doneCount = goal.phases.filter((p) => p.isDone).length
+        const totalCount = goal.phases.length
+        const isActive = activeGoalFilter?.type === 'goal' && activeGoalFilter.id === goal.id
+
+        return (
+          <React.Fragment key={goal.id}>
+            <div
+              className={`${styles.goalRow} ${isActive ? styles.goalRowActive : ''}`}
+              onClick={() => handleGoalClick(goal.id)}
+            >
+              <span
+                className={styles.goalExpandIcon}
+                onClick={(e) => { e.stopPropagation(); toggleExpand(goal.id) }}
+              >
+                {expanded ? '▾' : '▸'}
+              </span>
+              <span className={styles.goalDot} style={{ background: goal.color }} />
+              {goal.icon && <span>{goal.icon}</span>}
+              <span className={styles.goalName}>{goal.name}</span>
+              {totalCount > 0 && (
+                <span className={styles.goalProgress}>{doneCount}/{totalCount}</span>
+              )}
+              <button
+                className={styles.goalMenuBtn}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setGoalContextMenu({ goalId: goal.id, x: rect.right, y: rect.bottom })
+                }}
+              >…</button>
+            </div>
+
+            {expanded && (
+              <>
+                {goal.phases.map((phase) => {
+                  const isPhaseActive = activeGoalFilter?.type === 'phase' && activeGoalFilter.id === phase.id
+                  return (
+                    <div
+                      key={phase.id}
+                      className={`${styles.phaseRow} ${isPhaseActive ? styles.phaseRowActive : ''}`}
+                      onClick={(e) => handlePhaseClick(e, phase.id)}
+                    >
+                      <span
+                        className={`${styles.phaseCheckbox} ${phase.isDone ? styles.phaseCheckboxDone : ''}`}
+                        onClick={(e) => handlePhaseCheck(e, goal.id, phase.id, phase.isDone)}
+                      >
+                        {phase.isDone && '✓'}
+                      </span>
+                      <span className={`${styles.phaseName} ${phase.isDone ? styles.phaseNameDone : ''}`}>
+                        {phase.name}
+                      </span>
+                      <span className={styles.phaseTaskCount}>{phase.taskCount}</span>
+                    </div>
+                  )
+                })}
+
+                <div className={styles.phaseActions}>
+                  {addingPhaseGoalId === goal.id ? (
+                    <div className={styles.addPhaseRow}>
+                      <span>+</span>
+                      <input
+                        className={styles.addPhaseInput}
+                        autoFocus
+                        value={newPhaseName}
+                        onChange={(e) => setNewPhaseName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleAddPhase(goal.id)
+                          if (e.key === 'Escape') { setAddingPhaseGoalId(null); setNewPhaseName('') }
+                        }}
+                        onBlur={() => handleAddPhase(goal.id)}
+                        placeholder="阶段名称，Enter 确认"
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className={styles.addPhaseBtn}
+                      onClick={(e) => { e.stopPropagation(); setAddingPhaseGoalId(goal.id); setNewPhaseName('') }}
+                    >
+                      <span>+</span>
+                      <span>添加阶段</span>
+                    </div>
+                  )}
+                  <div
+                    className={`${styles.goalInboxBtn} ${location.pathname === `/inbox/${goal.id}` ? styles.goalInboxBtnActive : ''}`}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/inbox/${goal.id}`) }}
+                  >
+                    📥
+                  </div>
+                </div>
+              </>
+            )}
+          </React.Fragment>
+        )
+      })}
+
+      {goalContextMenu && (
+        <GoalContextMenu
+          goalId={goalContextMenu.goalId}
+          x={goalContextMenu.x}
+          y={goalContextMenu.y}
+          onEdit={openGoalEdit}
+          onDelete={handleGoalDelete}
+          onClose={() => setGoalContextMenu(null)}
+        />
+      )}
+
+      {showGoalForm && (
+        <GoalFormModal
+          editingGoalId={editingGoalId}
+          selectedColor={selectedGoalColor}
+          errors={goalErrors}
+          isSubmitting={goalIsSubmitting}
+          register={goalRegister}
+          watch={goalWatch}
+          setValue={goalSetValue}
+          onSubmit={goalHandleSubmit(onGoalSubmit)}
+          onClose={() => setShowGoalForm(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+const GoalFormSchema = z.object({
+  name: z.string().min(1, '请输入目标名').max(100),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, '请选择颜色'),
+  icon: z.string().optional(),
+})
+type GoalFormValues = z.infer<typeof GoalFormSchema>
+
+function GoalContextMenu({
+  goalId,
+  x,
+  y,
+  onEdit,
+  onDelete,
+  onClose,
+}: {
+  goalId: string
+  x: number
+  y: number
+  onEdit: (id: string) => void
+  onDelete: (id: string) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  return (
+    <div ref={ref} className={styles.contextMenu} style={{ position: 'fixed', left: x, top: y }}>
+      <button className={styles.contextMenuItem} onClick={() => onEdit(goalId)}>编辑目标</button>
+      <div className={styles.contextMenuDivider} />
+      <button
+        className={`${styles.contextMenuItem} ${styles.contextMenuItemDanger}`}
+        onClick={() => onDelete(goalId)}
+      >删除目标</button>
+    </div>
+  )
+}
+
+function GoalFormModal({
+  editingGoalId,
+  selectedColor,
+  errors,
+  isSubmitting,
+  register,
+  watch,
+  setValue,
+  onSubmit,
+  onClose,
+}: {
+  editingGoalId: string | null
+  selectedColor: string
+  errors: ReturnType<typeof useForm<GoalFormValues>>['formState']['errors']
+  isSubmitting: boolean
+  register: ReturnType<typeof useForm<GoalFormValues>>['register']
+  watch: ReturnType<typeof useForm<GoalFormValues>>['watch']
+  setValue: ReturnType<typeof useForm<GoalFormValues>>['setValue']
+  onSubmit: (e: React.FormEvent) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  return (
+    <div className={styles.formModalOverlay}>
+      <div ref={ref} className={styles.goalFormModal}>
+        <div className={styles.formModalHeader}>
+          <span>{editingGoalId ? '编辑目标' : '新建目标'}</span>
+          <button className={styles.formModalClose} onClick={onClose}>✕</button>
+        </div>
+        <form onSubmit={onSubmit} className={styles.formModalBody}>
+          <div className={styles.formField}>
+            <label>目标名</label>
+            <input {...register('name')} placeholder="例如：找到 PM 工作" autoFocus className={styles.formInput} />
+            {errors.name && <span className={styles.formError}>{errors.name.message}</span>}
+          </div>
+          <div className={styles.formField}>
+            <label>图标（可选）</label>
+            <div className={styles.emojiPickerRow}>
+              <span
+                className={`${styles.emojiSelected} ${!watch('icon') ? styles.emojiSelectedEmpty : ''}`}
+                onClick={() => setValue('icon', '', { shouldDirty: true })}
+                title="清除图标"
+              >
+                {watch('icon') || '—'}
+              </span>
+              <div className={styles.emojiGrid}>
+                {PRESET_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className={`${styles.emojiBtn} ${watch('icon') === emoji ? styles.emojiBtnSelected : ''}`}
+                    onClick={() => setValue('icon', watch('icon') === emoji ? '' : emoji, { shouldDirty: true })}
+                  >{emoji}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className={styles.formField}>
+            <label>颜色</label>
+            <div className={styles.colorGrid}>
+              {PRESET_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className={`${styles.colorDot} ${selectedColor === color ? styles.colorDotSelected : ''}`}
+                  style={{ background: color }}
+                  onClick={() => setValue('color', color)}
+                />
+              ))}
+            </div>
+            <div className={styles.colorCustomRow}>
+              <span className={styles.colorPreview} style={{ background: selectedColor }} />
+              <input type="color" value={selectedColor} onChange={(e) => setValue('color', e.target.value)} className={styles.colorPicker} />
+              <span className={styles.colorHex}>{selectedColor}</span>
+            </div>
+          </div>
+          <div className={styles.formActions}>
+            <button type="button" className={styles.formCancelBtn} onClick={onClose}>取消</button>
+            <button type="submit" className={styles.formSubmitBtn} disabled={isSubmitting}>
+              {isSubmitting ? '保存中…' : '保存'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )
