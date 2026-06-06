@@ -200,6 +200,7 @@ function GoalTreeNav() {
   const [goalContextMenu, setGoalContextMenu] = useState<{ goalId: string; x: number; y: number } | null>(null)
   const [showGoalForm, setShowGoalForm] = useState(false)
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
 
   const {
     register: goalRegister,
@@ -290,17 +291,133 @@ function GoalTreeNav() {
     setGoalContextMenu(null)
   }
 
+  const handleGoalArchive = async (goalId: string) => {
+    const updated = await goalsApi.update(goalId, { status: 'archived' })
+    updateGoal(goalId, updated)
+    if (activeGoalFilter?.id === goalId) setGoalFilter(null)
+    setGoalContextMenu(null)
+  }
+
+  const handleGoalUnarchive = async (goalId: string) => {
+    const updated = await goalsApi.update(goalId, { status: 'active' })
+    updateGoal(goalId, updated)
+    setGoalContextMenu(null)
+  }
+
   const onGoalSubmit = async (data: GoalFormValues) => {
     if (editingGoalId) {
       const updated = await goalsApi.update(editingGoalId, data)
       updateGoal(editingGoalId, updated)
     } else {
       const nextOrder = goals.length > 0 ? Math.max(...goals.map((g) => g.sortOrder)) + 1 : 0
-      const created = await goalsApi.create({ id: nanoid(), sortOrder: nextOrder, ...data })
+      const created = await goalsApi.create({ id: nanoid(), sortOrder: nextOrder, status: 'active', ...data })
       addGoal(created)
       setExpandedGoals((prev) => new Set([...prev, created.id]))
     }
     setShowGoalForm(false)
+  }
+
+  const activeGoals = goals.filter((g) => g.status !== 'archived')
+  const archivedGoals = goals.filter((g) => g.status === 'archived')
+
+  const renderGoalRow = (goal: typeof goals[0]) => {
+    const expanded = expandedGoals.has(goal.id)
+    const doneCount = goal.phases.filter((p) => p.isDone).length
+    const totalCount = goal.phases.length
+    const isActive = activeGoalFilter?.type === 'goal' && activeGoalFilter.id === goal.id
+    const isArchived = goal.status === 'archived'
+
+    return (
+      <React.Fragment key={goal.id}>
+        <div
+          className={`${styles.goalRow} ${isActive ? styles.goalRowActive : ''} ${isArchived ? styles.goalRowArchived : ''}`}
+          onClick={() => handleGoalClick(goal.id)}
+        >
+          <span
+            className={styles.goalExpandIcon}
+            onClick={(e) => { e.stopPropagation(); toggleExpand(goal.id) }}
+          >
+            {expanded ? '▾' : '▸'}
+          </span>
+          <span className={styles.goalDot} style={{ background: goal.color, opacity: isArchived ? 0.4 : 1 }} />
+          {goal.icon && <span>{goal.icon}</span>}
+          <span className={styles.goalName}>{goal.name}</span>
+          {totalCount > 0 && (
+            <span className={styles.goalProgress}>{doneCount}/{totalCount}</span>
+          )}
+          <button
+            className={styles.goalMenuBtn}
+            onClick={(e) => {
+              e.stopPropagation()
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+              setGoalContextMenu({ goalId: goal.id, x: rect.right, y: rect.bottom })
+            }}
+          >…</button>
+        </div>
+
+        {expanded && (
+          <>
+            {goal.phases.map((phase) => {
+              const isPhaseActive = activeGoalFilter?.type === 'phase' && activeGoalFilter.id === phase.id
+              return (
+                <div
+                  key={phase.id}
+                  className={`${styles.phaseRow} ${isPhaseActive ? styles.phaseRowActive : ''}`}
+                  onClick={(e) => handlePhaseClick(e, phase.id)}
+                >
+                  <span
+                    className={`${styles.phaseCheckbox} ${phase.isDone ? styles.phaseCheckboxDone : ''}`}
+                    onClick={(e) => handlePhaseCheck(e, goal.id, phase.id, phase.isDone)}
+                  >
+                    {phase.isDone && '✓'}
+                  </span>
+                  <span className={`${styles.phaseName} ${phase.isDone ? styles.phaseNameDone : ''}`}>
+                    {phase.name}
+                  </span>
+                  <span className={styles.phaseTaskCount}>{phase.taskCount}</span>
+                </div>
+              )
+            })}
+
+            {!isArchived && (
+              <div className={styles.phaseActions}>
+                {addingPhaseGoalId === goal.id ? (
+                  <div className={styles.addPhaseRow}>
+                    <span>+</span>
+                    <input
+                      className={styles.addPhaseInput}
+                      autoFocus
+                      value={newPhaseName}
+                      onChange={(e) => setNewPhaseName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddPhase(goal.id)
+                        if (e.key === 'Escape') { setAddingPhaseGoalId(null); setNewPhaseName('') }
+                      }}
+                      onBlur={() => handleAddPhase(goal.id)}
+                      placeholder="阶段名称，Enter 确认"
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className={styles.addPhaseBtn}
+                    onClick={(e) => { e.stopPropagation(); setAddingPhaseGoalId(goal.id); setNewPhaseName('') }}
+                  >
+                    <span>+</span>
+                    <span>添加阶段</span>
+                  </div>
+                )}
+                <div
+                  className={`${styles.goalInboxBtn} ${location.pathname === `/inbox/${goal.id}` ? styles.goalInboxBtnActive : ''}`}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/inbox/${goal.id}`) }}
+                >
+                  📥
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </React.Fragment>
+    )
   }
 
   return (
@@ -310,109 +427,30 @@ function GoalTreeNav() {
         <button className={styles.goalAddBtn} onClick={openGoalCreate} title="新建目标">＋</button>
       </div>
 
-      {goals.map((goal) => {
-        const expanded = expandedGoals.has(goal.id)
-        const doneCount = goal.phases.filter((p) => p.isDone).length
-        const totalCount = goal.phases.length
-        const isActive = activeGoalFilter?.type === 'goal' && activeGoalFilter.id === goal.id
+      {activeGoals.map(renderGoalRow)}
 
-        return (
-          <React.Fragment key={goal.id}>
-            <div
-              className={`${styles.goalRow} ${isActive ? styles.goalRowActive : ''}`}
-              onClick={() => handleGoalClick(goal.id)}
-            >
-              <span
-                className={styles.goalExpandIcon}
-                onClick={(e) => { e.stopPropagation(); toggleExpand(goal.id) }}
-              >
-                {expanded ? '▾' : '▸'}
-              </span>
-              <span className={styles.goalDot} style={{ background: goal.color }} />
-              {goal.icon && <span>{goal.icon}</span>}
-              <span className={styles.goalName}>{goal.name}</span>
-              {totalCount > 0 && (
-                <span className={styles.goalProgress}>{doneCount}/{totalCount}</span>
-              )}
-              <button
-                className={styles.goalMenuBtn}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  setGoalContextMenu({ goalId: goal.id, x: rect.right, y: rect.bottom })
-                }}
-              >…</button>
-            </div>
-
-            {expanded && (
-              <>
-                {goal.phases.map((phase) => {
-                  const isPhaseActive = activeGoalFilter?.type === 'phase' && activeGoalFilter.id === phase.id
-                  return (
-                    <div
-                      key={phase.id}
-                      className={`${styles.phaseRow} ${isPhaseActive ? styles.phaseRowActive : ''}`}
-                      onClick={(e) => handlePhaseClick(e, phase.id)}
-                    >
-                      <span
-                        className={`${styles.phaseCheckbox} ${phase.isDone ? styles.phaseCheckboxDone : ''}`}
-                        onClick={(e) => handlePhaseCheck(e, goal.id, phase.id, phase.isDone)}
-                      >
-                        {phase.isDone && '✓'}
-                      </span>
-                      <span className={`${styles.phaseName} ${phase.isDone ? styles.phaseNameDone : ''}`}>
-                        {phase.name}
-                      </span>
-                      <span className={styles.phaseTaskCount}>{phase.taskCount}</span>
-                    </div>
-                  )
-                })}
-
-                <div className={styles.phaseActions}>
-                  {addingPhaseGoalId === goal.id ? (
-                    <div className={styles.addPhaseRow}>
-                      <span>+</span>
-                      <input
-                        className={styles.addPhaseInput}
-                        autoFocus
-                        value={newPhaseName}
-                        onChange={(e) => setNewPhaseName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleAddPhase(goal.id)
-                          if (e.key === 'Escape') { setAddingPhaseGoalId(null); setNewPhaseName('') }
-                        }}
-                        onBlur={() => handleAddPhase(goal.id)}
-                        placeholder="阶段名称，Enter 确认"
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      className={styles.addPhaseBtn}
-                      onClick={(e) => { e.stopPropagation(); setAddingPhaseGoalId(goal.id); setNewPhaseName('') }}
-                    >
-                      <span>+</span>
-                      <span>添加阶段</span>
-                    </div>
-                  )}
-                  <div
-                    className={`${styles.goalInboxBtn} ${location.pathname === `/inbox/${goal.id}` ? styles.goalInboxBtnActive : ''}`}
-                    onClick={(e) => { e.stopPropagation(); navigate(`/inbox/${goal.id}`) }}
-                  >
-                    📥
-                  </div>
-                </div>
-              </>
-            )}
-          </React.Fragment>
-        )
-      })}
+      {archivedGoals.length > 0 && (
+        <>
+          <div
+            className={styles.archivedToggle}
+            onClick={() => setShowArchived((v) => !v)}
+          >
+            <span className={styles.goalExpandIcon}>{showArchived ? '▾' : '▸'}</span>
+            <span>已归档 ({archivedGoals.length})</span>
+          </div>
+          {showArchived && archivedGoals.map(renderGoalRow)}
+        </>
+      )}
 
       {goalContextMenu && (
         <GoalContextMenu
           goalId={goalContextMenu.goalId}
+          isArchived={goals.find((g) => g.id === goalContextMenu.goalId)?.status === 'archived'}
           x={goalContextMenu.x}
           y={goalContextMenu.y}
           onEdit={openGoalEdit}
+          onArchive={handleGoalArchive}
+          onUnarchive={handleGoalUnarchive}
           onDelete={handleGoalDelete}
           onClose={() => setGoalContextMenu(null)}
         />
@@ -444,16 +482,22 @@ type GoalFormValues = z.infer<typeof GoalFormSchema>
 
 function GoalContextMenu({
   goalId,
+  isArchived,
   x,
   y,
   onEdit,
+  onArchive,
+  onUnarchive,
   onDelete,
   onClose,
 }: {
   goalId: string
+  isArchived?: boolean
   x: number
   y: number
   onEdit: (id: string) => void
+  onArchive: (id: string) => void
+  onUnarchive: (id: string) => void
   onDelete: (id: string) => void
   onClose: () => void
 }) {
@@ -468,7 +512,14 @@ function GoalContextMenu({
 
   return (
     <div ref={ref} className={styles.contextMenu} style={{ position: 'fixed', left: x, top: y }}>
-      <button className={styles.contextMenuItem} onClick={() => onEdit(goalId)}>编辑目标</button>
+      {!isArchived && (
+        <button className={styles.contextMenuItem} onClick={() => onEdit(goalId)}>编辑目标</button>
+      )}
+      {isArchived ? (
+        <button className={styles.contextMenuItem} onClick={() => onUnarchive(goalId)}>恢复目标</button>
+      ) : (
+        <button className={styles.contextMenuItem} onClick={() => onArchive(goalId)}>归档目标</button>
+      )}
       <div className={styles.contextMenuDivider} />
       <button
         className={`${styles.contextMenuItem} ${styles.contextMenuItemDanger}`}

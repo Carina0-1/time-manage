@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { eq, and, isNull, inArray } from 'drizzle-orm'
+import { eq, and, isNull, ne, inArray } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { goals, phases, tasks } from '../db/schema.js'
 import { CreateGoalSchema, UpdateGoalSchema } from '@time-manage/shared'
@@ -8,14 +8,21 @@ import type { AuthEnv } from '../middleware/auth.js'
 
 export const goalsRouter = new Hono<AuthEnv>()
 
-// GET /goals — 返回所有 goals，含 phases 和每个 phase 的 taskCount
+// GET /goals?includeArchived=true — 返回所有 goals，含 phases 和每个 phase 的 taskCount
+// 默认不返回 archived 目标，传 includeArchived=true 时全部返回
 goalsRouter.get('/', async (c) => {
   const userId = c.get('userId')
+  const includeArchived = c.req.query('includeArchived') === 'true'
+
+  const baseConditions = and(eq(goals.userId, userId), isNull(goals.deletedAt))
+  const whereClause = includeArchived
+    ? baseConditions
+    : and(eq(goals.userId, userId), isNull(goals.deletedAt), ne(goals.status, 'archived'))
 
   const goalRows = await db
     .select()
     .from(goals)
-    .where(and(eq(goals.userId, userId), isNull(goals.deletedAt)))
+    .where(whereClause)
     .orderBy(goals.sortOrder)
 
   if (goalRows.length === 0) return c.json({ data: [] })

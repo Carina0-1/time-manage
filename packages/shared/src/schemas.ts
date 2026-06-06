@@ -32,6 +32,7 @@ export const CreateGoalSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   icon: z.string().optional(),
   sortOrder: z.number().int().default(0),
+  status: z.enum(['active', 'done', 'archived']).default('active'),
 })
 
 export const UpdateGoalSchema = CreateGoalSchema.partial().omit({ id: true })

@@ -10,7 +10,8 @@ export interface GoalWithPhases extends Goal {
 }
 
 export const goalsApi = {
-  list: () => api.get<GoalWithPhases[]>('/goals'),
+  list: (includeArchived = false) =>
+    api.get<GoalWithPhases[]>(`/goals${includeArchived ? '?includeArchived=true' : ''}`),
   create: (data: CreateGoalInput) => api.post<GoalWithPhases>('/goals', data),
   update: (id: string, data: UpdateGoalInput) => api.patch<Goal>(`/goals/${id}`, data),
   remove: (id: string) => api.delete<null>(`/goals/${id}`),

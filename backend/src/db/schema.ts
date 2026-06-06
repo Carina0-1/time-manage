@@ -16,6 +16,7 @@ export const goals = pgTable('goals', {
   color: text('color').notNull(),
   icon: text('icon'),
   sortOrder: integer('sort_order').default(0).notNull(),
+  status: text('status').default('active').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'),

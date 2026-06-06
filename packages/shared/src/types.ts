@@ -29,6 +29,8 @@ export interface Task {
   updatedAt: string
 }
 
+export type GoalStatus = 'active' | 'done' | 'archived'
+
 export interface Goal {
   id: string
   userId: string
@@ -36,6 +38,7 @@ export interface Goal {
   color: string
   icon?: string
   sortOrder: number
+  status: GoalStatus
   createdAt: string
   updatedAt: string
 }
