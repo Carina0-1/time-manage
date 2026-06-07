@@ -128,7 +128,8 @@ function ActivityHeatmap() {
     const end = new Date()
     const start = new Date(end)
     start.setDate(start.getDate() - 104) // ~15 weeks
-    statsApi.get(start.toISOString(), end.toISOString())
+    const fmt = (d: Date) => d.toISOString().slice(0, 10)
+    statsApi.get(fmt(start), fmt(end))
       .then((result) => {
         const map = new Map<string, number>()
         for (const { date, taskCount } of result.dailyActivity) {
