@@ -87,11 +87,15 @@ export default function Layout() {
 }
 
 function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
-  const { tasks } = useTaskStore()
+  const { tasks, fetchTasks } = useTaskStore()
   const { goals } = useGoalStore()
   const [activeDays, setActiveDays] = useState(0)
 
   const activeGoalCount = goals.filter((g) => g.status !== 'archived').length
+
+  useEffect(() => {
+    if (tasks.length === 0) fetchTasks()
+  }, [])
 
   useEffect(() => {
     const end = new Date()
