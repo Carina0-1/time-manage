@@ -15,20 +15,23 @@ type Range = 'week' | 'month' | 'custom'
 function getRangeDates(range: Range, customStart: string, customEnd: string) {
   const now = dayjs()
   if (range === 'week') {
+    const dayOfWeek = now.day() === 0 ? 7 : now.day()
+    const monday = now.subtract(dayOfWeek - 1, 'day')
+    const sunday = monday.add(6, 'day')
     return {
-      start: now.startOf('week').add(1, 'day').toISOString(), // 周一
-      end: now.endOf('week').add(1, 'day').toISOString(),
+      start: monday.format('YYYY-MM-DD'),
+      end: sunday.format('YYYY-MM-DD'),
     }
   }
   if (range === 'month') {
     return {
-      start: now.startOf('month').toISOString(),
-      end: now.endOf('month').toISOString(),
+      start: now.startOf('month').format('YYYY-MM-DD'),
+      end: now.endOf('month').format('YYYY-MM-DD'),
     }
   }
   return {
-    start: customStart ? new Date(customStart).toISOString() : now.startOf('month').toISOString(),
-    end: customEnd ? new Date(customEnd).toISOString() : now.endOf('month').toISOString(),
+    start: customStart || now.startOf('month').format('YYYY-MM-DD'),
+    end: customEnd || now.endOf('month').format('YYYY-MM-DD'),
   }
 }
 

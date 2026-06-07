@@ -19,8 +19,8 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
   const userId = c.get('userId')
   const { start, end } = c.req.valid('query')
 
-  const startDate = new Date(start)
-  const endDate = new Date(end)
+  const startDate = new Date(start + 'T00:00:00.000Z')
+  const endDate = new Date(end + 'T23:59:59.999Z')
 
   // 查询时间范围内所有已排期的未删除任务（Inbox 任务无时间，不计入统计）
   const taskRows = await db
@@ -35,10 +35,9 @@ statsRouter.get('/', zValidator('query', StatsQuerySchema), async (c) => {
       lte(tasks.endTime, endDate),
     ))
 
-  // 生成查询范围内所有日期列表（YYYY-MM-DD，按本地时区）
+  // 生成查询范围内所有日期列表（YYYY-MM-DD，UTC 日期）
   const allDates: string[] = []
   const cur = new Date(startDate)
-  cur.setUTCHours(0, 0, 0, 0)
   const endDay = new Date(endDate)
   endDay.setUTCHours(0, 0, 0, 0)
   while (cur <= endDay) {
