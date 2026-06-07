@@ -25,7 +25,7 @@ export const useGoalStore = create<GoalStore>((set) => ({
   fetchGoals: async () => {
     set({ loading: true })
     try {
-      const data = await goalsApi.list()
+      const data = await goalsApi.list(true)  // 始终拉取含 archived，渲染层过滤
       set({ goals: data })
     } finally {
       set({ loading: false })
