@@ -15,6 +15,7 @@ import { useUiStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useGoalStore } from '@/stores/goalStore'
 import { tagsApi } from '@/api/tags'
+import { tasksApi } from '@/api/tasks'
 import { goalsApi } from '@/api/goals'
 import { statsApi } from '@/api/stats'
 
@@ -87,14 +88,14 @@ export default function Layout() {
 }
 
 function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
-  const { tasks, fetchTasks } = useTaskStore()
   const { goals } = useGoalStore()
+  const [totalTaskCount, setTotalTaskCount] = useState(0)
   const [activeDays, setActiveDays] = useState(0)
 
   const activeGoalCount = goals.filter((g) => g.status !== 'archived').length
 
   useEffect(() => {
-    if (tasks.length === 0) fetchTasks()
+    tasksApi.listAll().then((tasks) => setTotalTaskCount(tasks.length)).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -110,7 +111,7 @@ function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
   return (
     <div className={styles.sidebarStats} onClick={onClickStats} title="查看统计">
       <div className={styles.statItem}>
-        <span className={styles.statNum}>{tasks.length}</span>
+        <span className={styles.statNum}>{totalTaskCount}</span>
         <span className={styles.statLabel}>任务</span>
       </div>
       <div className={styles.statItem}>
