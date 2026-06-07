@@ -88,14 +88,17 @@ export default function Layout() {
 
 function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
   const { tasks } = useTaskStore()
-  const { tags } = useTagStore()
+  const { goals } = useGoalStore()
   const [activeDays, setActiveDays] = useState(0)
+
+  const activeGoalCount = goals.filter((g) => g.status !== 'archived').length
 
   useEffect(() => {
     const end = new Date()
     const start = new Date(end)
     start.setDate(start.getDate() - 90)
-    statsApi.get(start.toISOString(), end.toISOString())
+    const fmt = (d: Date) => d.toISOString().slice(0, 10)
+    statsApi.get(fmt(start), fmt(end))
       .then((result) => setActiveDays(result.dailyActivity.length))
       .catch(() => {})
   }, [])
@@ -107,8 +110,8 @@ function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
         <span className={styles.statLabel}>任务</span>
       </div>
       <div className={styles.statItem}>
-        <span className={styles.statNum}>{tags.length}</span>
-        <span className={styles.statLabel}>标签</span>
+        <span className={styles.statNum}>{activeGoalCount}</span>
+        <span className={styles.statLabel}>目标</span>
       </div>
       <div className={styles.statItem}>
         <span className={styles.statNum}>{activeDays}</span>
