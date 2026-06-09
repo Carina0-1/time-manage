@@ -261,7 +261,7 @@ export default function TaskModal() {
           {/* 目标 + 阶段（chip 触发下拉，与标签交互一致） */}
           <div className={styles.chipRow}>
             <GoalSelector
-              goals={goals}
+              goals={goals.filter((g) => g.status !== 'archived')}
               selectedGoalId={selectedGoalId}
               selectedPhaseId={selectedPhaseId}
               onSelectGoal={(id) => {

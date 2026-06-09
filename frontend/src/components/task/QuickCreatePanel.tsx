@@ -175,6 +175,7 @@ export default function QuickCreatePanel() {
     : '全天'
 
   // Goal selection
+  const activeGoals = goals.filter((g) => g.status !== 'archived')
   const selectedGoal = goals.find((g) => g.id === selectedGoalId)
   const selectedPhase = selectedGoal?.phases.find((p) => p.id === selectedPhaseId)
   const [goalOpen, setGoalOpen] = useState(false)
@@ -311,9 +312,9 @@ export default function QuickCreatePanel() {
 
             {goalOpen && (
               <div className={styles.chipDropdown}>
-                {goals.length === 0 ? (
+                {activeGoals.length === 0 ? (
                   <div className={styles.chipDropdownEmpty}>暂无目标</div>
-                ) : goals.map((goal) => (
+                ) : activeGoals.map((goal) => (
                   <div key={goal.id}>
                     <div
                       className={`${styles.chipDropdownItem} ${selectedGoalId === goal.id ? styles.chipDropdownItemSelected : ''}`}
