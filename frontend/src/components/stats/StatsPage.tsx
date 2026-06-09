@@ -155,7 +155,7 @@ export default function StatsPage() {
             </div>
           </div>
 
-          {statsWithRootColor.tags.length === 0 ? (
+          {statsWithRootColor.totalCount === 0 ? (
             <div className={styles.empty}>该时间段内暂无数据</div>
           ) : (
             <div className={styles.charts}>
