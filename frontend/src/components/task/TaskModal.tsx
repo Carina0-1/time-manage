@@ -35,7 +35,7 @@ export default function TaskModal() {
   const { taskModalOpen, panelPos, editingTaskId, createDefaults, closeTaskModal } = useUiStore()
   const { tasks, addTask, updateTask, removeTask } = useTaskStore()
   const { tags } = useTagStore()
-  const { goals } = useGoalStore()
+  const { goals, adjustPhaseTaskCount } = useGoalStore()
 
   const editingTask = editingTaskId ? tasks.find((t) => t.id === editingTaskId) : null
 
@@ -133,9 +133,14 @@ export default function TaskModal() {
     if (editingTask) {
       const updated = await tasksApi.update(editingTask.id, input)
       updateTask(editingTask.id, updated)
+      if (editingTask.phaseId !== updated.phaseId) {
+        if (editingTask.phaseId) adjustPhaseTaskCount(editingTask.phaseId, -1)
+        if (updated.phaseId) adjustPhaseTaskCount(updated.phaseId, 1)
+      }
     } else {
       const created = await tasksApi.create(input)
       addTask(created)
+      if (created.phaseId) adjustPhaseTaskCount(created.phaseId, 1)
     }
     closeTaskModal()
   }
@@ -144,6 +149,7 @@ export default function TaskModal() {
     if (!editingTask) return
     await tasksApi.remove(editingTask.id)
     removeTask(editingTask.id)
+    if (editingTask.phaseId) adjustPhaseTaskCount(editingTask.phaseId, -1)
     closeTaskModal()
   }
 
