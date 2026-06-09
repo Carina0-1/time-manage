@@ -18,5 +18,6 @@ export const goalsApi = {
 
   createPhase: (data: CreatePhaseInput) => api.post<Phase>('/phases', data),
   updatePhase: (id: string, data: UpdatePhaseInput) => api.patch<Phase>(`/phases/${id}`, data),
-  removePhase: (id: string) => api.delete<null>(`/phases/${id}`),
+  removePhase: (id: string, withTasks = false) =>
+    api.delete<null>(`/phases/${id}${withTasks ? '?withTasks=true' : ''}`),
 }

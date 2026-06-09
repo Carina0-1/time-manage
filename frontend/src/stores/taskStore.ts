@@ -10,6 +10,7 @@ interface TaskStore {
   updateTask: (id: string, data: Partial<Task>) => void
   removeTask: (id: string) => void
   removeTasksByTagId: (tagId: string) => void
+  removeTasksByPhaseId: (phaseId: string) => void
 }
 
 export const useTaskStore = create<TaskStore>((set) => ({
@@ -39,4 +40,7 @@ export const useTaskStore = create<TaskStore>((set) => ({
 
   removeTasksByTagId: (tagId) =>
     set((s) => ({ tasks: s.tasks.filter((t) => !t.tagIds.includes(tagId)) })),
+
+  removeTasksByPhaseId: (phaseId) =>
+    set((s) => ({ tasks: s.tasks.filter((t) => t.phaseId !== phaseId) })),
 }))

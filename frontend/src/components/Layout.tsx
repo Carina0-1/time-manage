@@ -198,7 +198,8 @@ function ActivityHeatmap() {
 }
 
 function GoalTreeNav() {
-  const { goals, fetchGoals, addGoal, updateGoal, removeGoal, addPhase, updatePhase } = useGoalStore()
+  const { goals, fetchGoals, addGoal, updateGoal, removeGoal, addPhase, updatePhase, removePhase } = useGoalStore()
+  const { removeTasksByPhaseId } = useTaskStore()
   const { activeGoalFilter, setGoalFilter } = useUiStore()
   const navigate = useNavigate()
   const location = useLocation()
@@ -207,6 +208,9 @@ function GoalTreeNav() {
   const [addingPhaseGoalId, setAddingPhaseGoalId] = useState<string | null>(null)
   const [newPhaseName, setNewPhaseName] = useState('')
   const [goalContextMenu, setGoalContextMenu] = useState<{ goalId: string; x: number; y: number } | null>(null)
+  const [phaseContextMenu, setPhaseContextMenu] = useState<{ goalId: string; phaseId: string; x: number; y: number } | null>(null)
+  const [editingPhaseId, setEditingPhaseId] = useState<string | null>(null)
+  const [editingPhaseName, setEditingPhaseName] = useState('')
   const [showGoalForm, setShowGoalForm] = useState(false)
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
@@ -276,6 +280,41 @@ function GoalTreeNav() {
     addPhase(goalId, { ...phase, taskCount: 0 })
     setNewPhaseName('')
     setAddingPhaseGoalId(null)
+  }
+
+  const openPhaseEdit = (goalId: string, phaseId: string) => {
+    const goal = goals.find((g) => g.id === goalId)
+    const phase = goal?.phases.find((p) => p.id === phaseId)
+    if (!phase) return
+    setEditingPhaseId(phaseId)
+    setEditingPhaseName(phase.name)
+    setPhaseContextMenu(null)
+  }
+
+  const handlePhaseEditSubmit = async (goalId: string, phaseId: string) => {
+    const name = editingPhaseName.trim()
+    setEditingPhaseId(null)
+    if (!name) return
+    const prev = goals.find((g) => g.id === goalId)?.phases.find((p) => p.id === phaseId)?.name ?? ''
+    updatePhase(goalId, phaseId, { name })
+    try {
+      await goalsApi.updatePhase(phaseId, { name })
+    } catch {
+      updatePhase(goalId, phaseId, { name: prev })
+    }
+  }
+
+  const handlePhaseDelete = async (goalId: string, phaseId: string, withTasks: boolean) => {
+    setPhaseContextMenu(null)
+    removePhase(goalId, phaseId)
+    if (withTasks) removeTasksByPhaseId(phaseId)
+    if (activeGoalFilter?.type === 'phase' && activeGoalFilter.id === phaseId) setGoalFilter(null)
+    try {
+      await goalsApi.removePhase(phaseId, withTasks)
+    } catch {
+      // 失败时重新拉取数据
+      fetchGoals()
+    }
   }
 
   const openGoalCreate = () => {
@@ -368,22 +407,48 @@ function GoalTreeNav() {
           <>
             {goal.phases.map((phase) => {
               const isPhaseActive = activeGoalFilter?.type === 'phase' && activeGoalFilter.id === phase.id
+              const isEditing = editingPhaseId === phase.id
               return (
                 <div
                   key={phase.id}
                   className={`${styles.phaseRow} ${isPhaseActive ? styles.phaseRowActive : ''}`}
-                  onClick={(e) => handlePhaseClick(e, phase.id)}
+                  onClick={(e) => !isEditing && handlePhaseClick(e, phase.id)}
                 >
                   <span
                     className={`${styles.phaseCheckbox} ${phase.isDone ? styles.phaseCheckboxDone : ''}`}
-                    onClick={(e) => handlePhaseCheck(e, goal.id, phase.id, phase.isDone)}
+                    onClick={(e) => { e.stopPropagation(); handlePhaseCheck(e, goal.id, phase.id, phase.isDone) }}
                   >
                     {phase.isDone && '✓'}
                   </span>
-                  <span className={`${styles.phaseName} ${phase.isDone ? styles.phaseNameDone : ''}`}>
-                    {phase.name}
-                  </span>
-                  <span className={styles.phaseTaskCount}>{phase.taskCount}</span>
+                  {isEditing ? (
+                    <input
+                      className={styles.phaseEditInput}
+                      autoFocus
+                      value={editingPhaseName}
+                      onChange={(e) => setEditingPhaseName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handlePhaseEditSubmit(goal.id, phase.id)
+                        if (e.key === 'Escape') setEditingPhaseId(null)
+                      }}
+                      onBlur={() => handlePhaseEditSubmit(goal.id, phase.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <>
+                      <span className={`${styles.phaseName} ${phase.isDone ? styles.phaseNameDone : ''}`}>
+                        {phase.name}
+                      </span>
+                      <span className={styles.phaseTaskCount}>{phase.taskCount}</span>
+                      <button
+                        className={styles.phaseMenuBtn}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                          setPhaseContextMenu({ goalId: goal.id, phaseId: phase.id, x: rect.right, y: rect.bottom })
+                        }}
+                      >…</button>
+                    </>
+                  )}
                 </div>
               )
             })}
@@ -465,6 +530,18 @@ function GoalTreeNav() {
         />
       )}
 
+      {phaseContextMenu && (
+        <PhaseContextMenu
+          goalId={phaseContextMenu.goalId}
+          phaseId={phaseContextMenu.phaseId}
+          x={phaseContextMenu.x}
+          y={phaseContextMenu.y}
+          onEdit={openPhaseEdit}
+          onDelete={handlePhaseDelete}
+          onClose={() => setPhaseContextMenu(null)}
+        />
+      )}
+
       {showGoalForm && (
         <GoalFormModal
           editingGoalId={editingGoalId}
@@ -534,6 +611,48 @@ function GoalContextMenu({
         className={`${styles.contextMenuItem} ${styles.contextMenuItemDanger}`}
         onClick={() => onDelete(goalId)}
       >删除目标</button>
+    </div>
+  )
+}
+
+function PhaseContextMenu({
+  goalId,
+  phaseId,
+  x,
+  y,
+  onEdit,
+  onDelete,
+  onClose,
+}: {
+  goalId: string
+  phaseId: string
+  x: number
+  y: number
+  onEdit: (goalId: string, phaseId: string) => void
+  onDelete: (goalId: string, phaseId: string, withTasks: boolean) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  return (
+    <div ref={ref} className={styles.contextMenu} style={{ position: 'fixed', left: x, top: y }}>
+      <button className={styles.contextMenuItem} onClick={() => onEdit(goalId, phaseId)}>编辑阶段</button>
+      <div className={styles.contextMenuDivider} />
+      <button
+        className={`${styles.contextMenuItem} ${styles.contextMenuItemDanger}`}
+        onClick={() => onDelete(goalId, phaseId, false)}
+      >仅删除阶段</button>
+      <button
+        className={`${styles.contextMenuItem} ${styles.contextMenuItemDanger}`}
+        onClick={() => onDelete(goalId, phaseId, true)}
+      >删除阶段和任务</button>
     </div>
   )
 }

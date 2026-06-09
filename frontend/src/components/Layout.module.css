@@ -184,6 +184,36 @@
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
+.phaseMenuBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink-faint);
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  border-radius: 3px;
+  transition: color 0.1s, background 0.1s;
+  display: none;
+}
+.phaseRow:hover .phaseMenuBtn { display: flex; align-items: center; justify-content: center; }
+.phaseMenuBtn:hover {
+  color: var(--ink-soft);
+  background: rgba(0, 0, 0, 0.05);
+}
+.phaseEditInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--ink);
+  font-family: var(--font);
+  border-bottom: 1px solid var(--accent);
+}
 
 /* Phase actions row (add phase + inbox button) */
 .phaseActions {

@@ -1,8 +1,9 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { eq, and, isNull } from 'drizzle-orm'
+import { z } from 'zod'
 import { db } from '../db/index.js'
-import { phases, goals } from '../db/schema.js'
+import { phases, goals, tasks } from '../db/schema.js'
 import { CreatePhaseSchema, UpdatePhaseSchema } from '@time-manage/shared'
 import type { AuthEnv } from '../middleware/auth.js'
 
@@ -47,10 +48,15 @@ phasesRouter.patch('/:id', zValidator('json', UpdatePhaseSchema), async (c) => {
   return c.json({ data: phase })
 })
 
-// DELETE /phases/:id (软删除)
-phasesRouter.delete('/:id', async (c) => {
+const DeletePhaseQuerySchema = z.object({
+  withTasks: z.string().optional(),
+})
+
+// DELETE /phases/:id?withTasks=true (软删除，可选级联删除任务)
+phasesRouter.delete('/:id', zValidator('query', DeletePhaseQuerySchema), async (c) => {
   const userId = c.get('userId')
   const id = c.req.param('id')
+  const { withTasks } = c.req.valid('query')
 
   const [phase] = await db
     .update(phases)
@@ -59,5 +65,13 @@ phasesRouter.delete('/:id', async (c) => {
     .returning()
 
   if (!phase) return c.json({ error: 'Not found' }, 404)
+
+  if (withTasks === 'true') {
+    await db
+      .update(tasks)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(tasks.phaseId, id), eq(tasks.userId, userId), isNull(tasks.deletedAt)))
+  }
+
   return c.json({ data: null }, 200)
 })
