@@ -184,6 +184,20 @@
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
+.phaseDragHandle {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--ink-faint);
+  cursor: grab;
+  opacity: 0;
+  padding: 0 1px;
+  line-height: 1;
+  transition: opacity 0.1s;
+  touch-action: none;
+}
+.phaseRow:hover .phaseDragHandle { opacity: 1; }
+.phaseDragHandle:active { cursor: grabbing; }
+
 .phaseMenuBtn {
   background: none;
   border: none;

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { eq, and, isNull } from 'drizzle-orm'
+import { eq, and, isNull, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/index.js'
 import { phases, goals, tasks } from '../db/schema.js'
@@ -8,6 +8,31 @@ import { CreatePhaseSchema, UpdatePhaseSchema } from '@time-manage/shared'
 import type { AuthEnv } from '../middleware/auth.js'
 
 export const phasesRouter = new Hono<AuthEnv>()
+
+const ReorderPhasesSchema = z.object({
+  orders: z.array(z.object({ id: z.string(), sortOrder: z.number().int() })),
+})
+
+// PATCH /phases/reorder — 批量更新 sortOrder
+phasesRouter.patch('/reorder', zValidator('json', ReorderPhasesSchema), async (c) => {
+  const userId = c.get('userId')
+  const { orders } = c.req.valid('json')
+
+  const ids = orders.map((o) => o.id)
+  const owned = await db
+    .select({ id: phases.id })
+    .from(phases)
+    .where(and(inArray(phases.id, ids), eq(phases.userId, userId)))
+  const ownedIds = new Set(owned.map((p) => p.id))
+
+  await Promise.all(
+    orders
+      .filter((o) => ownedIds.has(o.id))
+      .map((o) => db.update(phases).set({ sortOrder: o.sortOrder }).where(eq(phases.id, o.id)))
+  )
+
+  return c.json({ data: null })
+})
 
 // POST /phases
 phasesRouter.post('/', zValidator('json', CreatePhaseSchema), async (c) => {

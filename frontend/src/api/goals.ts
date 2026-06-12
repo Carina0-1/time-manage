@@ -20,4 +20,6 @@ export const goalsApi = {
   updatePhase: (id: string, data: UpdatePhaseInput) => api.patch<Phase>(`/phases/${id}`, data),
   removePhase: (id: string, withTasks = false) =>
     api.delete<null>(`/phases/${id}${withTasks ? '?withTasks=true' : ''}`),
+  reorderPhases: (orders: { id: string; sortOrder: number }[]) =>
+    api.patch<null>('/phases/reorder', { orders }),
 }

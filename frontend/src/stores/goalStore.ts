@@ -15,6 +15,7 @@ interface GoalStore {
   updatePhase: (goalId: string, phaseId: string, data: Partial<Phase>) => void
   removePhase: (goalId: string, phaseId: string) => void
   adjustPhaseTaskCount: (phaseId: string, delta: number) => void
+  reorderPhases: (goalId: string, phases: PhaseWithCount[]) => void
 }
 
 import { goalsApi } from '@/api/goals'
@@ -79,5 +80,10 @@ export const useGoalStore = create<GoalStore>((set) => ({
           p.id === phaseId ? { ...p, taskCount: Math.max(0, p.taskCount + delta) } : p
         ),
       })),
+    })),
+
+  reorderPhases: (goalId, newPhases) =>
+    set((s) => ({
+      goals: s.goals.map((g) => (g.id === goalId ? { ...g, phases: newPhases } : g)),
     })),
 }))

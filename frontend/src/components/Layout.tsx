@@ -1,5 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import QuickCreatePanel from './task/QuickCreatePanel'
 import TaskModal from './task/TaskModal'
 import { useForm } from 'react-hook-form'
@@ -198,8 +213,10 @@ function ActivityHeatmap() {
 }
 
 function GoalTreeNav() {
-  const { goals, fetchGoals, addGoal, updateGoal, removeGoal, addPhase, updatePhase, removePhase } = useGoalStore()
+  const { goals, fetchGoals, addGoal, updateGoal, removeGoal, addPhase, updatePhase, removePhase, reorderPhases } = useGoalStore()
   const { removeTasksByPhaseId } = useTaskStore()
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const { activeGoalFilter, setGoalFilter } = useUiStore()
   const navigate = useNavigate()
   const location = useLocation()
@@ -317,6 +334,22 @@ function GoalTreeNav() {
     }
   }
 
+  const handlePhaseDragEnd = async (goalId: string, event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const goal = goals.find((g) => g.id === goalId)
+    if (!goal) return
+    const oldIndex = goal.phases.findIndex((p) => p.id === active.id)
+    const newIndex = goal.phases.findIndex((p) => p.id === over.id)
+    const newPhases = arrayMove(goal.phases, oldIndex, newIndex).map((p, i) => ({ ...p, sortOrder: i }))
+    reorderPhases(goalId, newPhases)
+    try {
+      await goalsApi.reorderPhases(newPhases.map((p) => ({ id: p.id, sortOrder: p.sortOrder })))
+    } catch {
+      fetchGoals()
+    }
+  }
+
   const openGoalCreate = () => {
     setEditingGoalId(null)
     goalReset({ name: '', color: PRESET_COLORS[0], icon: '' })
@@ -405,53 +438,33 @@ function GoalTreeNav() {
 
         {expanded && (
           <>
-            {goal.phases.map((phase) => {
-              const isPhaseActive = activeGoalFilter?.type === 'phase' && activeGoalFilter.id === phase.id
-              const isEditing = editingPhaseId === phase.id
-              return (
-                <div
-                  key={phase.id}
-                  className={`${styles.phaseRow} ${isPhaseActive ? styles.phaseRowActive : ''}`}
-                  onClick={(e) => !isEditing && handlePhaseClick(e, phase.id)}
-                >
-                  <span
-                    className={`${styles.phaseCheckbox} ${phase.isDone ? styles.phaseCheckboxDone : ''}`}
-                    onClick={(e) => { e.stopPropagation(); handlePhaseCheck(e, goal.id, phase.id, phase.isDone) }}
-                  >
-                    {phase.isDone && '✓'}
-                  </span>
-                  {isEditing ? (
-                    <input
-                      className={styles.phaseEditInput}
-                      autoFocus
-                      value={editingPhaseName}
-                      onChange={(e) => setEditingPhaseName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handlePhaseEditSubmit(goal.id, phase.id)
-                        if (e.key === 'Escape') setEditingPhaseId(null)
-                      }}
-                      onBlur={() => handlePhaseEditSubmit(goal.id, phase.id)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <>
-                      <span className={`${styles.phaseName} ${phase.isDone ? styles.phaseNameDone : ''}`}>
-                        {phase.name}
-                      </span>
-                      <span className={styles.phaseTaskCount}>{phase.taskCount}</span>
-                      <button
-                        className={styles.phaseMenuBtn}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                          setPhaseContextMenu({ goalId: goal.id, phaseId: phase.id, x: rect.right, y: rect.bottom })
-                        }}
-                      >…</button>
-                    </>
-                  )}
-                </div>
-              )
-            })}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(e) => handlePhaseDragEnd(goal.id, e)}
+            >
+              <SortableContext items={goal.phases.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                {goal.phases.map((phase) => (
+                  <SortablePhaseRow
+                    key={phase.id}
+                    phase={phase}
+                    isActive={activeGoalFilter?.type === 'phase' && activeGoalFilter.id === phase.id}
+                    isEditing={editingPhaseId === phase.id}
+                    editingName={editingPhaseName}
+                    onEditingNameChange={setEditingPhaseName}
+                    onPhaseClick={(e) => handlePhaseClick(e, phase.id)}
+                    onCheckClick={(e) => handlePhaseCheck(e, goal.id, phase.id, phase.isDone)}
+                    onEditSubmit={() => handlePhaseEditSubmit(goal.id, phase.id)}
+                    onEditCancel={() => setEditingPhaseId(null)}
+                    onMenuClick={(e) => {
+                      e.stopPropagation()
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      setPhaseContextMenu({ goalId: goal.id, phaseId: phase.id, x: rect.right, y: rect.bottom })
+                    }}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
 
             {!isArchived && (
               <div className={styles.phaseActions}>
@@ -565,6 +578,82 @@ const GoalFormSchema = z.object({
   icon: z.string().optional(),
 })
 type GoalFormValues = z.infer<typeof GoalFormSchema>
+
+function SortablePhaseRow({
+  phase,
+  isActive,
+  isEditing,
+  editingName,
+  onEditingNameChange,
+  onPhaseClick,
+  onCheckClick,
+  onEditSubmit,
+  onEditCancel,
+  onMenuClick,
+}: {
+  phase: import('@/stores/goalStore').PhaseWithCount
+  isActive: boolean
+  isEditing: boolean
+  editingName: string
+  onEditingNameChange: (v: string) => void
+  onPhaseClick: (e: React.MouseEvent) => void
+  onCheckClick: (e: React.MouseEvent) => void
+  onEditSubmit: () => void
+  onEditCancel: () => void
+  onMenuClick: (e: React.MouseEvent<HTMLButtonElement>) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: phase.id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`${styles.phaseRow} ${isActive ? styles.phaseRowActive : ''}`}
+      onClick={(e) => !isEditing && onPhaseClick(e)}
+    >
+      <span
+        className={styles.phaseDragHandle}
+        {...attributes}
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+      >⠿</span>
+      <span
+        className={`${styles.phaseCheckbox} ${phase.isDone ? styles.phaseCheckboxDone : ''}`}
+        onClick={(e) => { e.stopPropagation(); onCheckClick(e) }}
+      >
+        {phase.isDone && '✓'}
+      </span>
+      {isEditing ? (
+        <input
+          className={styles.phaseEditInput}
+          autoFocus
+          value={editingName}
+          onChange={(e) => onEditingNameChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onEditSubmit()
+            if (e.key === 'Escape') onEditCancel()
+          }}
+          onBlur={onEditSubmit}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <>
+          <span className={`${styles.phaseName} ${phase.isDone ? styles.phaseNameDone : ''}`}>
+            {phase.name}
+          </span>
+          <span className={styles.phaseTaskCount}>{phase.taskCount}</span>
+          <button className={styles.phaseMenuBtn} onClick={onMenuClick}>…</button>
+        </>
+      )}
+    </div>
+  )
+}
 
 function GoalContextMenu({
   goalId,
