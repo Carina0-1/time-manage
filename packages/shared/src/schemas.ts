@@ -47,6 +47,7 @@ export const CreatePhaseSchema = z.object({
   isDone: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
   reason: z.string().optional(),
+  currentState: z.string().optional(),
   completionCriteria: z.string().optional(),
 })
 

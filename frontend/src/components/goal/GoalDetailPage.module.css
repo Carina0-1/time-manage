@@ -195,7 +195,7 @@
 
 .phaseMetaGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 0;
   border-bottom: 1px solid var(--line);
 }
@@ -204,13 +204,13 @@
   .phaseMetaGrid { grid-template-columns: 1fr; }
 }
 
-.phaseMetaGrid .field:first-child {
+.phaseMetaGrid .field:not(:last-child) {
   border-right: 1px solid var(--line);
 }
 
 /* Field / Textarea */
 .field {
-  padding: 12px 16px;
+  padding: 8px 12px;
 }
 
 .fieldLabel {

@@ -54,6 +54,7 @@ export interface Phase {
   isDone: boolean
   sortOrder: number
   reason?: string
+  currentState?: string
   completionCriteria?: string
   createdAt: string
   updatedAt: string

@@ -32,6 +32,7 @@ export const phases = pgTable('phases', {
   isDone: boolean('is_done').default(false).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   reason: text('reason'),
+  currentState: text('current_state'),
   completionCriteria: text('completion_criteria'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

@@ -284,6 +284,12 @@ function PhaseSection({
               onSave={(val) => onSavePhase('reason', val)}
             />
             <AutosaveTextarea
+              label="现状"
+              placeholder="目前进展如何？"
+              value={phase.currentState ?? ''}
+              onSave={(val) => onSavePhase('currentState', val)}
+            />
+            <AutosaveTextarea
               label="完成标准"
               placeholder="达成什么才算完成这个阶段？"
               value={phase.completionCriteria ?? ''}
@@ -410,7 +416,7 @@ function AutosaveTextarea({
         className={styles.fieldTextarea}
         placeholder={placeholder}
         value={val}
-        rows={3}
+        rows={2}
         onChange={(e) => setVal(e.target.value)}
         onBlur={handleBlur}
       />
