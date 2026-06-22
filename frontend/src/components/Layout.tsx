@@ -535,6 +535,7 @@ function GoalTreeNav() {
           isArchived={goals.find((g) => g.id === goalContextMenu.goalId)?.status === 'archived'}
           x={goalContextMenu.x}
           y={goalContextMenu.y}
+          onViewDetail={() => { navigate(`/goals/${goalContextMenu.goalId}`); setGoalContextMenu(null) }}
           onEdit={openGoalEdit}
           onArchive={handleGoalArchive}
           onUnarchive={handleGoalUnarchive}
@@ -660,6 +661,7 @@ function GoalContextMenu({
   isArchived,
   x,
   y,
+  onViewDetail,
   onEdit,
   onArchive,
   onUnarchive,
@@ -670,6 +672,7 @@ function GoalContextMenu({
   isArchived?: boolean
   x: number
   y: number
+  onViewDetail: () => void
   onEdit: (id: string) => void
   onArchive: (id: string) => void
   onUnarchive: (id: string) => void
@@ -687,6 +690,8 @@ function GoalContextMenu({
 
   return (
     <div ref={ref} className={styles.contextMenu} style={{ position: 'fixed', left: x, top: y }}>
+      <button className={styles.contextMenuItem} onClick={onViewDetail}>打开详情页</button>
+      <div className={styles.contextMenuDivider} />
       {!isArchived && (
         <button className={styles.contextMenuItem} onClick={() => onEdit(goalId)}>编辑目标</button>
       )}

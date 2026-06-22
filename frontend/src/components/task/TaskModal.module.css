@@ -434,3 +434,33 @@
   color: #999;
   margin-top: -8px;
 }
+
+.leftActions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.fieldLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.contextLinkBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--ink-faint);
+  padding: 0;
+  font-family: var(--font);
+  transition: color 0.12s;
+  text-align: left;
+}
+.contextLinkBtn:hover { color: var(--accent-ink); }

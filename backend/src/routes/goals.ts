@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { eq, and, isNull, ne, inArray } from 'drizzle-orm'
 import { db } from '../db/index.js'
-import { goals, phases, tasks } from '../db/schema.js'
+import { goals, phases, tasks, taskTags } from '../db/schema.js'
 import { CreateGoalSchema, UpdateGoalSchema } from '@time-manage/shared'
 import type { AuthEnv } from '../middleware/auth.js'
 
@@ -64,6 +64,64 @@ goalsRouter.get('/', async (c) => {
       taskCount: taskCountMap.get(p.id) ?? 0,
     })),
   }))
+
+  return c.json({ data })
+})
+
+// GET /goals/:id — 详情页，含 phases 和每个 phase 下的完整任务列表
+goalsRouter.get('/:id', async (c) => {
+  const userId = c.get('userId')
+  const id = c.req.param('id')
+
+  const [goal] = await db
+    .select()
+    .from(goals)
+    .where(and(eq(goals.id, id), eq(goals.userId, userId), isNull(goals.deletedAt)))
+  if (!goal) return c.json({ error: 'Not found' }, 404)
+
+  const phaseRows = await db
+    .select()
+    .from(phases)
+    .where(and(eq(phases.goalId, id), isNull(phases.deletedAt)))
+    .orderBy(phases.sortOrder)
+
+  const taskRows = await db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.goalId, id), isNull(tasks.deletedAt)))
+
+  // 聚合 tagIds
+  const taskIds = taskRows.map((t) => t.id)
+  const tagMap = new Map<string, string[]>()
+  if (taskIds.length > 0) {
+    const tagRows = await db
+      .select({ taskId: taskTags.taskId, tagId: taskTags.tagId })
+      .from(taskTags)
+      .where(inArray(taskTags.taskId, taskIds))
+    for (const row of tagRows) {
+      const list = tagMap.get(row.taskId) ?? []
+      list.push(row.tagId)
+      tagMap.set(row.taskId, list)
+    }
+  }
+
+  const tasksWithTags = taskRows.map((t) => ({ ...t, tagIds: tagMap.get(t.id) ?? [] }))
+  const tasksByPhase = new Map<string | null, typeof tasksWithTags>()
+  for (const task of tasksWithTags) {
+    const key = task.phaseId ?? null
+    const list = tasksByPhase.get(key) ?? []
+    list.push(task)
+    tasksByPhase.set(key, list)
+  }
+
+  const data = {
+    ...goal,
+    phases: phaseRows.map((p) => ({
+      ...p,
+      tasks: tasksByPhase.get(p.id) ?? [],
+    })),
+    unassignedTasks: tasksByPhase.get(null) ?? [],
+  }
 
   return c.json({ data })
 })

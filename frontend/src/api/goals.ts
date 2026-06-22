@@ -1,4 +1,4 @@
-import type { Goal, Phase, CreateGoalInput, UpdateGoalInput, CreatePhaseInput, UpdatePhaseInput } from '@time-manage/shared'
+import type { Goal, Phase, Task, CreateGoalInput, UpdateGoalInput, CreatePhaseInput, UpdatePhaseInput } from '@time-manage/shared'
 import { api } from './client'
 
 export interface PhaseWithCount extends Phase {
@@ -9,9 +9,19 @@ export interface GoalWithPhases extends Goal {
   phases: PhaseWithCount[]
 }
 
+export interface PhaseWithTasks extends Phase {
+  tasks: Task[]
+}
+
+export interface GoalDetail extends Goal {
+  phases: PhaseWithTasks[]
+  unassignedTasks: Task[]
+}
+
 export const goalsApi = {
   list: (includeArchived = false) =>
     api.get<GoalWithPhases[]>(`/goals${includeArchived ? '?includeArchived=true' : ''}`),
+  getDetail: (id: string) => api.get<GoalDetail>(`/goals/${id}`),
   create: (data: CreateGoalInput) => api.post<GoalWithPhases>('/goals', data),
   update: (id: string, data: UpdateGoalInput) => api.patch<Goal>(`/goals/${id}`, data),
   remove: (id: string) => api.delete<null>(`/goals/${id}`),

@@ -22,6 +22,7 @@ export const CreateTaskSchema = z.object({
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
   recurrence: RecurrenceSchema.optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  expectedOutput: z.string().optional(),
 })
 
 export const UpdateTaskSchema = CreateTaskSchema.partial().omit({ id: true })
@@ -33,6 +34,8 @@ export const CreateGoalSchema = z.object({
   icon: z.string().optional(),
   sortOrder: z.number().int().default(0),
   status: z.enum(['active', 'done', 'archived']).default('active'),
+  background: z.string().optional(),
+  successCriteria: z.string().optional(),
 })
 
 export const UpdateGoalSchema = CreateGoalSchema.partial().omit({ id: true })
@@ -43,6 +46,8 @@ export const CreatePhaseSchema = z.object({
   name: z.string().min(1).max(100),
   isDone: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
+  reason: z.string().optional(),
+  completionCriteria: z.string().optional(),
 })
 
 export const UpdatePhaseSchema = CreatePhaseSchema.partial().omit({ id: true, goalId: true })

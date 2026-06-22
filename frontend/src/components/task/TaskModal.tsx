@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { nanoid } from 'nanoid'
@@ -19,6 +20,7 @@ const TaskFormSchema = z.object({
   id: z.string(),
   title: z.string().min(1, '请填写任务名称').max(200),
   description: z.string().optional(),
+  expectedOutput: z.string().optional(),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
   isAllDay: z.boolean(),
@@ -32,6 +34,7 @@ const TaskFormSchema = z.object({
 type TaskFormValues = z.infer<typeof TaskFormSchema>
 
 export default function TaskModal() {
+  const navigate = useNavigate()
   const { taskModalOpen, panelPos, editingTaskId, createDefaults, closeTaskModal } = useUiStore()
   const { tasks, addTask, updateTask, removeTask } = useTaskStore()
   const { tags } = useTagStore()
@@ -98,6 +101,7 @@ export default function TaskModal() {
         id: editingTask.id,
         title: editingTask.title,
         description: editingTask.description ?? undefined,
+        expectedOutput: editingTask.expectedOutput ?? undefined,
         startTime: editingTask.startTime ? toLocalInput(editingTask.startTime) : '',
         endTime: editingTask.endTime ? toLocalInput(editingTask.endTime) : '',
         isAllDay: editingTask.isAllDay,
@@ -302,13 +306,35 @@ export default function TaskModal() {
             />
           </div>
 
+          {/* 预期产出 */}
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>预期产出</label>
+            <textarea
+              {...register('expectedOutput')}
+              placeholder="完成这个任务后，期望产出什么？（可选）"
+              rows={3}
+              className={styles.textarea}
+            />
+          </div>
+
           {/* 操作按钮 */}
           <div className={styles.actions}>
-            {editingTask && (
-              <button type="button" className={styles.deleteBtn} onClick={handleDelete}>
-                删除
-              </button>
-            )}
+            <div className={styles.leftActions}>
+              {editingTask && (
+                <button type="button" className={styles.deleteBtn} onClick={handleDelete}>
+                  删除
+                </button>
+              )}
+              {editingTask?.goalId && (
+                <button
+                  type="button"
+                  className={styles.contextLinkBtn}
+                  onClick={() => { closeTaskModal(); navigate(`/goals/${editingTask.goalId}`) }}
+                >
+                  查看上层背景 →
+                </button>
+              )}
+            </div>
             <div className={styles.rightActions}>
               <button type="button" className={styles.cancelBtn} onClick={closeTaskModal}>
                 取消

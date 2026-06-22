@@ -1,0 +1,329 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.loading {
+  padding: 60px;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 14px;
+}
+
+.backLink {
+  background: none;
+  border: none;
+  color: var(--accent-ink);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+}
+
+/* Header */
+.header {
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.backBtn {
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  font-family: var(--font);
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.backBtn:hover { background: var(--panel); color: var(--ink); }
+
+.goalName {
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--ink);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: text;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.goalName:hover { color: var(--ink-soft); }
+
+.goalNameInput {
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--ink);
+  border: none;
+  outline: none;
+  border-bottom: 2px solid var(--accent);
+  background: transparent;
+  font-family: var(--font);
+  flex: 1;
+  padding: 2px 0;
+}
+
+.goalDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Content */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Meta section */
+.metaSection {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 20px;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .metaGrid { grid-template-columns: 1fr; }
+}
+
+/* Phase list */
+.phaseList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.phaseSection {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.phaseSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.collapseBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--ink-faint);
+  padding: 0 2px;
+  flex-shrink: 0;
+  font-family: var(--font);
+  width: 16px;
+}
+
+.phaseNameText {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: text;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phaseNameText:hover { color: var(--ink-soft); }
+
+.phaseNameDone {
+  text-decoration: line-through;
+  color: var(--ink-faint);
+}
+
+.phaseNameInput {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  border: none;
+  outline: none;
+  border-bottom: 1.5px solid var(--accent);
+  background: transparent;
+  font-family: var(--font);
+  flex: 1;
+  padding: 1px 0;
+}
+
+.phaseDoneBadge {
+  font-size: 11px;
+  color: #22c55e;
+  background: #22c55e18;
+  border: 1px solid #22c55e55;
+  border-radius: 10px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+.phaseTaskCount {
+  font-size: 12px;
+  color: var(--ink-faint);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.phaseMetaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+@media (max-width: 600px) {
+  .phaseMetaGrid { grid-template-columns: 1fr; }
+}
+
+.phaseMetaGrid .field:first-child {
+  border-right: 1px solid var(--line);
+}
+
+/* Field / Textarea */
+.field {
+  padding: 12px 16px;
+}
+
+.fieldLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.fieldTextarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  outline: none;
+  font-size: 13px;
+  color: var(--ink);
+  background: transparent;
+  font-family: var(--font);
+  resize: vertical;
+  line-height: 1.5;
+  padding: 4px 6px;
+  transition: border-color 0.12s, background 0.12s;
+}
+.fieldTextarea::placeholder { color: var(--ink-faint); }
+.fieldTextarea:hover { border-color: var(--line-strong); background: var(--panel-2); }
+.fieldTextarea:focus { border-color: var(--accent); background: var(--panel-2); }
+
+/* Task list */
+.taskList {
+  display: flex;
+  flex-direction: column;
+}
+
+.taskEmpty {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.taskRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 0.1s;
+  min-width: 0;
+}
+.taskRow:hover { background: var(--panel-2); }
+
+.taskRowDone {
+  opacity: 0.55;
+}
+
+.statusBadge {
+  font-size: 11px;
+  border-radius: 10px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.statusTodo {
+  color: var(--ink-faint);
+  background: var(--panel-2);
+  border: 1px solid var(--line-strong);
+}
+
+.statusInProgress {
+  color: #6366f1;
+  background: #6366f118;
+  border: 1px solid #6366f155;
+}
+
+.statusDone {
+  color: #22c55e;
+  background: #22c55e18;
+  border: 1px solid #22c55e55;
+}
+
+.statusCancelled {
+  color: var(--ink-faint);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  text-decoration: line-through;
+}
+
+.taskTitle {
+  flex: 1;
+  font-size: 13.5px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskOutput {
+  font-size: 12px;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+  flex-shrink: 0;
+}
+
+.empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 14px;
+}

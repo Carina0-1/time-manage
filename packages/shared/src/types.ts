@@ -25,6 +25,7 @@ export interface Task {
   priority: Priority
   recurrence?: Recurrence
   color?: string
+  expectedOutput?: string
   createdAt: string
   updatedAt: string
 }
@@ -39,6 +40,8 @@ export interface Goal {
   icon?: string
   sortOrder: number
   status: GoalStatus
+  background?: string
+  successCriteria?: string
   createdAt: string
   updatedAt: string
 }
@@ -50,6 +53,8 @@ export interface Phase {
   name: string
   isDone: boolean
   sortOrder: number
+  reason?: string
+  completionCriteria?: string
   createdAt: string
   updatedAt: string
 }
