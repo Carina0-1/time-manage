@@ -21,14 +21,30 @@
   padding: 0 4px;
 }
 
-/* Header */
+/* ── Header ── */
 .header {
-  padding: 20px 28px 16px;
+  padding: 12px 24px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
 }
 
 .backBtn {
@@ -42,19 +58,19 @@
   font-family: var(--font);
   transition: background 0.12s, color 0.12s;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 .backBtn:hover { background: var(--panel); color: var(--ink); }
 
 .goalName {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 650;
   color: var(--ink);
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   cursor: text;
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -63,7 +79,7 @@
 .goalName:hover { color: var(--ink-soft); }
 
 .goalNameInput {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 650;
   color: var(--ink);
   border: none;
@@ -71,83 +87,116 @@
   border-bottom: 2px solid var(--accent);
   background: transparent;
   font-family: var(--font);
+  min-width: 0;
   flex: 1;
   padding: 2px 0;
 }
 
 .goalDot {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-/* Content */
+.headerStat {
+  font-size: 13px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.headerStatLabel {
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-right: 2px;
+}
+
+.collapseAllBtn {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: var(--r-sm);
+  font-family: var(--font);
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+.collapseAllBtn:hover { background: var(--panel); color: var(--ink); border-color: var(--line-strong); }
+
+/* ── Content ── */
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 28px;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
 }
 
-/* Meta section */
+/* ── Meta section (goal) ── */
 .metaSection {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: 20px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
 }
 
 .metaGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
 }
 
 @media (max-width: 600px) {
   .metaGrid { grid-template-columns: 1fr; }
 }
 
-/* Phase list */
+.metaCell {
+  padding: 0;
+}
+
+.metaCellSuccess {
+  border-left: 1px solid var(--line);
+  background: #f0fdf4;
+}
+
+[data-theme="dark"] .metaCellSuccess {
+  background: #14280f;
+}
+
+/* ── Phase list ── */
 .phaseList {
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
 .phaseSection {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--r-md);
-  overflow: hidden;
+  border-bottom: 1px solid var(--line);
 }
 
 .phaseSectionHeader {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid var(--line);
+  padding: 14px 24px 12px;
 }
 
 .collapseBtn {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 10px;
-  color: var(--ink-faint);
-  padding: 0 2px;
+  font-size: 11px;
+  padding: 0;
   flex-shrink: 0;
   font-family: var(--font);
-  width: 16px;
+  width: 14px;
+  line-height: 1;
+  transition: opacity 0.1s;
 }
+.collapseBtn:hover { opacity: 0.6; }
 
 .phaseNameText {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 650;
   color: var(--ink);
   cursor: text;
   flex: 1;
@@ -164,8 +213,8 @@
 }
 
 .phaseNameInput {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 650;
   color: var(--ink);
   border: none;
   outline: none;
@@ -193,10 +242,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Phase meta grid ── */
 .phaseMetaGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 0;
+  grid-template-columns: 1fr 1fr;
   border-bottom: 1px solid var(--line);
 }
 
@@ -204,51 +253,99 @@
   .phaseMetaGrid { grid-template-columns: 1fr; }
 }
 
-.phaseMetaGrid .field:not(:last-child) {
+/* 第一列右边框 */
+.phaseMetaGrid > :first-child {
   border-right: 1px solid var(--line);
 }
 
-/* Field / Textarea */
+/* 完成标准跨两列 */
+.completionField {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line);
+}
+
+/* ── Field / Textarea ── */
 .field {
-  padding: 8px 12px;
+  padding: 10px 16px;
+}
+
+.fieldAccent {
+  background: #f0fdf4;
+}
+[data-theme="dark"] .fieldAccent {
+  background: #14280f;
 }
 
 .fieldLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   font-weight: 600;
   color: var(--ink-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+.fieldLabelAccent {
+  color: #16a34a;
+}
+[data-theme="dark"] .fieldLabelAccent {
+  color: #4ade80;
+}
+
+.fieldDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
 }
 
 .fieldTextarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid transparent;
+  border: none;
   border-radius: var(--r-sm);
   outline: none;
   font-size: 13px;
   color: var(--ink);
   background: transparent;
   font-family: var(--font);
-  resize: vertical;
-  line-height: 1.5;
-  padding: 4px 6px;
-  transition: border-color 0.12s, background 0.12s;
+  resize: none;
+  line-height: 1.6;
+  padding: 2px 0;
+  transition: background 0.12s;
 }
-.fieldTextarea::placeholder { color: var(--ink-faint); }
-.fieldTextarea:hover { border-color: var(--line-strong); background: var(--panel-2); }
-.fieldTextarea:focus { border-color: var(--accent); background: var(--panel-2); }
+.fieldTextarea::placeholder { color: var(--ink-faint); opacity: 0.6; }
+.fieldTextarea:focus { background: transparent; }
 
-/* Task list */
+.fieldTextareaAccent {
+  color: #15803d;
+  font-weight: 500;
+}
+[data-theme="dark"] .fieldTextareaAccent {
+  color: #86efac;
+}
+
+/* ── Task section label ── */
+.taskSectionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 24px 4px;
+}
+
+/* ── Task list ── */
 .taskList {
   display: flex;
   flex-direction: column;
+  padding-bottom: 4px;
 }
 
 .taskEmpty {
-  padding: 10px 16px;
+  padding: 8px 24px 10px;
   font-size: 13px;
   color: var(--ink-faint);
 }
@@ -257,49 +354,40 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--line);
-  cursor: pointer;
+  padding: 8px 24px;
   transition: background 0.1s;
   min-width: 0;
 }
 .taskRow:hover { background: var(--panel-2); }
 
 .taskRowDone {
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
-.statusBadge {
-  font-size: 11px;
-  border-radius: 10px;
-  padding: 2px 8px;
+/* Checkbox */
+.taskCheckbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  background: transparent;
+  cursor: pointer;
   flex-shrink: 0;
-  font-weight: 500;
+  padding: 0;
+  transition: border-color 0.12s, background 0.12s;
+  position: relative;
 }
+.taskCheckbox:hover { border-color: var(--accent); }
 
-.statusTodo {
-  color: var(--ink-faint);
-  background: var(--panel-2);
-  border: 1px solid var(--line-strong);
+.taskCheckboxDone {
+  background: #22c55e;
+  border-color: #22c55e;
 }
-
-.statusInProgress {
-  color: #6366f1;
-  background: #6366f118;
-  border: 1px solid #6366f155;
-}
-
-.statusDone {
-  color: #22c55e;
-  background: #22c55e18;
-  border: 1px solid #22c55e55;
-}
-
-.statusCancelled {
-  color: var(--ink-faint);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  text-decoration: line-through;
+.taskCheckboxDone::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.5 6L5 8.5L9.5 3.5' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/10px no-repeat;
 }
 
 .taskTitle {
@@ -309,24 +397,51 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
 }
+.taskTitle:hover { color: var(--accent-ink); }
 
-.taskOutput {
-  font-size: 12px;
-  color: var(--ink-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 200px;
+.taskMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 
+.taskTag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.taskTagDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.taskStatus {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.taskStatusInProgress {
+  color: #6366f1;
+}
+
+.taskStatusCancelled {
+  text-decoration: line-through;
+}
+
+/* ── Done toggle ── */
 .doneToggle {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--line);
+  padding: 8px 24px;
   cursor: pointer;
   user-select: none;
   transition: background 0.1s;
@@ -341,7 +456,6 @@
 
 .doneToggleLabel {
   font-size: 13px;
-  font-weight: 600;
   color: var(--ink-soft);
 }
 
@@ -351,26 +465,18 @@
   font-variant-numeric: tabular-nums;
 }
 
-.empty {
-  padding: 40px;
-  text-align: center;
-  color: var(--ink-faint);
-  font-size: 14px;
-}
-
-/* Add task row */
+/* ── Add task row ── */
 .addTaskRow {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 16px;
-  border-bottom: 1px solid var(--line);
+  padding: 8px 24px;
   cursor: pointer;
   transition: background 0.1s;
-  min-height: 38px;
+  min-height: 36px;
 }
 .addTaskRow:hover { background: var(--panel-2); }
-.addTaskRowActive { background: var(--panel-2); cursor: default; }
+.addTaskRowActive { cursor: default; }
 
 .addTaskPlus {
   font-size: 14px;
@@ -397,3 +503,11 @@
   padding: 0;
 }
 .addTaskInput::placeholder { color: var(--ink-faint); }
+
+/* ── Empty ── */
+.empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 14px;
+}
