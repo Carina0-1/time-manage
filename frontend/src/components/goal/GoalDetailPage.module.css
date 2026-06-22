@@ -321,6 +321,36 @@
   flex-shrink: 0;
 }
 
+.doneToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+.doneToggle:hover { background: var(--panel-2); }
+
+.doneToggleIcon {
+  font-size: 9px;
+  color: var(--ink-faint);
+  width: 12px;
+}
+
+.doneToggleLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.doneToggleCount {
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
 .empty {
   padding: 40px;
   text-align: center;

@@ -265,25 +265,48 @@ function PhaseSection({
   )
 }
 
+function TaskRow({ task, onTaskClick }: { task: Task; onTaskClick: (t: Task) => void }) {
+  return (
+    <div
+      className={`${styles.taskRow} ${task.status === 'done' || task.status === 'cancelled' ? styles.taskRowDone : ''}`}
+      onClick={() => onTaskClick(task)}
+    >
+      <span className={`${styles.statusBadge} ${STATUS_CLASS[task.status] ?? ''}`}>
+        {STATUS_LABEL[task.status] ?? task.status}
+      </span>
+      <span className={styles.taskTitle}>{task.title}</span>
+      {task.expectedOutput && (
+        <span className={styles.taskOutput}>{task.expectedOutput}</span>
+      )}
+    </div>
+  )
+}
+
 function TaskList({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: (t: Task) => void }) {
+  const [showDone, setShowDone] = useState(false)
+
+  const activeTasks = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled')
+  const doneTasks = tasks.filter((t) => t.status === 'done' || t.status === 'cancelled')
+
   if (tasks.length === 0) return <div className={styles.taskEmpty}>暂无任务</div>
+
   return (
     <div className={styles.taskList}>
-      {tasks.map((task) => (
-        <div
-          key={task.id}
-          className={`${styles.taskRow} ${task.status === 'done' ? styles.taskRowDone : ''}`}
-          onClick={() => onTaskClick(task)}
-        >
-          <span className={`${styles.statusBadge} ${STATUS_CLASS[task.status] ?? ''}`}>
-            {STATUS_LABEL[task.status] ?? task.status}
-          </span>
-          <span className={styles.taskTitle}>{task.title}</span>
-          {task.expectedOutput && (
-            <span className={styles.taskOutput}>{task.expectedOutput}</span>
-          )}
-        </div>
+      {activeTasks.map((task) => (
+        <TaskRow key={task.id} task={task} onTaskClick={onTaskClick} />
       ))}
+      {doneTasks.length > 0 && (
+        <>
+          <div className={styles.doneToggle} onClick={() => setShowDone((v) => !v)}>
+            <span className={styles.doneToggleIcon}>{showDone ? '▾' : '▸'}</span>
+            <span className={styles.doneToggleLabel}>已完成</span>
+            <span className={styles.doneToggleCount}>{doneTasks.length}</span>
+          </div>
+          {showDone && doneTasks.map((task) => (
+            <TaskRow key={task.id} task={task} onTaskClick={onTaskClick} />
+          ))}
+        </>
+      )}
     </div>
   )
 }
