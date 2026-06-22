@@ -68,24 +68,20 @@ export default function GoalDetailPage() {
 
   const handleToggleTaskDone = async (task: Task, phaseId: string | null) => {
     const newStatus = task.status === 'done' ? 'todo' : 'done'
-    const updateTask = (t: Task) => t.id === task.id ? { ...t, status: newStatus as Task['status'] } : t
+    const upd = (t: Task) => t.id === task.id ? { ...t, status: newStatus as Task['status'] } : t
     setDetail((d) => {
       if (!d) return d
-      if (phaseId) {
-        return { ...d, phases: d.phases.map((p) => p.id === phaseId ? { ...p, tasks: p.tasks.map(updateTask) } : p) }
-      }
-      return { ...d, unassignedTasks: d.unassignedTasks.map(updateTask) }
+      if (phaseId) return { ...d, phases: d.phases.map((p) => p.id === phaseId ? { ...p, tasks: p.tasks.map(upd) } : p) }
+      return { ...d, unassignedTasks: d.unassignedTasks.map(upd) }
     })
     try {
       await tasksApi.update(task.id, { status: newStatus })
     } catch {
+      const rev = (t: Task) => t.id === task.id ? task : t
       setDetail((d) => {
         if (!d) return d
-        const revert = (t: Task) => t.id === task.id ? task : t
-        if (phaseId) {
-          return { ...d, phases: d.phases.map((p) => p.id === phaseId ? { ...p, tasks: p.tasks.map(revert) } : p) }
-        }
-        return { ...d, unassignedTasks: d.unassignedTasks.map(revert) }
+        if (phaseId) return { ...d, phases: d.phases.map((p) => p.id === phaseId ? { ...p, tasks: p.tasks.map(rev) } : p) }
+        return { ...d, unassignedTasks: d.unassignedTasks.map(rev) }
       })
     }
   }
@@ -99,9 +95,7 @@ export default function GoalDetailPage() {
     if (phaseId) adjustPhaseTaskCount(phaseId, 1)
     setDetail((d) => {
       if (!d) return d
-      if (phaseId) {
-        return { ...d, phases: d.phases.map((p) => p.id === phaseId ? { ...p, tasks: [...p.tasks, task] } : p) }
-      }
+      if (phaseId) return { ...d, phases: d.phases.map((p) => p.id === phaseId ? { ...p, tasks: [...p.tasks, task] } : p) }
       return { ...d, unassignedTasks: [...d.unassignedTasks, task] }
     })
   }
@@ -125,7 +119,7 @@ export default function GoalDetailPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
-          <button className={styles.backBtn} onClick={() => navigate(-1)}>← 返回</button>
+          <button className={styles.backBtn} onClick={() => navigate(-1)}>‹ 返回</button>
           <GoalNameEditor
             name={detail.name}
             color={detail.color}
@@ -138,51 +132,47 @@ export default function GoalDetailPage() {
           />
         </div>
         <div className={styles.headerRight}>
-          <span className={styles.headerStat}><span className={styles.headerStatLabel}>阶段</span> {donePhases}/{totalPhases}</span>
-          <span className={styles.headerStat}><span className={styles.headerStatLabel}>任务</span> {doneTasks}/{totalTasks}</span>
-          <button className={styles.collapseAllBtn} onClick={collapseAll}>收起全部</button>
+          <span className={styles.headerStat}>阶段 <b>{donePhases}/{totalPhases}</b></span>
+          <span className={styles.headerStat}>任务 <b>{doneTasks}/{totalTasks}</b></span>
+          <button className={styles.ghostBtn} onClick={collapseAll}>收起全部</button>
         </div>
       </div>
 
-      <div className={styles.content}>
-        <section className={styles.metaSection}>
-          <div className={styles.metaGrid}>
-            <div className={styles.metaCell}>
-              <AutosaveTextarea
-                label="设立背景"
-                placeholder="为什么要设立这个目标？背景是什么？"
-                value={detail.background ?? ''}
-                onSave={async (val) => {
-                  setDetail((d) => d ? { ...d, background: val } : d)
-                  updateGoal(detail.id, { background: val })
-                  try { await goalsApi.update(detail.id, { background: val }) }
-                  catch { setDetail((d) => d ? { ...d, background: detail.background } : d) }
-                }}
-              />
-            </div>
-            <div className={styles.metaCellSuccess}>
-              <AutosaveTextarea
-                label="成功标准"
-                placeholder="达成什么才算完成这个目标？"
-                value={detail.successCriteria ?? ''}
-                accent
-                onSave={async (val) => {
-                  setDetail((d) => d ? { ...d, successCriteria: val } : d)
-                  updateGoal(detail.id, { successCriteria: val })
-                  try { await goalsApi.update(detail.id, { successCriteria: val }) }
-                  catch { setDetail((d) => d ? { ...d, successCriteria: detail.successCriteria } : d) }
-                }}
-              />
-            </div>
-          </div>
-        </section>
+      <div className={styles.scrollArea}>
+        {/* Goal context bar */}
+        <div className={styles.goalContext}>
+          <GoalContextCell
+            label="设立背景"
+            value={detail.background ?? ''}
+            placeholder="为什么要设立这个目标？"
+            onSave={async (val) => {
+              setDetail((d) => d ? { ...d, background: val } : d)
+              updateGoal(detail.id, { background: val })
+              try { await goalsApi.update(detail.id, { background: val }) }
+              catch { setDetail((d) => d ? { ...d, background: detail.background } : d) }
+            }}
+          />
+          <GoalContextCell
+            label="成功标准"
+            value={detail.successCriteria ?? ''}
+            placeholder="达成什么才算完成这个目标？"
+            accent
+            onSave={async (val) => {
+              setDetail((d) => d ? { ...d, successCriteria: val } : d)
+              updateGoal(detail.id, { successCriteria: val })
+              try { await goalsApi.update(detail.id, { successCriteria: val }) }
+              catch { setDetail((d) => d ? { ...d, successCriteria: detail.successCriteria } : d) }
+            }}
+          />
+        </div>
 
-        <div className={styles.phaseList}>
-          {detail.phases.map((phase) => (
+        {/* Phases */}
+        <div className={styles.stages}>
+          {detail.phases.map((phase, idx) => (
             <PhaseSection
               key={phase.id}
               phase={phase}
-              goalColor={detail.color}
+              index={idx + 1}
               collapsed={!!collapsedMap[phase.id]}
               onToggleCollapse={() => toggleCollapsed(phase.id)}
               onSavePhase={async (field, val) => {
@@ -208,17 +198,21 @@ export default function GoalDetailPage() {
           ))}
 
           {detail.unassignedTasks.length > 0 && (
-            <div className={styles.phaseSection}>
-              <div className={styles.phaseSectionHeader}>
-                <span className={styles.phaseNameText} style={{ color: 'var(--ink-faint)' }}>未分配阶段的任务</span>
+            <div className={styles.stage}>
+              <div className={styles.stageHead}>
+                <span className={styles.stageTitle} style={{ color: 'var(--ink-faint)' }}>未分配阶段的任务</span>
               </div>
-              <TaskList
-                tasks={detail.unassignedTasks}
-                onTaskClick={handleTaskClick}
-                onToggleTaskDone={(task) => handleToggleTaskDone(task, null)}
-                onAddTask={(title) => handleAddTask(title, detail.id)}
-                tags={tags}
-              />
+              <div className={styles.stageBody}>
+                <div className={styles.stageBodyInner}>
+                  <TaskArea
+                    tasks={detail.unassignedTasks}
+                    onTaskClick={handleTaskClick}
+                    onToggleTaskDone={(task) => handleToggleTaskDone(task, null)}
+                    onAddTask={(title) => handleAddTask(title, detail.id)}
+                    tags={tags}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
@@ -231,14 +225,53 @@ export default function GoalDetailPage() {
   )
 }
 
+/* ── Goal context cell ── */
+function GoalContextCell({
+  label, value, placeholder, accent, onSave,
+}: {
+  label: string; value: string; placeholder: string; accent?: boolean; onSave: (v: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(value)
+  useEffect(() => { setVal(value) }, [value])
+
+  const commit = () => {
+    setEditing(false)
+    if (val !== value) onSave(val)
+  }
+
+  return (
+    <div className={`${styles.gcCell} ${accent ? styles.gcCellTarget : ''}`} onClick={() => !editing && setEditing(true)}>
+      <span className={`${styles.gcLabel} ${accent ? styles.gcLabelTarget : ''}`}>{label}</span>
+      {editing ? (
+        <textarea
+          className={`${styles.gcTextarea} ${accent ? styles.gcTextareaTarget : ''}`}
+          value={val}
+          autoFocus
+          rows={3}
+          onChange={(e) => setVal(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Escape') { setVal(value); setEditing(false) } }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <p className={`${styles.gcVal} ${accent ? styles.gcValTarget : ''}`}>
+          {value || <span className={styles.gcPlaceholder}>{placeholder}</span>}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/* ── Goal name editor ── */
 function GoalNameEditor({ name, color, onSave }: { name: string; color: string; onSave: (v: string) => void }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(name)
   useEffect(() => { setVal(name) }, [name])
   const commit = () => {
     setEditing(false)
-    const trimmed = val.trim()
-    if (trimmed && trimmed !== name) onSave(trimmed)
+    const t = val.trim()
+    if (t && t !== name) onSave(t)
     else setVal(name)
   }
   return editing ? (
@@ -251,19 +284,18 @@ function GoalNameEditor({ name, color, onSave }: { name: string; color: string; 
       onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setVal(name); setEditing(false) } }}
     />
   ) : (
-    <h1 className={styles.goalName} onClick={() => setEditing(true)}>
+    <div className={styles.goalTitle} onClick={() => setEditing(true)}>
       <span className={styles.goalDot} style={{ background: color }} />
-      {name}
-    </h1>
+      <h2 className={styles.goalName}>{name}</h2>
+    </div>
   )
 }
 
+/* ── Phase section ── */
 function PhaseSection({
-  phase, goalColor, collapsed, onToggleCollapse, onSavePhase, onTaskClick, onToggleTaskDone, onAddTask, tags,
+  phase, index, collapsed, onToggleCollapse, onSavePhase, onTaskClick, onToggleTaskDone, onAddTask, tags,
 }: {
-  phase: PhaseWithTasks
-  goalColor: string
-  collapsed: boolean
+  phase: PhaseWithTasks; index: number; collapsed: boolean
   onToggleCollapse: () => void
   onSavePhase: (field: string, val: string) => void
   onTaskClick: (task: Task) => void
@@ -277,131 +309,194 @@ function PhaseSection({
 
   const commitName = () => {
     setEditingName(false)
-    const trimmed = nameVal.trim()
-    if (trimmed && trimmed !== phase.name) onSavePhase('name', trimmed)
+    const t = nameVal.trim()
+    if (t && t !== phase.name) onSavePhase('name', t)
     else setNameVal(phase.name)
   }
 
+  const doneTasks = phase.tasks.filter((t) => t.status === 'done' || t.status === 'cancelled').length
+  const totalTasks = phase.tasks.length
+  const pct = totalTasks > 0 ? Math.round(doneTasks / totalTasks * 100) : 0
+
   return (
-    <div className={styles.phaseSection}>
-      <div className={styles.phaseSectionHeader}>
-        <button className={styles.collapseBtn} onClick={onToggleCollapse} style={{ color: goalColor }}>
-          {collapsed ? '▸' : '▾'}
-        </button>
+    <div className={`${styles.stage} ${phase.isDone ? styles.stageDone : ''}`}>
+      <div className={styles.stageHead} onClick={onToggleCollapse}>
+        <span className={`${styles.chev} ${collapsed ? styles.chevCollapsed : ''}`}>▾</span>
+        <span className={`${styles.sidx} ${phase.isDone ? styles.sidxDone : ''}`}>{index}</span>
         {editingName ? (
           <input
-            className={styles.phaseNameInput}
+            className={styles.stageNameInput}
             value={nameVal}
             autoFocus
             onChange={(e) => setNameVal(e.target.value)}
             onBlur={commitName}
             onKeyDown={(e) => { if (e.key === 'Enter') commitName(); if (e.key === 'Escape') { setNameVal(phase.name); setEditingName(false) } }}
+            onClick={(e) => e.stopPropagation()}
           />
         ) : (
           <span
-            className={`${styles.phaseNameText} ${phase.isDone ? styles.phaseNameDone : ''}`}
-            onClick={() => setEditingName(true)}
+            className={`${styles.stageTitle} ${phase.isDone ? styles.stageTitleDone : ''}`}
+            onClick={(e) => { e.stopPropagation(); setEditingName(true) }}
           >
             {phase.name}
           </span>
         )}
-        {phase.isDone && <span className={styles.phaseDoneBadge}>已完成</span>}
-        <span className={styles.phaseTaskCount}>{phase.tasks.length} 个任务</span>
+        <div className={styles.stageProgress}>
+          <div className={styles.progressBar}>
+            <i className={styles.progressFill} style={{ width: `${pct}%` }} />
+          </div>
+          <span className={styles.progressRatio}>{doneTasks}/{totalTasks}</span>
+        </div>
       </div>
 
-      {!collapsed && (
-        <>
-          <div className={styles.phaseMetaGrid}>
-            <AutosaveTextarea
-              label="设立理由"
-              placeholder="为什么需要这个阶段？"
-              value={phase.reason ?? ''}
-              onSave={(val) => onSavePhase('reason', val)}
-            />
-            <AutosaveTextarea
-              label="现状"
-              placeholder="目前进展如何？"
-              value={phase.currentState ?? ''}
-              onSave={(val) => onSavePhase('currentState', val)}
-            />
-            <div className={styles.completionField}>
-              <AutosaveTextarea
-                label="完成标准"
-                placeholder="达成什么才算完成这个阶段？"
-                value={phase.completionCriteria ?? ''}
-                onSave={(val) => onSavePhase('completionCriteria', val)}
-              />
+      <div className={`${styles.stageBody} ${collapsed ? styles.stageBodyCollapsed : ''}`}>
+        <div className={styles.stageBodyInner}>
+          {/* Context grid */}
+          <div className={styles.ctxGrid}>
+            <div className={styles.ctxSide}>
+              <CtxCell kind="reason" label="设立理由" value={phase.reason ?? ''} placeholder="为什么需要这个阶段？" onSave={(v) => onSavePhase('reason', v)} />
+              <CtxCell kind="criteria" label="完成标准" value={phase.completionCriteria ?? ''} placeholder="达成什么才算完成？" onSave={(v) => onSavePhase('completionCriteria', v)} />
             </div>
+            <CtxCell kind="status" label="现状" value={phase.currentState ?? ''} placeholder="目前进展如何？" onSave={(v) => onSavePhase('currentState', v)} />
           </div>
-          <div className={styles.taskSectionLabel}>任务</div>
-          <TaskList
-            tasks={phase.tasks}
-            onTaskClick={onTaskClick}
-            onToggleTaskDone={onToggleTaskDone}
-            onAddTask={onAddTask}
-            tags={tags}
-          />
-        </>
+          <TaskArea tasks={phase.tasks} onTaskClick={onTaskClick} onToggleTaskDone={onToggleTaskDone} onAddTask={onAddTask} tags={tags} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Context cell (inline editable) ── */
+function CtxCell({
+  kind, label, value, placeholder, onSave,
+}: {
+  kind: 'reason' | 'criteria' | 'status'; label: string; value: string; placeholder: string; onSave: (v: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(value)
+  useEffect(() => { setVal(value) }, [value])
+
+  const commit = () => {
+    setEditing(false)
+    if (val !== value) onSave(val)
+  }
+
+  const kindClass = kind === 'reason' ? styles.ctxReason : kind === 'criteria' ? styles.ctxCriteria : styles.ctxStatus
+
+  return (
+    <div className={`${styles.ctxCell} ${kindClass}`} onClick={() => !editing && setEditing(true)}>
+      <div className={styles.ctxLabel}>{label}</div>
+      {editing ? (
+        <textarea
+          className={styles.ctxTextarea}
+          value={val}
+          autoFocus
+          rows={kind === 'status' ? 5 : 3}
+          onChange={(e) => setVal(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Escape') { setVal(value); setEditing(false) } }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <div className={styles.ctxVal}>
+          {value || <span className={styles.ctxPlaceholder}>{placeholder}</span>}
+        </div>
       )}
     </div>
   )
 }
 
+/* ── Task area ── */
+function TaskArea({
+  tasks, onTaskClick, onToggleTaskDone, onAddTask, tags,
+}: {
+  tasks: Task[]; onTaskClick: (t: Task) => void; onToggleTaskDone: (t: Task) => void; onAddTask: (title: string) => void; tags: Tag[]
+}) {
+  const [showDone, setShowDone] = useState(false)
+  const activeTasks = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled')
+  const doneTasks = tasks.filter((t) => t.status === 'done' || t.status === 'cancelled')
+
+  return (
+    <div className={styles.tasks}>
+      <div className={styles.tasksBar}>
+        <span className={styles.tasksLabel}>任务</span>
+      </div>
+      {activeTasks.map((task) => (
+        <TaskRow key={task.id} task={task} onTaskClick={onTaskClick} onToggleDone={onToggleTaskDone} tags={tags} />
+      ))}
+      {tasks.length === 0 && <div className={styles.taskEmpty}>暂无任务</div>}
+      {doneTasks.length > 0 && (
+        <div className={styles.doneGroup}>
+          <div className={styles.doneToggle} onClick={() => setShowDone((v) => !v)}>
+            <span className={`${styles.doneChev} ${showDone ? styles.doneChevOpen : ''}`}>›</span>
+            <span>已完成</span>
+            <span className={styles.doneCnt}>{doneTasks.length}</span>
+          </div>
+          {showDone && doneTasks.map((task) => (
+            <TaskRow key={task.id} task={task} onTaskClick={onTaskClick} onToggleDone={onToggleTaskDone} tags={tags} />
+          ))}
+        </div>
+      )}
+      <AddTaskRow onAdd={onAddTask} />
+    </div>
+  )
+}
+
+/* ── Task row ── */
 function TaskRow({
   task, onTaskClick, onToggleDone, tags,
 }: {
-  task: Task
-  onTaskClick: (t: Task) => void
-  onToggleDone: (t: Task) => void
-  tags: Tag[]
+  task: Task; onTaskClick: (t: Task) => void; onToggleDone: (t: Task) => void; tags: Tag[]
 }) {
   const isDone = task.status === 'done' || task.status === 'cancelled'
   const taskTags = tags.filter((tg) => task.tagIds.includes(tg.id))
 
   return (
-    <div className={`${styles.taskRow} ${isDone ? styles.taskRowDone : ''}`}>
+    <div className={`${styles.task} ${isDone ? styles.taskDone : ''}`}>
       <button
-        className={`${styles.taskCheckbox} ${isDone ? styles.taskCheckboxDone : ''}`}
+        className={`${styles.taskCheck} ${isDone ? styles.taskCheckDone : ''}`}
         onClick={(e) => { e.stopPropagation(); onToggleDone(task) }}
         aria-label={isDone ? '标记未完成' : '标记完成'}
-      />
-      <span className={styles.taskTitle} onClick={() => onTaskClick(task)}>
-        {task.title}
-      </span>
-      <div className={styles.taskMeta}>
+      >
+        {isDone && '✓'}
+      </button>
+      <span className={styles.taskTitle} onClick={() => onTaskClick(task)}>{task.title}</span>
+      <div className={styles.taskRight}>
         {taskTags.map((tg) => (
-          <span key={tg.id} className={styles.taskTag}>
-            <span className={styles.taskTagDot} style={{ background: tg.color }} />
+          <span key={tg.id} className={styles.tagChip} style={{ color: tg.color }}>
+            <span className={styles.tagDot} style={{ background: tg.color }} />
             {tg.name}
           </span>
         ))}
-        {task.status !== 'todo' && (
-          <span className={`${styles.taskStatus} ${task.status === 'in_progress' ? styles.taskStatusInProgress : task.status === 'cancelled' ? styles.taskStatusCancelled : ''}`}>
-            {STATUS_LABEL[task.status]}
-          </span>
+        {task.status !== 'todo' && task.status !== 'done' && task.status !== 'cancelled' && (
+          <span className={styles.taskBadgeInProgress}>{STATUS_LABEL[task.status]}</span>
+        )}
+        {task.status === 'todo' && (
+          <span className={styles.taskBadgeTodo}>{STATUS_LABEL.todo}</span>
         )}
       </div>
     </div>
   )
 }
 
+/* ── Add task row ── */
 function AddTaskRow({ onAdd }: { onAdd: (title: string) => void }) {
   const [active, setActive] = useState(false)
   const [val, setVal] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
   const submit = () => {
-    const trimmed = val.trim()
-    if (trimmed) { onAdd(trimmed); setVal('') }
+    const t = val.trim()
+    if (t) { onAdd(t); setVal('') }
     setActive(false)
   }
 
   return (
     <div
-      className={`${styles.addTaskRow} ${active ? styles.addTaskRowActive : ''}`}
+      className={`${styles.addTask} ${active ? styles.addTaskActive : ''}`}
       onClick={() => { if (!active) { setActive(true); setTimeout(() => inputRef.current?.focus(), 0) } }}
     >
-      <span className={styles.addTaskPlus}>+</span>
+      <span className={styles.addTaskPlus}>＋</span>
       {active ? (
         <input
           ref={inputRef}
@@ -414,75 +509,8 @@ function AddTaskRow({ onAdd }: { onAdd: (title: string) => void }) {
           autoFocus
         />
       ) : (
-        <span className={styles.addTaskLabel}>添加任务</span>
+        <span>添加任务</span>
       )}
-    </div>
-  )
-}
-
-function TaskList({
-  tasks, onTaskClick, onToggleTaskDone, onAddTask, tags,
-}: {
-  tasks: Task[]
-  onTaskClick: (t: Task) => void
-  onToggleTaskDone: (t: Task) => void
-  onAddTask: (title: string) => void
-  tags: Tag[]
-}) {
-  const [showDone, setShowDone] = useState(false)
-  const activeTasks = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled')
-  const doneTasks = tasks.filter((t) => t.status === 'done' || t.status === 'cancelled')
-
-  return (
-    <div className={styles.taskList}>
-      {activeTasks.map((task) => (
-        <TaskRow key={task.id} task={task} onTaskClick={onTaskClick} onToggleDone={onToggleTaskDone} tags={tags} />
-      ))}
-      {tasks.length === 0 && <div className={styles.taskEmpty}>暂无任务</div>}
-      {doneTasks.length > 0 && (
-        <>
-          <div className={styles.doneToggle} onClick={() => setShowDone((v) => !v)}>
-            <span className={styles.doneToggleIcon}>{showDone ? '▾' : '▸'}</span>
-            <span className={styles.doneToggleLabel}>已完成</span>
-            <span className={styles.doneToggleCount}>{doneTasks.length}</span>
-          </div>
-          {showDone && doneTasks.map((task) => (
-            <TaskRow key={task.id} task={task} onTaskClick={onTaskClick} onToggleDone={onToggleTaskDone} tags={tags} />
-          ))}
-        </>
-      )}
-      <AddTaskRow onAdd={onAddTask} />
-    </div>
-  )
-}
-
-function AutosaveTextarea({
-  label, placeholder, value, onSave, accent,
-}: {
-  label: string
-  placeholder: string
-  value: string
-  onSave: (val: string) => void
-  accent?: boolean
-}) {
-  const [val, setVal] = useState(value)
-  useEffect(() => { setVal(value) }, [value])
-  const handleBlur = () => { if (val !== value) onSave(val) }
-
-  return (
-    <div className={`${styles.field} ${accent ? styles.fieldAccent : ''}`}>
-      <div className={`${styles.fieldLabel} ${accent ? styles.fieldLabelAccent : ''}`}>
-        <span className={styles.fieldDot} />
-        {label}
-      </div>
-      <textarea
-        className={`${styles.fieldTextarea} ${accent ? styles.fieldTextareaAccent : ''}`}
-        placeholder={placeholder}
-        value={val}
-        rows={2}
-        onChange={(e) => setVal(e.target.value)}
-        onBlur={handleBlur}
-      />
     </div>
   )
 }
