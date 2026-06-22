@@ -18,6 +18,7 @@ const PanelFormSchema = z.object({
   id: z.string(),
   title: z.string().min(1).max(200),
   description: z.string().optional(),
+  expectedOutput: z.string().optional(),
   tagIds: z.array(z.string()),
   goalId: z.string().optional(),
   phaseId: z.string().optional(),
@@ -58,6 +59,7 @@ export default function QuickCreatePanel() {
         id: editingTask.id,
         title: editingTask.title,
         description: editingTask.description ?? undefined,
+        expectedOutput: editingTask.expectedOutput ?? undefined,
         tagIds: editingTask.tagIds,
         goalId: editingTask.goalId ?? undefined,
         phaseId: editingTask.phaseId ?? undefined,
@@ -268,7 +270,13 @@ export default function QuickCreatePanel() {
         <textarea
           {...register('description')}
           placeholder="备注（可选）"
-          rows={5}
+          rows={3}
+          className={styles.textarea}
+        />
+        <textarea
+          {...register('expectedOutput')}
+          placeholder="预期产出（可选）"
+          rows={2}
           className={styles.textarea}
         />
 
