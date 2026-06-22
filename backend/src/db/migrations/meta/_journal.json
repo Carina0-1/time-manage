@@ -27,11 +27,18 @@
       "idx": 3,
       "version": "7",
       "when": 1780760371834,
-      "tag": "0003_wooden_lady_ursula",
+      "tag": "0003_goals_phases",
       "breakpoints": true
     },
     {
       "idx": 4,
+      "version": "7",
+      "when": 1780800000000,
+      "tag": "0004_goal_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
       "version": "7",
       "when": 1750000000000,
       "tag": "0005_goal_detail_fields",
