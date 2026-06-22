@@ -4,7 +4,6 @@ import Layout from '@/components/Layout'
 import LoginPage from '@/components/LoginPage'
 import CalendarPage from '@/components/calendar/CalendarPage'
 import StatsPage from '@/components/stats/StatsPage'
-import InboxPage from '@/components/inbox/InboxPage'
 import GoalDetailPage from '@/components/goal/GoalDetailPage'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -35,8 +34,7 @@ export default function App() {
       >
         <Route index element={<Navigate to="/calendar" replace />} />
         <Route path="calendar" element={<CalendarPage />} />
-        <Route path="inbox/:goalId" element={<InboxPage />} />
-        <Route path="goals/:id" element={<GoalDetailPage />} />
+<Route path="goals/:id" element={<GoalDetailPage />} />
         <Route path="stats" element={<StatsPage />} />
       </Route>
     </Routes>

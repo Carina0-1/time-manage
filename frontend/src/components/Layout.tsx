@@ -494,10 +494,11 @@ function GoalTreeNav() {
                   </div>
                 )}
                 <div
-                  className={`${styles.goalInboxBtn} ${location.pathname === `/inbox/${goal.id}` ? styles.goalInboxBtnActive : ''}`}
-                  onClick={(e) => { e.stopPropagation(); navigate(`/inbox/${goal.id}`) }}
+                  className={`${styles.goalInboxBtn} ${location.pathname === `/goals/${goal.id}` ? styles.goalInboxBtnActive : ''}`}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/goals/${goal.id}`) }}
+                  title="打开详情页"
                 >
-                  📥
+                  ↗
                 </div>
               </div>
             )}
