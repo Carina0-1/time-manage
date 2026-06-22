@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { nanoid } from 'nanoid'
 import type { Task } from '@time-manage/shared'
 import { goalsApi } from '@/api/goals'
 import type { GoalDetail, PhaseWithTasks } from '@/api/goals'
+import { tasksApi } from '@/api/tasks'
 import { useGoalStore } from '@/stores/goalStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUiStore } from '@/stores/uiStore'
@@ -25,7 +27,7 @@ const STATUS_CLASS: Record<string, string> = {
 export default function GoalDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { updateGoal, updatePhase } = useGoalStore()
+  const { updateGoal, updatePhase, adjustPhaseTaskCount } = useGoalStore()
   const { tasks: storeTasks, addTask: addToStore } = useTaskStore()
   const { openEditModal, taskModalOpen } = useUiStore()
 
@@ -61,6 +63,33 @@ export default function GoalDetailPage() {
       addToStore(task)
     }
     openEditModal(task.id)
+  }
+
+  const handleAddTask = async (title: string, goalId: string, phaseId?: string) => {
+    const task = await tasksApi.create({
+      id: nanoid(),
+      title,
+      goalId,
+      phaseId,
+      isAllDay: false,
+      tagIds: [],
+      status: 'todo',
+      priority: 'medium',
+    })
+    addToStore(task)
+    if (phaseId) adjustPhaseTaskCount(phaseId, 1)
+    setDetail((d) => {
+      if (!d) return d
+      if (phaseId) {
+        return {
+          ...d,
+          phases: d.phases.map((p) =>
+            p.id === phaseId ? { ...p, tasks: [...p.tasks, task] } : p
+          ),
+        }
+      }
+      return { ...d, unassignedTasks: [...d.unassignedTasks, task] }
+    })
   }
 
   if (loading) {
@@ -140,6 +169,7 @@ export default function GoalDetailPage() {
                 }
               }}
               onTaskClick={handleTaskClick}
+              onAddTask={(title) => handleAddTask(title, detail.id, phase.id)}
             />
           ))}
 
@@ -148,7 +178,7 @@ export default function GoalDetailPage() {
               <div className={styles.phaseSectionHeader}>
                 <span className={styles.phaseNameText} style={{ color: 'var(--ink-faint)' }}>未分配阶段的任务</span>
               </div>
-              <TaskList tasks={detail.unassignedTasks} onTaskClick={handleTaskClick} />
+              <TaskList tasks={detail.unassignedTasks} onTaskClick={handleTaskClick} onAddTask={(title) => handleAddTask(title, detail.id)} />
             </div>
           )}
 
@@ -196,11 +226,13 @@ function PhaseSection({
   goalColor,
   onSavePhase,
   onTaskClick,
+  onAddTask,
 }: {
   phase: PhaseWithTasks
   goalColor: string
   onSavePhase: (field: string, val: string) => void
   onTaskClick: (task: Task) => void
+  onAddTask: (title: string) => void
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const [editingName, setEditingName] = useState(false)
@@ -258,7 +290,7 @@ function PhaseSection({
               onSave={(val) => onSavePhase('completionCriteria', val)}
             />
           </div>
-          <TaskList tasks={phase.tasks} onTaskClick={onTaskClick} />
+          <TaskList tasks={phase.tasks} onTaskClick={onTaskClick} onAddTask={onAddTask} />
         </>
       )}
     </div>
@@ -282,19 +314,60 @@ function TaskRow({ task, onTaskClick }: { task: Task; onTaskClick: (t: Task) => 
   )
 }
 
-function TaskList({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: (t: Task) => void }) {
+function AddTaskRow({ onAdd }: { onAdd: (title: string) => void }) {
+  const [active, setActive] = useState(false)
+  const [val, setVal] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const submit = () => {
+    const trimmed = val.trim()
+    if (trimmed) {
+      onAdd(trimmed)
+      setVal('')
+    }
+    setActive(false)
+  }
+
+  return (
+    <div
+      className={`${styles.addTaskRow} ${active ? styles.addTaskRowActive : ''}`}
+      onClick={() => { if (!active) { setActive(true); setTimeout(() => inputRef.current?.focus(), 0) } }}
+    >
+      <span className={styles.addTaskPlus}>+</span>
+      {active ? (
+        <input
+          ref={inputRef}
+          className={styles.addTaskInput}
+          placeholder="输入任务名称，回车创建"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); submit() }
+            if (e.key === 'Escape') { setVal(''); setActive(false) }
+          }}
+          onBlur={submit}
+          autoFocus
+        />
+      ) : (
+        <span className={styles.addTaskLabel}>添加任务</span>
+      )}
+    </div>
+  )
+}
+
+function TaskList({ tasks, onTaskClick, onAddTask }: { tasks: Task[]; onTaskClick: (t: Task) => void; onAddTask: (title: string) => void }) {
   const [showDone, setShowDone] = useState(false)
 
   const activeTasks = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled')
   const doneTasks = tasks.filter((t) => t.status === 'done' || t.status === 'cancelled')
 
-  if (tasks.length === 0) return <div className={styles.taskEmpty}>暂无任务</div>
-
   return (
     <div className={styles.taskList}>
+      <AddTaskRow onAdd={onAddTask} />
       {activeTasks.map((task) => (
         <TaskRow key={task.id} task={task} onTaskClick={onTaskClick} />
       ))}
+      {tasks.length === 0 && <div className={styles.taskEmpty}>暂无任务</div>}
       {doneTasks.length > 0 && (
         <>
           <div className={styles.doneToggle} onClick={() => setShowDone((v) => !v)}>

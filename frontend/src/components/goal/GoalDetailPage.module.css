@@ -357,3 +357,43 @@
   color: var(--ink-faint);
   font-size: 14px;
 }
+
+/* Add task row */
+.addTaskRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 0.1s;
+  min-height: 38px;
+}
+.addTaskRow:hover { background: var(--panel-2); }
+.addTaskRowActive { background: var(--panel-2); cursor: default; }
+
+.addTaskPlus {
+  font-size: 14px;
+  color: var(--ink-faint);
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  line-height: 1;
+}
+
+.addTaskLabel {
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.addTaskInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13.5px;
+  color: var(--ink);
+  font-family: var(--font);
+  padding: 0;
+}
+.addTaskInput::placeholder { color: var(--ink-faint); }
