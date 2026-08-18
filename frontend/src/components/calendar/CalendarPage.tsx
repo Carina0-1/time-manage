@@ -13,12 +13,14 @@ import type {
 } from '@fullcalendar/core'
 import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import dayjs from 'dayjs'
+import type { Tag, Task } from '@time-manage/shared'
 import { buildTagTree, getDescendantTagIds } from '@/utils/tagTree'
 import type { TagTreeNode } from '@/utils/tagTree'
 import { useTaskStore } from '@/stores/taskStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useGoalStore } from '@/stores/goalStore'
+import type { GoalWithPhases } from '@/stores/goalStore'
 import type { GoalFilter } from '@/stores/uiStore'
 import { tasksApi } from '@/api/tasks'
 import styles from './CalendarPage.module.css'
@@ -252,6 +254,8 @@ export default function CalendarPage() {
           eventContent={(info) => (
             <EventContent
               info={info}
+              tags={tags}
+              goals={goals}
               onToggleDone={(taskId, status) => handleToggleDone(taskId, status)}
             />
           )}
@@ -356,13 +360,17 @@ function CalendarTopBar({
 
 function EventContent({
   info,
+  tags,
+  goals,
   onToggleDone,
 }: {
   info: EventContentArg
+  tags: Tag[]
+  goals: GoalWithPhases[]
   onToggleDone: (taskId: string, status: string) => void
 }) {
   const { task, vars, isDone } = info.event.extendedProps as {
-    task: { status: string } | undefined
+    task: Task | undefined
     vars: { bg: string; bar: string; ink: string }
     isDone: boolean
   }
@@ -379,6 +387,10 @@ function EventContent({
     overflow: 'hidden',
     borderRadius: 'var(--r-sm)',
   }
+
+  const goal = task.goalId ? goals.find((g) => g.id === task.goalId) : undefined
+  const taskTags = tags.filter((tg) => task.tagIds.includes(tg.id))
+  const hasMeta = !!goal || taskTags.length > 0
 
   if (isTimeGrid) {
     const start = info.event.start
@@ -401,6 +413,22 @@ function EventContent({
           <span className={styles.evText}>{info.event.title}</span>
         </div>
         {timeRange && <div className={styles.evTime}>{timeRange}</div>}
+        {hasMeta && (
+          <div className={styles.evMeta}>
+            {goal && (
+              <span className={styles.evGoalChip}>
+                <span className={styles.evGoalDot} style={{ background: goal.color }} />
+                {goal.name}
+              </span>
+            )}
+            {taskTags.map((tg) => (
+              <span key={tg.id} className={styles.evTagChip}>
+                <span className={styles.evTagDot} style={{ background: tg.color }} />
+                {tg.name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     )
   }
