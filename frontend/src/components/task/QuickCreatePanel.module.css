@@ -42,6 +42,10 @@
   flex-direction: column;
 }
 
+.titleWrap {
+  position: relative;
+}
+
 .titleInput {
   width: 100%;
   border: none;
@@ -57,6 +61,21 @@
 .titleInput::placeholder {
   color: var(--ink-faint);
   font-weight: 400;
+}
+
+.titleDropdown {
+  position: absolute;
+  top: 100%;
+  left: 14px;
+  right: 14px;
+  z-index: 100;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .textarea {

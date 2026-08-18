@@ -27,6 +27,21 @@ const PanelFormSchema = z.object({
 
 type PanelFormValues = z.infer<typeof PanelFormSchema>
 
+function useTitleHistory(tasks: { title: string; updatedAt: string }[]) {
+  return useMemo(() => {
+    const seen = new Set<string>()
+    const list: string[] = []
+    const sorted = [...tasks].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    for (const t of sorted) {
+      const title = t.title.trim()
+      if (!title || seen.has(title)) continue
+      seen.add(title)
+      list.push(title)
+    }
+    return list
+  }, [tasks])
+}
+
 export default function QuickCreatePanel() {
   const { taskModalOpen, editingTaskId, createDefaults, panelPos, closeTaskModal } = useUiStore()
   const { tasks, addTask, updateTask, removeTask } = useTaskStore()
@@ -56,6 +71,7 @@ export default function QuickCreatePanel() {
   useEffect(() => {
     if (!taskModalOpen) return
     isSavingRef.current = false
+    setTitleOpen(false)
     if (editingTask) {
       reset({
         id: editingTask.id,
@@ -252,6 +268,40 @@ export default function QuickCreatePanel() {
     setTagOpen(false)
   }
 
+  // Title history autocomplete
+  const titleHistory = useTitleHistory(tasks)
+  const titleValue = watch('title') ?? ''
+  const [titleOpen, setTitleOpen] = useState(false)
+  const [titleHighlight, setTitleHighlight] = useState(0)
+  const titleWrapRef = useRef<HTMLDivElement>(null)
+  const titleFieldReg = register('title')
+
+  const titleMatches = useMemo(() => {
+    const q = titleValue.trim().toLowerCase()
+    if (!q) return []
+    return titleHistory
+      .filter((t) => t.toLowerCase().startsWith(q) && t.toLowerCase() !== q)
+      .slice(0, 8)
+  }, [titleHistory, titleValue])
+
+  useEffect(() => {
+    setTitleHighlight(0)
+  }, [titleMatches.length])
+
+  useEffect(() => {
+    if (!titleOpen) return
+    const handler = (e: MouseEvent) => {
+      if (titleWrapRef.current && !titleWrapRef.current.contains(e.target as Node)) setTitleOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [titleOpen])
+
+  const applyTitleMatch = (t: string) => {
+    setValue('title', t, { shouldDirty: true })
+    setTitleOpen(false)
+  }
+
   if (!taskModalOpen) return null
 
   return (
@@ -267,12 +317,49 @@ export default function QuickCreatePanel() {
       </div>
 
       <form onSubmit={handleSubmit(doSave)} className={styles.form}>
-        <input
-          {...register('title')}
-          placeholder="准备做什么?"
-          className={styles.titleInput}
-          autoFocus
-        />
+        <div className={styles.titleWrap} ref={titleWrapRef}>
+          <input
+            {...titleFieldReg}
+            placeholder="准备做什么?"
+            className={styles.titleInput}
+            autoFocus
+            autoComplete="off"
+            onChange={(e) => {
+              titleFieldReg.onChange(e)
+              setTitleOpen(true)
+            }}
+            onFocus={() => setTitleOpen(true)}
+            onKeyDown={(e) => {
+              if (!titleOpen || titleMatches.length === 0) return
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setTitleHighlight((i) => (i + 1) % titleMatches.length)
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setTitleHighlight((i) => (i - 1 + titleMatches.length) % titleMatches.length)
+              } else if (e.key === 'Tab') {
+                e.preventDefault()
+                applyTitleMatch(titleMatches[titleHighlight])
+              } else if (e.key === 'Escape') {
+                setTitleOpen(false)
+              }
+            }}
+          />
+          {titleOpen && titleMatches.length > 0 && (
+            <div className={styles.titleDropdown}>
+              {titleMatches.map((t, i) => (
+                <div
+                  key={t}
+                  className={`${styles.chipDropdownItem} ${i === titleHighlight ? styles.chipDropdownItemSelected : ''}`}
+                  onMouseEnter={() => setTitleHighlight(i)}
+                  onMouseDown={(e) => { e.preventDefault(); applyTitleMatch(t) }}
+                >
+                  <span className={styles.chipDropdownName}>{t}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <textarea
           {...register('description')}
           placeholder="备注（可选）"
