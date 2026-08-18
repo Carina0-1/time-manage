@@ -11,6 +11,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useGoalStore } from '@/stores/goalStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import type { GoalWithPhases } from '@/stores/goalStore'
 import { tasksApi } from '@/api/tasks'
 import { tagsApi } from '@/api/tags'
@@ -39,6 +40,7 @@ export default function TaskModal() {
   const { tasks, addTask, updateTask, removeTask } = useTaskStore()
   const { tags } = useTagStore()
   const { goals, adjustPhaseTaskCount } = useGoalStore()
+  const { tagTermLabel } = useSettingsStore()
 
   const editingTask = editingTaskId ? tasks.find((t) => t.id === editingTaskId) : null
 
@@ -234,7 +236,7 @@ export default function TaskModal() {
                 onChange={onTitleChange}
                 onBlur={titleOnBlur}
                 onKeyDown={onTitleKeyDown}
-                placeholder="任务名称，输入 # 快速打标签"
+                placeholder={`任务名称，输入 # 快速打${tagTermLabel}`}
                 className={styles.titleInput}
                 autoFocus
               />
@@ -370,6 +372,7 @@ function GoalSelector({
   const [open, setOpen] = useState(false)
   const lockedRef = useRef(false)
   const ref = useRef<HTMLDivElement>(null)
+  const { goalTermLabel } = useSettingsStore()
 
   useEffect(() => {
     if (!open) return
@@ -452,14 +455,14 @@ function GoalSelector({
             >×</span>
           </>
         ) : (
-          <span className={styles.chipPlaceholder}>● 目标</span>
+          <span className={styles.chipPlaceholder}>● {goalTermLabel}</span>
         )}
       </div>
 
       {open && (
         <div className={styles.chipDropdown}>
           {goals.length === 0 ? (
-            <div className={styles.chipDropdownEmpty}>暂无目标</div>
+            <div className={styles.chipDropdownEmpty}>暂无{goalTermLabel}</div>
           ) : (
             goals.map((goal) => (
               <div key={goal.id}>
@@ -507,6 +510,7 @@ function TagSelector({
   const lockedRef = useRef(false)
   const ref = useRef<HTMLDivElement>(null)
   const { addTag } = useTagStore()
+  const { tagTermLabel } = useSettingsStore()
 
   useEffect(() => {
     if (!open) return
@@ -595,7 +599,7 @@ function TagSelector({
             >×</span>
           </>
         ) : (
-          <span className={styles.chipPlaceholder}># 标签</span>
+          <span className={styles.chipPlaceholder}># {tagTermLabel}</span>
         )}
       </div>
 

@@ -10,6 +10,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useGoalStore } from '@/stores/goalStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { tasksApi } from '@/api/tasks'
 import { tagsApi } from '@/api/tags'
 import styles from './QuickCreatePanel.module.css'
@@ -31,6 +32,7 @@ export default function QuickCreatePanel() {
   const { tasks, addTask, updateTask, removeTask } = useTaskStore()
   const { tags, addTag } = useTagStore()
   const { goals, adjustPhaseTaskCount } = useGoalStore()
+  const { goalTermLabel, tagTermLabel } = useSettingsStore()
 
   const editingTask = editingTaskId ? tasks.find((t) => t.id === editingTaskId) : null
 
@@ -318,14 +320,14 @@ export default function QuickCreatePanel() {
                   >×</span>
                 </>
               ) : (
-                <span className={styles.chipPlaceholder}>● 目标</span>
+                <span className={styles.chipPlaceholder}>● {goalTermLabel}</span>
               )}
             </button>
 
             {goalOpen && (
               <div className={styles.chipDropdown}>
                 {activeGoals.length === 0 ? (
-                  <div className={styles.chipDropdownEmpty}>暂无目标</div>
+                  <div className={styles.chipDropdownEmpty}>暂无{goalTermLabel}</div>
                 ) : activeGoals.map((goal) => (
                   <div key={goal.id}>
                     <div
@@ -377,7 +379,7 @@ export default function QuickCreatePanel() {
                   >×</span>
                 </>
               ) : (
-                <span className={styles.chipPlaceholder}># 标签</span>
+                <span className={styles.chipPlaceholder}># {tagTermLabel}</span>
               )}
             </button>
 

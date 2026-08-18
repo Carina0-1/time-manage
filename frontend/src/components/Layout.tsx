@@ -29,11 +29,13 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useUiStore } from '@/stores/uiStore'
 import type { GoalFilter } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { useGoalStore } from '@/stores/goalStore'
 import { tagsApi } from '@/api/tags'
 import { tasksApi } from '@/api/tasks'
 import { goalsApi } from '@/api/goals'
 import { statsApi } from '@/api/stats'
+import { settingsApi } from '@/api/settings'
 
 import styles from './Layout.module.css'
 
@@ -62,7 +64,7 @@ const PRESET_COLORS = [
 ]
 
 const TagFormSchema = z.object({
-  name: z.string().min(1, '请输入标签名').max(50),
+  name: z.string().min(1, '请输入名称').max(50),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, '请选择颜色'),
   icon: z.string().optional(),
 })
@@ -72,6 +74,11 @@ export default function Layout() {
   const navigate = useNavigate()
   const { taskModalOpen, panelPos } = useUiStore()
   const { user, logout } = useAuthStore()
+  const { fetchSettings } = useSettingsStore()
+
+  useEffect(() => {
+    fetchSettings()
+  }, [fetchSettings])
 
   const handleLogout = () => {
     logout()
@@ -105,6 +112,7 @@ export default function Layout() {
 
 function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
   const { goals } = useGoalStore()
+  const { goalTermLabel } = useSettingsStore()
   const [totalTaskCount, setTotalTaskCount] = useState(0)
   const [activeDays, setActiveDays] = useState(0)
 
@@ -132,7 +140,7 @@ function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
       </div>
       <div className={styles.statItem}>
         <span className={styles.statNum}>{activeGoalCount}</span>
-        <span className={styles.statLabel}>目标</span>
+        <span className={styles.statLabel}>{goalTermLabel}</span>
       </div>
       <div className={styles.statItem}>
         <span className={styles.statNum}>{activeDays}</span>
@@ -213,9 +221,75 @@ function ActivityHeatmap() {
   )
 }
 
+function EditableSectionTitle({
+  value,
+  onSave,
+  className,
+  title,
+  onTitleClick,
+}: {
+  value: string
+  onSave: (v: string) => void
+  className?: string
+  title?: string
+  onTitleClick?: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(value)
+  useEffect(() => { setVal(value) }, [value])
+
+  const commit = () => {
+    setEditing(false)
+    const t = val.trim()
+    if (t && t !== value) onSave(t)
+    else setVal(value)
+  }
+
+  if (editing) {
+    return (
+      <input
+        className={styles.sectionTitleInput}
+        value={val}
+        autoFocus
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+          if (e.key === 'Escape') { setVal(value); setEditing(false) }
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
+    )
+  }
+
+  return (
+    <span className={styles.sectionTitleGroup}>
+      <span className={className} title={title} onClick={onTitleClick}>
+        {value}
+      </span>
+      <button
+        type="button"
+        className={styles.sectionTitleEditBtn}
+        title={`重命名"${value}"`}
+        onClick={(e) => { e.stopPropagation(); setEditing(true) }}
+      >✎</button>
+    </span>
+  )
+}
+
 function GoalTreeNav() {
   const { goals, fetchGoals, addGoal, updateGoal, removeGoal, addPhase, updatePhase, removePhase, reorderPhases, reorderGoals } = useGoalStore()
   const { removeTasksByPhaseId } = useTaskStore()
+  const { goalTermLabel, setGoalTermLabel } = useSettingsStore()
+
+  const updateGoalTermLabel = async (v: string) => {
+    setGoalTermLabel(v)
+    try {
+      await settingsApi.update({ goalTermLabel: v })
+    } catch {
+      setGoalTermLabel(goalTermLabel)
+    }
+  }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const { activeGoalFilter, setGoalFilter } = useUiStore()
@@ -445,8 +519,12 @@ function GoalTreeNav() {
   return (
     <div className={styles.goalSection}>
       <div className={styles.goalSectionHeader}>
-        <span className={styles.goalSectionTitle}>目标</span>
-        <button className={styles.goalAddBtn} onClick={openGoalCreate} title="新建目标">＋</button>
+        <EditableSectionTitle
+          className={styles.goalSectionTitle}
+          value={goalTermLabel}
+          onSave={(v) => updateGoalTermLabel(v)}
+        />
+        <button className={styles.goalAddBtn} onClick={openGoalCreate} title={`新建${goalTermLabel}`}>＋</button>
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGoalDragEnd}>
@@ -693,7 +771,7 @@ function GoalRow({
 }
 
 const GoalFormSchema = z.object({
-  name: z.string().min(1, '请输入目标名').max(100),
+  name: z.string().min(1, '请输入名称').max(100),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, '请选择颜色'),
   icon: z.string().optional(),
 })
@@ -799,6 +877,7 @@ function GoalContextMenu({
   onClose: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const { goalTermLabel } = useSettingsStore()
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose()
@@ -812,18 +891,18 @@ function GoalContextMenu({
       <button className={styles.contextMenuItem} onClick={onViewDetail}>打开详情页</button>
       <div className={styles.contextMenuDivider} />
       {!isArchived && (
-        <button className={styles.contextMenuItem} onClick={() => onEdit(goalId)}>编辑目标</button>
+        <button className={styles.contextMenuItem} onClick={() => onEdit(goalId)}>编辑{goalTermLabel}</button>
       )}
       {isArchived ? (
-        <button className={styles.contextMenuItem} onClick={() => onUnarchive(goalId)}>恢复目标</button>
+        <button className={styles.contextMenuItem} onClick={() => onUnarchive(goalId)}>恢复{goalTermLabel}</button>
       ) : (
-        <button className={styles.contextMenuItem} onClick={() => onArchive(goalId)}>归档目标</button>
+        <button className={styles.contextMenuItem} onClick={() => onArchive(goalId)}>归档{goalTermLabel}</button>
       )}
       <div className={styles.contextMenuDivider} />
       <button
         className={`${styles.contextMenuItem} ${styles.contextMenuItemDanger}`}
         onClick={() => onDelete(goalId)}
-      >删除目标</button>
+      >删除{goalTermLabel}</button>
     </div>
   )
 }
@@ -892,6 +971,7 @@ function GoalFormModal({
   onClose: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const { goalTermLabel } = useSettingsStore()
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose()
@@ -904,12 +984,12 @@ function GoalFormModal({
     <div className={styles.formModalOverlay}>
       <div ref={ref} className={styles.goalFormModal}>
         <div className={styles.formModalHeader}>
-          <span>{editingGoalId ? '编辑目标' : '新建目标'}</span>
+          <span>{editingGoalId ? `编辑${goalTermLabel}` : `新建${goalTermLabel}`}</span>
           <button className={styles.formModalClose} onClick={onClose}>✕</button>
         </div>
         <form onSubmit={onSubmit} className={styles.formModalBody}>
           <div className={styles.formField}>
-            <label>目标名</label>
+            <label>{goalTermLabel}名</label>
             <input {...register('name')} placeholder="例如：找到 PM 工作" autoFocus className={styles.formInput} />
             {errors.name && <span className={styles.formError}>{errors.name.message}</span>}
           </div>
@@ -969,6 +1049,16 @@ function GoalFormModal({
 function TagTreeNav() {
   const { tags, reorderTags } = useTagStore()
   const { activeTagFilter, setTagFilter } = useUiStore()
+  const { tagTermLabel, setTagTermLabel } = useSettingsStore()
+
+  const updateTagTermLabel = async (v: string) => {
+    setTagTermLabel(v)
+    try {
+      await settingsApi.update({ tagTermLabel: v })
+    } catch {
+      setTagTermLabel(tagTermLabel)
+    }
+  }
 
   const sortedTags = useMemo(() => [...tags].sort((a, b) => a.sortOrder - b.sortOrder), [tags])
   const tree = useMemo(() => buildTagTree(sortedTags, true), [sortedTags])
@@ -1067,15 +1157,15 @@ function TagTreeNav() {
   return (
     <div className={styles.tagSection}>
       <div className={styles.tagSectionHeader}>
-        <span
+        <EditableSectionTitle
           className={`${styles.tagSectionTitle} ${activeTagFilter ? styles.tagSectionTitleActive : ''}`}
-          onClick={() => setTagFilter(null)}
-          title={activeTagFilter ? '点击显示全部任务' : '标签'}
-        >
-          标签
-        </span>
+          value={tagTermLabel}
+          title={activeTagFilter ? '点击显示全部任务' : tagTermLabel}
+          onTitleClick={() => setTagFilter(null)}
+          onSave={(v) => updateTagTermLabel(v)}
+        />
         <div className={styles.tagHeaderActions}>
-          <button className={styles.tagAddBtn} onClick={openCreate} title="新建标签">＋</button>
+          <button className={styles.tagAddBtn} onClick={openCreate} title={`新建${tagTermLabel}`}>＋</button>
         </div>
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleTagDragEnd}>
@@ -1141,6 +1231,7 @@ function TagNodeItem({
 }) {
   const [expanded, setExpanded] = useState(true)
   const [hovered, setHovered] = useState(false)
+  const { tagTermLabel } = useSettingsStore()
   const hasChildren = node.children.length > 0
   const isActive = activeFilter === node.fullPath
   const isRealTag = node.tag.name === node.fullPath
@@ -1194,7 +1285,7 @@ function TagNodeItem({
         {node.tag.icon && <span>{node.tag.icon}</span>}
         <span className={styles.tagNavLabel}>{node.segment}</span>
         {isRealTag && hovered && (
-          <button className={styles.tagMenuBtn} onClick={handleMenuBtn} title="标签操作">…</button>
+          <button className={styles.tagMenuBtn} onClick={handleMenuBtn} title={`${tagTermLabel}操作`}>…</button>
         )}
       </div>
       {hasChildren && expanded && node.children.map((child) => (
@@ -1229,6 +1320,7 @@ function TagContextMenu({
   onClose: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const { tagTermLabel } = useSettingsStore()
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -1247,14 +1339,14 @@ function TagContextMenu({
       style={{ position: 'fixed', left: x, top: y }}
     >
       <button className={styles.contextMenuItem} onClick={() => onEdit(tagId)}>
-        编辑标签/图标
+        编辑{tagTermLabel}/图标
       </button>
       <div className={styles.contextMenuDivider} />
       <button className={`${styles.contextMenuItem} ${styles.contextMenuItemDanger}`} onClick={() => onDelete(tagId)}>
-        仅删除标签
+        仅删除{tagTermLabel}
       </button>
       <button className={`${styles.contextMenuItem} ${styles.contextMenuItemDanger}`} onClick={() => onDeleteWithTasks(tagId)}>
-        删除标签和任务
+        删除{tagTermLabel}和任务
       </button>
     </div>
   )
@@ -1282,6 +1374,7 @@ function TagFormModal({
   onClose: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const { tagTermLabel } = useSettingsStore()
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -1297,12 +1390,12 @@ function TagFormModal({
     <div className={styles.formModalOverlay}>
       <div ref={ref} className={styles.formModal}>
         <div className={styles.formModalHeader}>
-          <span>{editingTagId ? '编辑标签' : '新建标签'}</span>
+          <span>{editingTagId ? `编辑${tagTermLabel}` : `新建${tagTermLabel}`}</span>
           <button className={styles.formModalClose} onClick={onClose}>✕</button>
         </div>
         <form onSubmit={onSubmit} className={styles.formModalBody}>
           <div className={styles.formField}>
-            <label>标签名</label>
+            <label>{tagTermLabel}名</label>
             <input
               {...register('name')}
               placeholder="例如：工作/项目A"
@@ -1368,7 +1461,7 @@ function TagFormModal({
               className={styles.previewChip}
               style={{ background: selectedColor + '20', color: selectedColor, borderColor: selectedColor }}
             >
-              {watch('icon')} {watch('name') || '标签名'}
+              {watch('icon')} {watch('name') || `${tagTermLabel}名`}
             </span>
           </div>
 

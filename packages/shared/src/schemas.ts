@@ -90,6 +90,13 @@ export type UpdateTagInput = z.infer<typeof UpdateTagSchema>
 export type StatsQuery = z.infer<typeof StatsQuerySchema>
 export type SyncUpload = z.infer<typeof SyncUploadSchema>
 
+export const UpdateSettingsSchema = z.object({
+  goalTermLabel: z.string().min(1).max(20).optional(),
+  tagTermLabel: z.string().min(1).max(20).optional(),
+})
+
+export type UpdateSettingsInput = z.infer<typeof UpdateSettingsSchema>
+
 export const LoginSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),

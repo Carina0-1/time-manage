@@ -6,6 +6,7 @@ import {
 import dayjs from 'dayjs'
 import { statsApi } from '@/api/stats'
 import { useTagStore } from '@/stores/tagStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { buildTagTree } from '@/utils/tagTree'
 import type { StatsResult } from '@time-manage/shared'
 import styles from './StatsPage.module.css'
@@ -44,6 +45,7 @@ function fmtMinutes(min: number) {
 
 export default function StatsPage() {
   const { fetchTags, tags } = useTagStore()
+  const { goalTermLabel, tagTermLabel } = useSettingsStore()
   const [range, setRange] = useState<Range>('week')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
@@ -195,7 +197,7 @@ export default function StatsPage() {
                 })
                 return (
                   <div className={styles.chartCard} style={{ gridColumn: '1 / -1' }}>
-                    <h2>每日各目标时长</h2>
+                    <h2>每日各{goalTermLabel}时长</h2>
                     <ResponsiveContainer width="100%" height={220}>
                       <BarChart data={chartData} margin={{ left: 8, right: 16, top: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -230,7 +232,7 @@ export default function StatsPage() {
                 })
                 return (
                   <div className={styles.chartCard} style={{ gridColumn: '1 / -1' }}>
-                    <h2>每日各标签时长</h2>
+                    <h2>每日各{tagTermLabel}时长</h2>
                     <ResponsiveContainer width="100%" height={220}>
                       <BarChart data={chartData} margin={{ left: 8, right: 16, top: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -251,7 +253,7 @@ export default function StatsPage() {
 
               {/* 饼图 */}
               <div className={styles.chartCard}>
-                <h2>标签时间占比</h2>
+                <h2>{tagTermLabel}时间占比</h2>
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
                     <Pie
@@ -278,7 +280,7 @@ export default function StatsPage() {
 
               {/* 柱状图 */}
               <div className={styles.chartCard}>
-                <h2>各标签时长明细</h2>
+                <h2>各{tagTermLabel}时长明细</h2>
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={statsWithRootColor.tags} layout="vertical" margin={{ left: 16, right: 24 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
@@ -304,7 +306,7 @@ export default function StatsPage() {
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>标签</th>
+                      <th>{tagTermLabel}</th>
                       <th>时长</th>
                       <th>任务数</th>
                       <th>占比</th>

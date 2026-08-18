@@ -9,6 +9,7 @@ import { useGoalStore } from '@/stores/goalStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import styles from './GoalDetailPage.module.css'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -25,6 +26,7 @@ export default function GoalDetailPage() {
   const { tasks: storeTasks, addTask: addToStore } = useTaskStore()
   const { tags } = useTagStore()
   const { openEditModal, taskModalOpen } = useUiStore()
+  const { goalTermLabel } = useSettingsStore()
 
   const [detail, setDetail] = useState<GoalDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -104,7 +106,7 @@ export default function GoalDetailPage() {
   if (notFound || !detail) {
     return (
       <div className={styles.page}>
-        <div className={styles.loading}>目标不存在 <button className={styles.backLink} onClick={() => navigate(-1)}>返回</button></div>
+        <div className={styles.loading}>{goalTermLabel}不存在 <button className={styles.backLink} onClick={() => navigate(-1)}>返回</button></div>
       </div>
     )
   }
@@ -144,7 +146,7 @@ export default function GoalDetailPage() {
           <GoalContextCell
             label="设立背景"
             value={detail.background ?? ''}
-            placeholder="为什么要设立这个目标？"
+            placeholder={`为什么要设立这个${goalTermLabel}？`}
             onSave={async (val) => {
               setDetail((d) => d ? { ...d, background: val } : d)
               updateGoal(detail.id, { background: val })
@@ -155,7 +157,7 @@ export default function GoalDetailPage() {
           <GoalContextCell
             label="成功标准"
             value={detail.successCriteria ?? ''}
-            placeholder="达成什么才算完成这个目标？"
+            placeholder={`达成什么才算完成这个${goalTermLabel}？`}
             accent
             onSave={async (val) => {
               setDetail((d) => d ? { ...d, successCriteria: val } : d)

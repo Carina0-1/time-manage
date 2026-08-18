@@ -21,6 +21,7 @@ import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useGoalStore } from '@/stores/goalStore'
 import type { GoalWithPhases } from '@/stores/goalStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import type { GoalFilter } from '@/stores/uiStore'
 import { tasksApi } from '@/api/tasks'
 import styles from './CalendarPage.module.css'
@@ -283,6 +284,7 @@ function CalendarTopBar({
 }) {
   const api = () => calendarRef.current?.getApi()
   const { theme, toggle } = useTheme()
+  const { goalTermLabel } = useSettingsStore()
 
   const views: { key: ViewType; label: string }[] = [
     { key: 'dayGridMonth', label: '月' },
@@ -292,7 +294,7 @@ function CalendarTopBar({
 
   const filterLabel = activeGoalFilter
     ? activeGoalFilter.type === 'goal'
-      ? goals.find((g) => g.id === activeGoalFilter.id)?.name ?? '目标'
+      ? goals.find((g) => g.id === activeGoalFilter.id)?.name ?? goalTermLabel
       : (() => {
           for (const g of goals) {
             const p = g.phases.find((p) => p.id === activeGoalFilter.id)

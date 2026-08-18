@@ -116,6 +116,13 @@ export interface StatsResult {
   dailyGoalMinutes: DailyGoalMinutes[]
 }
 
+export interface UserSettings {
+  userId: string
+  goalTermLabel: string
+  tagTermLabel: string
+  updatedAt: string
+}
+
 export interface AuthUser {
   id: string
   username: string

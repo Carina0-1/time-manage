@@ -50,6 +50,13 @@
       "when": 1750100000000,
       "tag": "0006_phase_current_state",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787053579634,
+      "tag": "0007_sour_daredevil",
+      "breakpoints": true
     }
   ]
 }

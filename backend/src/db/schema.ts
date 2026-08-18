@@ -75,3 +75,10 @@ export const taskTags = pgTable('task_tags', {
   taskId: text('task_id').references(() => tasks.id, { onDelete: 'cascade' }).notNull(),
   tagId: text('tag_id').references(() => tags.id, { onDelete: 'cascade' }).notNull(),
 }, (t) => [primaryKey({ columns: [t.taskId, t.tagId] })])
+
+export const userSettings = pgTable('user_settings', {
+  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  goalTermLabel: text('goal_term_label').default('目标').notNull(),
+  tagTermLabel: text('tag_term_label').default('标签').notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
