@@ -254,7 +254,11 @@ function EditableSectionTitle({
         onChange={(e) => setVal(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') commit()
+          if (e.key === 'Enter') {
+            if (e.nativeEvent.isComposing) return
+            e.preventDefault()
+            commit()
+          }
           if (e.key === 'Escape') { setVal(value); setEditing(false) }
         }}
         onClick={(e) => e.stopPropagation()}
