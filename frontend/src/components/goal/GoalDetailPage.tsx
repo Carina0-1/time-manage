@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { nanoid } from 'nanoid'
 import type { Tag, Task } from '@time-manage/shared'
 import { goalsApi } from '@/api/goals'
-import type { GoalDetail, PhaseWithTasks } from '@/api/goals'
+import type { GoalDetail, GoalWithPhases, PhaseWithTasks } from '@/api/goals'
 import { tasksApi } from '@/api/tasks'
 import { useGoalStore } from '@/stores/goalStore'
 import { useTaskStore } from '@/stores/taskStore'
@@ -21,7 +21,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default function GoalDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { updateGoal, updatePhase, adjustPhaseTaskCount } = useGoalStore()
+  const { goals, updateGoal, updatePhase, adjustPhaseTaskCount } = useGoalStore()
   const { tasks: storeTasks, addTask: addToStore } = useTaskStore()
   const { tags } = useTagStore()
   const { openEditModal, taskModalOpen } = useUiStore()
@@ -194,6 +194,7 @@ export default function GoalDetailPage() {
               onToggleTaskDone={(task) => handleToggleTaskDone(task, phase.id)}
               onAddTask={(title) => handleAddTask(title, detail.id, phase.id)}
               tags={tags}
+              goals={goals}
             />
           ))}
 
@@ -210,6 +211,7 @@ export default function GoalDetailPage() {
                     onToggleTaskDone={(task) => handleToggleTaskDone(task, null)}
                     onAddTask={(title) => handleAddTask(title, detail.id)}
                     tags={tags}
+                    goals={goals}
                   />
                 </div>
               </div>
@@ -293,7 +295,7 @@ function GoalNameEditor({ name, color, onSave }: { name: string; color: string; 
 
 /* ── Phase section ── */
 function PhaseSection({
-  phase, index, collapsed, onToggleCollapse, onSavePhase, onTaskClick, onToggleTaskDone, onAddTask, tags,
+  phase, index, collapsed, onToggleCollapse, onSavePhase, onTaskClick, onToggleTaskDone, onAddTask, tags, goals,
 }: {
   phase: PhaseWithTasks; index: number; collapsed: boolean
   onToggleCollapse: () => void
@@ -302,6 +304,7 @@ function PhaseSection({
   onToggleTaskDone: (task: Task) => void
   onAddTask: (title: string) => void
   tags: Tag[]
+  goals: GoalWithPhases[]
 }) {
   const [editingName, setEditingName] = useState(false)
   const [nameVal, setNameVal] = useState(phase.name)
@@ -359,7 +362,7 @@ function PhaseSection({
             </div>
             <CtxCell kind="status" label="现状" value={phase.currentState ?? ''} placeholder="目前进展如何？" onSave={(v) => onSavePhase('currentState', v)} />
           </div>
-          <TaskArea tasks={phase.tasks} onTaskClick={onTaskClick} onToggleTaskDone={onToggleTaskDone} onAddTask={onAddTask} tags={tags} />
+          <TaskArea tasks={phase.tasks} onTaskClick={onTaskClick} onToggleTaskDone={onToggleTaskDone} onAddTask={onAddTask} tags={tags} goals={goals} />
         </div>
       </div>
     </div>
@@ -408,9 +411,9 @@ function CtxCell({
 
 /* ── Task area ── */
 function TaskArea({
-  tasks, onTaskClick, onToggleTaskDone, onAddTask, tags,
+  tasks, onTaskClick, onToggleTaskDone, onAddTask, tags, goals,
 }: {
-  tasks: Task[]; onTaskClick: (t: Task) => void; onToggleTaskDone: (t: Task) => void; onAddTask: (title: string) => void; tags: Tag[]
+  tasks: Task[]; onTaskClick: (t: Task) => void; onToggleTaskDone: (t: Task) => void; onAddTask: (title: string) => void; tags: Tag[]; goals: GoalWithPhases[]
 }) {
   const [showDone, setShowDone] = useState(false)
   const activeTasks = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled')
@@ -422,7 +425,7 @@ function TaskArea({
         <span className={styles.tasksLabel}>任务</span>
       </div>
       {activeTasks.map((task) => (
-        <TaskRow key={task.id} task={task} onTaskClick={onTaskClick} onToggleDone={onToggleTaskDone} tags={tags} />
+        <TaskRow key={task.id} task={task} onTaskClick={onTaskClick} onToggleDone={onToggleTaskDone} tags={tags} goals={goals} />
       ))}
       {tasks.length === 0 && <div className={styles.taskEmpty}>暂无任务</div>}
       {doneTasks.length > 0 && (
@@ -433,7 +436,7 @@ function TaskArea({
             <span className={styles.doneCnt}>{doneTasks.length}</span>
           </div>
           {showDone && doneTasks.map((task) => (
-            <TaskRow key={task.id} task={task} onTaskClick={onTaskClick} onToggleDone={onToggleTaskDone} tags={tags} />
+            <TaskRow key={task.id} task={task} onTaskClick={onTaskClick} onToggleDone={onToggleTaskDone} tags={tags} goals={goals} />
           ))}
         </div>
       )}
@@ -444,12 +447,13 @@ function TaskArea({
 
 /* ── Task row ── */
 function TaskRow({
-  task, onTaskClick, onToggleDone, tags,
+  task, onTaskClick, onToggleDone, tags, goals,
 }: {
-  task: Task; onTaskClick: (t: Task) => void; onToggleDone: (t: Task) => void; tags: Tag[]
+  task: Task; onTaskClick: (t: Task) => void; onToggleDone: (t: Task) => void; tags: Tag[]; goals: GoalWithPhases[]
 }) {
   const isDone = task.status === 'done' || task.status === 'cancelled'
   const taskTags = tags.filter((tg) => task.tagIds.includes(tg.id))
+  const goal = task.goalId ? goals.find((g) => g.id === task.goalId) : undefined
 
   return (
     <div className={`${styles.task} ${isDone ? styles.taskDone : ''}`}>
@@ -462,6 +466,12 @@ function TaskRow({
       </button>
       <span className={styles.taskTitle} onClick={() => onTaskClick(task)}>{task.title}</span>
       <div className={styles.taskRight}>
+        {goal && (
+          <span className={styles.goalChip} style={{ color: goal.color }}>
+            <span className={styles.goalDotSmall} style={{ background: goal.color }} />
+            {goal.name}
+          </span>
+        )}
         {taskTags.map((tg) => (
           <span key={tg.id} className={styles.tagChip} style={{ color: tg.color }}>
             <span className={styles.tagDot} style={{ background: tg.color }} />

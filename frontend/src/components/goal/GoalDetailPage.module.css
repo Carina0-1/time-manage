@@ -564,6 +564,26 @@
   flex-shrink: 0;
 }
 
+.goalChip {
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--panel-2);
+  border: 1px solid var(--line-strong);
+}
+
+.goalDotSmall {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 .taskBadgeTodo {
   font-size: 11px;
   font-weight: 600;
