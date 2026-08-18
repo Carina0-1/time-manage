@@ -1,12 +1,38 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { eq, and, isNull, ne, inArray } from 'drizzle-orm'
+import { z } from 'zod'
 import { db } from '../db/index.js'
 import { goals, phases, tasks, taskTags } from '../db/schema.js'
 import { CreateGoalSchema, UpdateGoalSchema } from '@time-manage/shared'
 import type { AuthEnv } from '../middleware/auth.js'
 
 export const goalsRouter = new Hono<AuthEnv>()
+
+const ReorderGoalsSchema = z.object({
+  orders: z.array(z.object({ id: z.string(), sortOrder: z.number().int() })),
+})
+
+// PATCH /goals/reorder — 批量更新 sortOrder
+goalsRouter.patch('/reorder', zValidator('json', ReorderGoalsSchema), async (c) => {
+  const userId = c.get('userId')
+  const { orders } = c.req.valid('json')
+
+  const ids = orders.map((o) => o.id)
+  const owned = await db
+    .select({ id: goals.id })
+    .from(goals)
+    .where(and(inArray(goals.id, ids), eq(goals.userId, userId)))
+  const ownedIds = new Set(owned.map((g) => g.id))
+
+  await Promise.all(
+    orders
+      .filter((o) => ownedIds.has(o.id))
+      .map((o) => db.update(goals).set({ sortOrder: o.sortOrder, updatedAt: new Date() }).where(eq(goals.id, o.id)))
+  )
+
+  return c.json({ data: null })
+})
 
 // GET /goals?includeArchived=true — 返回所有 goals，含 phases 和每个 phase 的 taskCount
 // 默认不返回 archived 目标，传 includeArchived=true 时全部返回

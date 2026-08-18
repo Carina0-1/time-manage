@@ -517,12 +517,13 @@ function TagSelector({
 
   const handleSelect = async (node: ReturnType<typeof flattenTree>[number]) => {
     if (isVirtualNode(node)) {
+      const nextOrder = tags.length > 0 ? Math.max(...tags.map((t) => t.sortOrder)) + 1 : 0
       const created = await tagsApi.create({
         id: nanoid(),
         name: node.fullPath,
         color: node.tag.color,
         icon: node.tag.icon,
-        sortOrder: 0,
+        sortOrder: nextOrder,
       })
       addTag(created)
       onToggle(created.id)

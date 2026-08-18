@@ -25,6 +25,8 @@ export const goalsApi = {
   create: (data: CreateGoalInput) => api.post<GoalWithPhases>('/goals', data),
   update: (id: string, data: UpdateGoalInput) => api.patch<Goal>(`/goals/${id}`, data),
   remove: (id: string) => api.delete<null>(`/goals/${id}`),
+  reorder: (orders: { id: string; sortOrder: number }[]) =>
+    api.patch<null>('/goals/reorder', { orders }),
 
   createPhase: (data: CreatePhaseInput) => api.post<Phase>('/phases', data),
   updatePhase: (id: string, data: UpdatePhaseInput) => api.patch<Phase>(`/phases/${id}`, data),

@@ -27,6 +27,7 @@ import type { Tag } from '@time-manage/shared'
 import { useTagStore } from '@/stores/tagStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUiStore } from '@/stores/uiStore'
+import type { GoalFilter } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useGoalStore } from '@/stores/goalStore'
 import { tagsApi } from '@/api/tags'
@@ -213,13 +214,16 @@ function ActivityHeatmap() {
 }
 
 function GoalTreeNav() {
-  const { goals, fetchGoals, addGoal, updateGoal, removeGoal, addPhase, updatePhase, removePhase, reorderPhases } = useGoalStore()
+  const { goals, fetchGoals, addGoal, updateGoal, removeGoal, addPhase, updatePhase, removePhase, reorderPhases, reorderGoals } = useGoalStore()
   const { removeTasksByPhaseId } = useTaskStore()
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const { activeGoalFilter, setGoalFilter } = useUiStore()
   const navigate = useNavigate()
   const location = useLocation()
+
+  const activeGoals = goals.filter((g) => g.status !== 'archived')
+  const archivedGoals = goals.filter((g) => g.status === 'archived')
 
   const [expandedGoals, setExpandedGoals] = useState<Set<string>>(new Set())
   const [addingPhaseGoalId, setAddingPhaseGoalId] = useState<string | null>(null)
@@ -350,6 +354,21 @@ function GoalTreeNav() {
     }
   }
 
+  const handleGoalDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = activeGoals.findIndex((g) => g.id === active.id)
+    const newIndex = activeGoals.findIndex((g) => g.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const newGoals = arrayMove(activeGoals, oldIndex, newIndex).map((g, i) => ({ ...g, sortOrder: i }))
+    reorderGoals(newGoals)
+    try {
+      await goalsApi.reorder(newGoals.map((g) => ({ id: g.id, sortOrder: g.sortOrder })))
+    } catch {
+      fetchGoals()
+    }
+  }
+
   const openGoalCreate = () => {
     setEditingGoalId(null)
     goalReset({ name: '', color: PRESET_COLORS[0], icon: '' })
@@ -398,114 +417,29 @@ function GoalTreeNav() {
     setShowGoalForm(false)
   }
 
-  const activeGoals = goals.filter((g) => g.status !== 'archived')
-  const archivedGoals = goals.filter((g) => g.status === 'archived')
-
-  const renderGoalRow = (goal: typeof goals[0]) => {
-    const expanded = expandedGoals.has(goal.id)
-    const doneCount = goal.phases.filter((p) => p.isDone).length
-    const totalCount = goal.phases.length
-    const isActive = activeGoalFilter?.type === 'goal' && activeGoalFilter.id === goal.id
-    const isArchived = goal.status === 'archived'
-
-    return (
-      <React.Fragment key={goal.id}>
-        <div
-          className={`${styles.goalRow} ${isActive ? styles.goalRowActive : ''} ${isArchived ? styles.goalRowArchived : ''}`}
-          onClick={() => handleGoalClick(goal.id)}
-        >
-          <span
-            className={styles.goalExpandIcon}
-            onClick={(e) => { e.stopPropagation(); toggleExpand(goal.id) }}
-          >
-            {expanded ? '▾' : '▸'}
-          </span>
-          <span className={styles.goalDot} style={{ background: goal.color, opacity: isArchived ? 0.4 : 1 }} />
-          {goal.icon && <span>{goal.icon}</span>}
-          <span className={styles.goalName}>{goal.name}</span>
-          {totalCount > 0 && (
-            <span className={styles.goalProgress}>{doneCount}/{totalCount}</span>
-          )}
-          <button
-            className={styles.goalMenuBtn}
-            onClick={(e) => {
-              e.stopPropagation()
-              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-              setGoalContextMenu({ goalId: goal.id, x: rect.right, y: rect.bottom })
-            }}
-          >…</button>
-        </div>
-
-        {expanded && (
-          <>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={(e) => handlePhaseDragEnd(goal.id, e)}
-            >
-              <SortableContext items={goal.phases.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-                {goal.phases.map((phase) => (
-                  <SortablePhaseRow
-                    key={phase.id}
-                    phase={phase}
-                    isActive={activeGoalFilter?.type === 'phase' && activeGoalFilter.id === phase.id}
-                    isEditing={editingPhaseId === phase.id}
-                    editingName={editingPhaseName}
-                    onEditingNameChange={setEditingPhaseName}
-                    onPhaseClick={(e) => handlePhaseClick(e, phase.id)}
-                    onCheckClick={(e) => handlePhaseCheck(e, goal.id, phase.id, phase.isDone)}
-                    onEditSubmit={() => handlePhaseEditSubmit(goal.id, phase.id)}
-                    onEditCancel={() => setEditingPhaseId(null)}
-                    onMenuClick={(e) => {
-                      e.stopPropagation()
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                      setPhaseContextMenu({ goalId: goal.id, phaseId: phase.id, x: rect.right, y: rect.bottom })
-                    }}
-                  />
-                ))}
-              </SortableContext>
-            </DndContext>
-
-            {!isArchived && (
-              <div className={styles.phaseActions}>
-                {addingPhaseGoalId === goal.id ? (
-                  <div className={styles.addPhaseRow}>
-                    <span>+</span>
-                    <input
-                      className={styles.addPhaseInput}
-                      autoFocus
-                      value={newPhaseName}
-                      onChange={(e) => setNewPhaseName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddPhase(goal.id)
-                        if (e.key === 'Escape') { setAddingPhaseGoalId(null); setNewPhaseName('') }
-                      }}
-                      onBlur={() => handleAddPhase(goal.id)}
-                      placeholder="阶段名称，Enter 确认"
-                    />
-                  </div>
-                ) : (
-                  <div
-                    className={styles.addPhaseBtn}
-                    onClick={(e) => { e.stopPropagation(); setAddingPhaseGoalId(goal.id); setNewPhaseName('') }}
-                  >
-                    <span>+</span>
-                    <span>添加阶段</span>
-                  </div>
-                )}
-                <div
-                  className={`${styles.goalInboxBtn} ${location.pathname === `/goals/${goal.id}` ? styles.goalInboxBtnActive : ''}`}
-                  onClick={(e) => { e.stopPropagation(); navigate(`/goals/${goal.id}`) }}
-                  title="打开详情页"
-                >
-                  ↗
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </React.Fragment>
-    )
+  const goalRowSharedProps = {
+    expandedGoals,
+    activeGoalFilter,
+    addingPhaseGoalId,
+    newPhaseName,
+    editingPhaseId,
+    editingPhaseName,
+    location,
+    sensors,
+    toggleExpand,
+    handleGoalClick,
+    setGoalContextMenu,
+    handlePhaseDragEnd,
+    handlePhaseClick,
+    handlePhaseCheck,
+    handlePhaseEditSubmit,
+    setEditingPhaseId,
+    setEditingPhaseName,
+    setPhaseContextMenu,
+    setAddingPhaseGoalId,
+    setNewPhaseName,
+    handleAddPhase,
+    navigate,
   }
 
   return (
@@ -515,7 +449,13 @@ function GoalTreeNav() {
         <button className={styles.goalAddBtn} onClick={openGoalCreate} title="新建目标">＋</button>
       </div>
 
-      {activeGoals.map(renderGoalRow)}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGoalDragEnd}>
+        <SortableContext items={activeGoals.map((g) => g.id)} strategy={verticalListSortingStrategy}>
+          {activeGoals.map((goal) => (
+            <GoalRow key={goal.id} goal={goal} draggable {...goalRowSharedProps} />
+          ))}
+        </SortableContext>
+      </DndContext>
 
       {archivedGoals.length > 0 && (
         <>
@@ -526,7 +466,9 @@ function GoalTreeNav() {
             <span className={styles.goalExpandIcon}>{showArchived ? '▾' : '▸'}</span>
             <span>已归档 ({archivedGoals.length})</span>
           </div>
-          {showArchived && archivedGoals.map(renderGoalRow)}
+          {showArchived && archivedGoals.map((goal) => (
+            <GoalRow key={goal.id} goal={goal} draggable={false} {...goalRowSharedProps} />
+          ))}
         </>
       )}
 
@@ -569,6 +511,182 @@ function GoalTreeNav() {
           onSubmit={goalHandleSubmit(onGoalSubmit)}
           onClose={() => setShowGoalForm(false)}
         />
+      )}
+    </div>
+  )
+}
+
+function GoalRow({
+  goal,
+  draggable,
+  expandedGoals,
+  activeGoalFilter,
+  addingPhaseGoalId,
+  newPhaseName,
+  editingPhaseId,
+  editingPhaseName,
+  location,
+  sensors,
+  toggleExpand,
+  handleGoalClick,
+  setGoalContextMenu,
+  handlePhaseDragEnd,
+  handlePhaseClick,
+  handlePhaseCheck,
+  handlePhaseEditSubmit,
+  setEditingPhaseId,
+  setEditingPhaseName,
+  setPhaseContextMenu,
+  setAddingPhaseGoalId,
+  setNewPhaseName,
+  handleAddPhase,
+  navigate,
+}: {
+  goal: import('@/stores/goalStore').GoalWithPhases
+  draggable: boolean
+  expandedGoals: Set<string>
+  activeGoalFilter: GoalFilter | null
+  addingPhaseGoalId: string | null
+  newPhaseName: string
+  editingPhaseId: string | null
+  editingPhaseName: string
+  location: ReturnType<typeof useLocation>
+  sensors: ReturnType<typeof useSensors>
+  toggleExpand: (goalId: string) => void
+  handleGoalClick: (goalId: string) => void
+  setGoalContextMenu: (v: { goalId: string; x: number; y: number } | null) => void
+  handlePhaseDragEnd: (goalId: string, event: DragEndEvent) => void
+  handlePhaseClick: (e: React.MouseEvent, phaseId: string) => void
+  handlePhaseCheck: (e: React.MouseEvent, goalId: string, phaseId: string, isDone: boolean) => void
+  handlePhaseEditSubmit: (goalId: string, phaseId: string) => void
+  setEditingPhaseId: (id: string | null) => void
+  setEditingPhaseName: (v: string) => void
+  setPhaseContextMenu: (v: { goalId: string; phaseId: string; x: number; y: number } | null) => void
+  setAddingPhaseGoalId: (id: string | null) => void
+  setNewPhaseName: (v: string) => void
+  handleAddPhase: (goalId: string) => void
+  navigate: ReturnType<typeof useNavigate>
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: goal.id,
+    disabled: !draggable,
+  })
+  const style: React.CSSProperties = draggable ? {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  } : {}
+
+  const expanded = expandedGoals.has(goal.id)
+  const doneCount = goal.phases.filter((p) => p.isDone).length
+  const totalCount = goal.phases.length
+  const isActive = activeGoalFilter?.type === 'goal' && activeGoalFilter.id === goal.id
+  const isArchived = goal.status === 'archived'
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div
+        className={`${styles.goalRow} ${isActive ? styles.goalRowActive : ''} ${isArchived ? styles.goalRowArchived : ''}`}
+        onClick={() => handleGoalClick(goal.id)}
+      >
+        {draggable && (
+          <span
+            className={styles.goalDragHandle}
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+          >⠿</span>
+        )}
+        <span
+          className={styles.goalExpandIcon}
+          onClick={(e) => { e.stopPropagation(); toggleExpand(goal.id) }}
+        >
+          {expanded ? '▾' : '▸'}
+        </span>
+        <span className={styles.goalDot} style={{ background: goal.color, opacity: isArchived ? 0.4 : 1 }} />
+        {goal.icon && <span>{goal.icon}</span>}
+        <span className={styles.goalName}>{goal.name}</span>
+        {totalCount > 0 && (
+          <span className={styles.goalProgress}>{doneCount}/{totalCount}</span>
+        )}
+        <button
+          className={styles.goalMenuBtn}
+          onClick={(e) => {
+            e.stopPropagation()
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+            setGoalContextMenu({ goalId: goal.id, x: rect.right, y: rect.bottom })
+          }}
+        >…</button>
+      </div>
+
+      {expanded && (
+        <>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={(e) => handlePhaseDragEnd(goal.id, e)}
+          >
+            <SortableContext items={goal.phases.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+              {goal.phases.map((phase) => (
+                <SortablePhaseRow
+                  key={phase.id}
+                  phase={phase}
+                  isActive={activeGoalFilter?.type === 'phase' && activeGoalFilter.id === phase.id}
+                  isEditing={editingPhaseId === phase.id}
+                  editingName={editingPhaseName}
+                  onEditingNameChange={setEditingPhaseName}
+                  onPhaseClick={(e) => handlePhaseClick(e, phase.id)}
+                  onCheckClick={(e) => handlePhaseCheck(e, goal.id, phase.id, phase.isDone)}
+                  onEditSubmit={() => handlePhaseEditSubmit(goal.id, phase.id)}
+                  onEditCancel={() => setEditingPhaseId(null)}
+                  onMenuClick={(e) => {
+                    e.stopPropagation()
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                    setPhaseContextMenu({ goalId: goal.id, phaseId: phase.id, x: rect.right, y: rect.bottom })
+                  }}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+
+          {!isArchived && (
+            <div className={styles.phaseActions}>
+              {addingPhaseGoalId === goal.id ? (
+                <div className={styles.addPhaseRow}>
+                  <span>+</span>
+                  <input
+                    className={styles.addPhaseInput}
+                    autoFocus
+                    value={newPhaseName}
+                    onChange={(e) => setNewPhaseName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddPhase(goal.id)
+                      if (e.key === 'Escape') { setAddingPhaseGoalId(null); setNewPhaseName('') }
+                    }}
+                    onBlur={() => handleAddPhase(goal.id)}
+                    placeholder="阶段名称，Enter 确认"
+                  />
+                </div>
+              ) : (
+                <div
+                  className={styles.addPhaseBtn}
+                  onClick={(e) => { e.stopPropagation(); setAddingPhaseGoalId(goal.id); setNewPhaseName('') }}
+                >
+                  <span>+</span>
+                  <span>添加阶段</span>
+                </div>
+              )}
+              <div
+                className={`${styles.goalInboxBtn} ${location.pathname === `/goals/${goal.id}` ? styles.goalInboxBtnActive : ''}`}
+                onClick={(e) => { e.stopPropagation(); navigate(`/goals/${goal.id}`) }}
+                title="打开详情页"
+              >
+                ↗
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

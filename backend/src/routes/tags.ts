@@ -16,6 +16,7 @@ tagsRouter.get('/', async (c) => {
     .select()
     .from(tags)
     .where(and(eq(tags.userId, userId), isNull(tags.deletedAt)))
+    .orderBy(tags.sortOrder)
   return c.json({ data: rows })
 })
 

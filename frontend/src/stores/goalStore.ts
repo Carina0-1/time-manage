@@ -16,6 +16,7 @@ interface GoalStore {
   removePhase: (goalId: string, phaseId: string) => void
   adjustPhaseTaskCount: (phaseId: string, delta: number) => void
   reorderPhases: (goalId: string, phases: PhaseWithCount[]) => void
+  reorderGoals: (ordered: GoalWithPhases[]) => void
 }
 
 import { goalsApi } from '@/api/goals'
@@ -86,4 +87,14 @@ export const useGoalStore = create<GoalStore>((set) => ({
     set((s) => ({
       goals: s.goals.map((g) => (g.id === goalId ? { ...g, phases: newPhases } : g)),
     })),
+
+  reorderGoals: (ordered) =>
+    set((s) => {
+      const orderMap = new Map(ordered.map((g) => [g.id, g.sortOrder]))
+      return {
+        goals: s.goals
+          .map((g) => (orderMap.has(g.id) ? { ...g, sortOrder: orderMap.get(g.id)! } : g))
+          .sort((a, b) => a.sortOrder - b.sortOrder),
+      }
+    }),
 }))

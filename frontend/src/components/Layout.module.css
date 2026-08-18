@@ -63,6 +63,19 @@
   color: var(--accent-ink);
   font-weight: 600;
 }
+.goalDragHandle {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--ink-faint);
+  cursor: grab;
+  opacity: 0;
+  padding: 0 1px;
+  line-height: 1;
+  transition: opacity 0.1s;
+  touch-action: none;
+}
+.goalRow:hover .goalDragHandle { opacity: 1; }
+.goalDragHandle:active { cursor: grabbing; }
 .goalExpandIcon {
   font-size: 9px;
   width: 14px;

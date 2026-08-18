@@ -215,7 +215,10 @@ export default function QuickCreatePanel() {
 
   // Tag selection
   const selectedTag = tags.find((t) => t.id === selectedTagIds[0])
-  const sortedNodes = useMemo(() => flattenTree(buildTagTree(tags)), [tags])
+  const sortedNodes = useMemo(() => {
+    const sorted = [...tags].sort((a, b) => a.sortOrder - b.sortOrder)
+    return flattenTree(buildTagTree(sorted, true))
+  }, [tags])
   const [tagOpen, setTagOpen] = useState(false)
   const tagRef = useRef<HTMLDivElement>(null)
 
@@ -230,12 +233,13 @@ export default function QuickCreatePanel() {
 
   const handleTagSelect = async (node: ReturnType<typeof flattenTree>[number]) => {
     if (isVirtualNode(node)) {
+      const nextOrder = tags.length > 0 ? Math.max(...tags.map((t) => t.sortOrder)) + 1 : 0
       const created = await tagsApi.create({
         id: nanoid(),
         name: node.fullPath,
         color: node.tag.color,
         icon: node.tag.icon,
-        sortOrder: 0,
+        sortOrder: nextOrder,
       })
       addTag(created)
       setValue('tagIds', [created.id], { shouldDirty: true })
