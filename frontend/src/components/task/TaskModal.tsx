@@ -368,22 +368,31 @@ function GoalSelector({
   selectedPhase: { id: string; name: string; isDone: boolean } | undefined
 }) {
   const [open, setOpen] = useState(false)
+  const lockedRef = useRef(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+        lockedRef.current = false
+      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  const closeAndUnlock = () => {
+    setOpen(false)
+    lockedRef.current = false
+  }
+
   const handleGoalClick = (goalId: string) => {
     if (selectedGoalId === goalId) {
       onSelectGoal(undefined)
       onSelectPhase(undefined)
-      setOpen(false)
+      closeAndUnlock()
     } else {
       onSelectGoal(goalId)
       onSelectPhase(undefined)
@@ -397,11 +406,16 @@ function GoalSelector({
     } else {
       onSelectPhase(phaseId)
     }
-    setOpen(false)
+    closeAndUnlock()
   }
 
   return (
-    <div className={styles.chipSelector} ref={ref}>
+    <div
+      className={styles.chipSelector}
+      ref={ref}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => { if (!lockedRef.current) setOpen(false) }}
+    >
       <div
         className={`${styles.chipTrigger} ${selectedGoal ? styles.chipTriggerActive : ''}`}
         style={selectedGoal ? {
@@ -409,7 +423,14 @@ function GoalSelector({
           color: selectedGoal.color,
           borderColor: selectedGoal.color + '88',
         } : {}}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          if (lockedRef.current) {
+            closeAndUnlock()
+          } else {
+            lockedRef.current = true
+            setOpen(true)
+          }
+        }}
       >
         {selectedGoal ? (
           <>
@@ -483,13 +504,17 @@ function TagSelector({
   onToggle: (id: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const lockedRef = useRef(false)
   const ref = useRef<HTMLDivElement>(null)
   const { addTag } = useTagStore()
 
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+        lockedRef.current = false
+      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -531,12 +556,18 @@ function TagSelector({
       onToggle(node.tag.id)
     }
     setOpen(false)
+    lockedRef.current = false
   }
 
   const selectedTag = selectedTags[0]
 
   return (
-    <div className={styles.chipSelector} ref={ref}>
+    <div
+      className={styles.chipSelector}
+      ref={ref}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => { if (!lockedRef.current) setOpen(false) }}
+    >
       <div
         className={`${styles.chipTrigger} ${selectedTag ? styles.chipTriggerActive : ''}`}
         style={selectedTag ? {
@@ -544,7 +575,15 @@ function TagSelector({
           color: selectedTag.color,
           borderColor: selectedTag.color + '88',
         } : {}}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          if (lockedRef.current) {
+            setOpen(false)
+            lockedRef.current = false
+          } else {
+            lockedRef.current = true
+            setOpen(true)
+          }
+        }}
       >
         {selectedTag ? (
           <>
