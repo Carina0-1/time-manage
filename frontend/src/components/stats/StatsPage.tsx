@@ -103,6 +103,19 @@ export default function StatsPage() {
     ? stats.totalCount > 0 ? Math.round((stats.completedCount / stats.totalCount) * 100) : 0
     : 0
 
+  // 按目标汇总总时长（dailyGoalMinutes 是 日期 x 目标 的笛卡尔积，直接按 goalId 求和即可）
+  const goalTotals = useMemo(() => {
+    if (!stats) return []
+    const map = new Map<string, { goalId: string; goalName: string; color: string; totalMinutes: number }>()
+    for (const row of stats.dailyGoalMinutes) {
+      const existing = map.get(row.goalId)
+      if (existing) existing.totalMinutes += row.minutes
+      else map.set(row.goalId, { goalId: row.goalId, goalName: row.goalName, color: row.color, totalMinutes: row.minutes })
+    }
+    return [...map.values()].filter((g) => g.totalMinutes > 0).sort((a, b) => b.totalMinutes - a.totalMinutes)
+  }, [stats])
+  const goalTotalMinutes = goalTotals.reduce((sum, g) => sum + g.totalMinutes, 0)
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -251,7 +264,37 @@ export default function StatsPage() {
                 )
               })()}
 
-              {/* 饼图 */}
+              {/* 各目标总时长占比 */}
+              {goalTotals.length > 0 && (
+                <div className={styles.chartCard}>
+                  <h2>{goalTermLabel}总时长</h2>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart>
+                      <Pie
+                        data={goalTotals}
+                        dataKey="totalMinutes"
+                        nameKey="goalName"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={100}
+                        label={({ name, payload }) => {
+                          const p = payload as { goalName?: string; totalMinutes?: number } | undefined
+                          const pct = p && goalTotalMinutes > 0 ? Math.round((p.totalMinutes ?? 0) / goalTotalMinutes * 100) : 0
+                          return `${p?.goalName ?? name} ${pct}%`
+                        }}
+                        labelLine={true}
+                      >
+                        {goalTotals.map((g) => (
+                          <Cell key={g.goalId} fill={g.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v) => fmtMinutes(Number(v))} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* 标签时间占比 */}
               <div className={styles.chartCard}>
                 <h2>{tagTermLabel}时间占比</h2>
                 <ResponsiveContainer width="100%" height={280}>
@@ -275,28 +318,6 @@ export default function StatsPage() {
                     </Pie>
                     <Tooltip formatter={(v) => fmtMinutes(Number(v))} />
                   </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* 柱状图 */}
-              <div className={styles.chartCard}>
-                <h2>各{tagTermLabel}时长明细</h2>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={statsWithRootColor.tags} layout="vertical" margin={{ left: 16, right: 24 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis
-                      type="number"
-                      tickFormatter={(v) => `${Math.floor(v / 60)}h`}
-                      fontSize={12}
-                    />
-                    <YAxis type="category" dataKey="tagName" width={64} fontSize={12} />
-                    <Tooltip formatter={(v) => fmtMinutes(Number(v))} />
-                    <Bar dataKey="totalMinutes" radius={[0, 4, 4, 0]}>
-                      {statsWithRootColor.tags.map((tag) => (
-                        <Cell key={tag.tagId} fill={tag.color} />
-                      ))}
-                    </Bar>
-                  </BarChart>
                 </ResponsiveContainer>
               </div>
 
