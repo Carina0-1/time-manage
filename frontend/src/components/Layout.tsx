@@ -236,13 +236,21 @@ function EditableSectionTitle({
 }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(value)
+  const committedRef = useRef(false)
   useEffect(() => { setVal(value) }, [value])
 
+  const startEditing = () => {
+    committedRef.current = false
+    setVal(value)
+    setEditing(true)
+  }
+
   const commit = () => {
+    if (committedRef.current) return
+    committedRef.current = true
     setEditing(false)
     const t = val.trim()
     if (t && t !== value) onSave(t)
-    else setVal(value)
   }
 
   if (editing) {
@@ -259,7 +267,7 @@ function EditableSectionTitle({
             e.preventDefault()
             commit()
           }
-          if (e.key === 'Escape') { setVal(value); setEditing(false) }
+          if (e.key === 'Escape') { committedRef.current = true; setVal(value); setEditing(false) }
         }}
         onClick={(e) => e.stopPropagation()}
       />
@@ -275,7 +283,7 @@ function EditableSectionTitle({
         type="button"
         className={styles.sectionTitleEditBtn}
         title={`重命名"${value}"`}
-        onClick={(e) => { e.stopPropagation(); setEditing(true) }}
+        onClick={(e) => { e.stopPropagation(); startEditing() }}
       >✎</button>
     </span>
   )
