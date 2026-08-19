@@ -127,9 +127,10 @@ export default function QuickCreatePanel() {
     const input = {
       ...data,
       tagIds: data.tagIds.slice(0, 1),
-      goalId: data.goalId || undefined,
-      phaseId: data.phaseId || undefined,
-      roleId: data.roleId || undefined,
+      // 编辑已有任务时用空字符串表达"清空"（undefined 序列化时会被丢弃，后端无法据此清空外键）
+      goalId: data.goalId || (editingTask ? '' : undefined),
+      phaseId: data.phaseId || (editingTask ? '' : undefined),
+      roleId: data.roleId || (editingTask ? '' : undefined),
       startTime: startRaw?.toISOString(),
       endTime: endRaw?.toISOString(),
       isAllDay,

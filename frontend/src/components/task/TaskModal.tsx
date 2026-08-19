@@ -142,6 +142,10 @@ export default function TaskModal() {
       ...data,
       priority: 'medium',
       tagIds: selectedTagIds.slice(0, 1),
+      // 编辑已有任务时用空字符串表达"清空"（undefined 序列化时会被丢弃，后端无法据此清空外键）
+      goalId: data.goalId || (editingTask ? '' : undefined),
+      phaseId: data.phaseId || (editingTask ? '' : undefined),
+      roleId: data.roleId || (editingTask ? '' : undefined),
       startTime: data.startTime ? new Date(data.startTime).toISOString() : undefined,
       endTime: data.endTime ? new Date(data.endTime).toISOString() : undefined,
     } as CreateTaskInput

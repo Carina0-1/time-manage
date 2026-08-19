@@ -97,6 +97,10 @@ tasksRouter.patch('/:id', zValidator('json', UpdateTaskSchema), async (c) => {
   const updateData: Record<string, unknown> = { ...body, updatedAt: new Date() }
   if (body.startTime !== undefined) updateData.startTime = body.startTime ? new Date(body.startTime) : null
   if (body.endTime !== undefined) updateData.endTime = body.endTime ? new Date(body.endTime) : null
+  // 空字符串表示清空关联（undefined 会在 JSON 序列化时被丢弃，无法用来表达"清空"）
+  if (body.goalId === '') updateData.goalId = null
+  if (body.phaseId === '') updateData.phaseId = null
+  if (body.roleId === '') updateData.roleId = null
 
   const [task] = await db
     .update(tasks)
