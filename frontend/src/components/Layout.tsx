@@ -31,9 +31,11 @@ import type { GoalFilter } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useGoalStore } from '@/stores/goalStore'
+import { useRoleStore } from '@/stores/roleStore'
 import { tagsApi } from '@/api/tags'
 import { tasksApi } from '@/api/tasks'
 import { goalsApi } from '@/api/goals'
+import { rolesApi } from '@/api/roles'
 import { statsApi } from '@/api/stats'
 import { settingsApi } from '@/api/settings'
 
@@ -70,6 +72,13 @@ const TagFormSchema = z.object({
 })
 type TagFormValues = z.infer<typeof TagFormSchema>
 
+const RoleFormSchema = z.object({
+  name: z.string().min(1, '请输入名称').max(50),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, '请选择颜色'),
+  icon: z.string().optional(),
+})
+type RoleFormValues = z.infer<typeof RoleFormSchema>
+
 export default function Layout() {
   const navigate = useNavigate()
   const { taskModalOpen, panelPos } = useUiStore()
@@ -96,6 +105,7 @@ export default function Layout() {
         <ActivityHeatmap />
         <GoalTreeNav />
         <TagTreeNav />
+        <RoleListNav />
         <div className={styles.sidebarFooter}>
           <span className={styles.sidebarUsername}>{user?.username}</span>
           <button className={styles.logoutBtn} onClick={handleLogout}>退出</button>
@@ -1474,6 +1484,362 @@ function TagFormModal({
               style={{ background: selectedColor + '20', color: selectedColor, borderColor: selectedColor }}
             >
               {watch('icon')} {watch('name') || `${tagTermLabel}名`}
+            </span>
+          </div>
+
+          <div className={styles.formActions}>
+            <button type="button" className={styles.formCancelBtn} onClick={onClose}>取消</button>
+            <button type="submit" className={styles.formSubmitBtn} disabled={isSubmitting}>
+              {isSubmitting ? '保存中…' : '保存'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function RoleListNav() {
+  const { roles, fetchRoles, addRole, updateRole, removeRole, reorderRoles } = useRoleStore()
+  const { activeRoleFilter, setRoleFilter } = useUiStore()
+
+  const sortedRoles = useMemo(() => [...roles].sort((a, b) => a.sortOrder - b.sortOrder), [roles])
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  const [showForm, setShowForm] = useState(false)
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ roleId: string; x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    fetchRoles()
+  }, [fetchRoles])
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<RoleFormValues>({
+    resolver: zodResolver(RoleFormSchema),
+    defaultValues: { color: PRESET_COLORS[0] },
+  })
+
+  const selectedColor = watch('color')
+
+  const openCreate = () => {
+    setEditingRoleId(null)
+    reset({ name: '', color: PRESET_COLORS[0], icon: '' })
+    setShowForm(true)
+    setContextMenu(null)
+  }
+
+  const openEdit = (roleId: string) => {
+    const role = roles.find((r) => r.id === roleId)
+    if (!role) return
+    setEditingRoleId(roleId)
+    reset({ name: role.name, color: role.color, icon: role.icon ?? '' })
+    setShowForm(true)
+    setContextMenu(null)
+  }
+
+  const onSubmit = async (data: RoleFormValues) => {
+    if (editingRoleId) {
+      const updated = await rolesApi.update(editingRoleId, data)
+      updateRole(editingRoleId, updated)
+    } else {
+      const nextOrder = roles.length > 0 ? Math.max(...roles.map((r) => r.sortOrder)) + 1 : 0
+      const created = await rolesApi.create({ id: nanoid(), sortOrder: nextOrder, ...data })
+      addRole(created)
+    }
+    setShowForm(false)
+  }
+
+  const handleDelete = async (roleId: string) => {
+    await rolesApi.remove(roleId)
+    removeRole(roleId)
+    if (activeRoleFilter === roleId) setRoleFilter(null)
+    setContextMenu(null)
+    if (editingRoleId === roleId) setShowForm(false)
+  }
+
+  const handleRoleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = sortedRoles.findIndex((r) => r.id === active.id)
+    const newIndex = sortedRoles.findIndex((r) => r.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const newRoles = arrayMove(sortedRoles, oldIndex, newIndex).map((r, i) => ({ ...r, sortOrder: i }))
+    reorderRoles(newRoles)
+    try {
+      await rolesApi.reorder(newRoles.map((r) => ({ id: r.id, sortOrder: r.sortOrder })))
+    } catch {
+      reorderRoles(roles)
+    }
+  }
+
+  return (
+    <div className={styles.tagSection}>
+      <div className={styles.tagSectionHeader}>
+        <span
+          className={`${styles.tagSectionTitle} ${activeRoleFilter ? styles.tagSectionTitleActive : ''}`}
+          title={activeRoleFilter ? '点击显示全部任务' : '角色'}
+          onClick={() => setRoleFilter(null)}
+        >
+          角色
+        </span>
+        <div className={styles.tagHeaderActions}>
+          <button className={styles.tagAddBtn} onClick={openCreate} title="新建角色">＋</button>
+        </div>
+      </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleRoleDragEnd}>
+        <SortableContext items={sortedRoles.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+          {sortedRoles.map((role) => (
+            <RoleRow
+              key={role.id}
+              id={role.id}
+              name={role.name}
+              color={role.color}
+              icon={role.icon}
+              isActive={activeRoleFilter === role.id}
+              onSelect={() => setRoleFilter(activeRoleFilter === role.id ? null : role.id)}
+              onContextMenu={(x, y) => setContextMenu({ roleId: role.id, x, y })}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
+
+      {contextMenu && (
+        <RoleContextMenu
+          roleId={contextMenu.roleId}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onEdit={openEdit}
+          onDelete={handleDelete}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {showForm && (
+        <RoleFormModal
+          editingRoleId={editingRoleId}
+          selectedColor={selectedColor}
+          errors={errors}
+          isSubmitting={isSubmitting}
+          register={register}
+          watch={watch}
+          setValue={setValue}
+          onSubmit={handleSubmit(onSubmit)}
+          onClose={() => setShowForm(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function RoleRow({
+  id,
+  name,
+  color,
+  icon,
+  isActive,
+  onSelect,
+  onContextMenu,
+}: {
+  id: string
+  name: string
+  color: string
+  icon?: string
+  isActive: boolean
+  onSelect: () => void
+  onContextMenu: (x: number, y: number) => void
+}) {
+  const [hovered, setHovered] = useState(false)
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div
+        className={`${styles.tagNavItem} ${isActive ? styles.tagNavItemActive : ''} ${styles.tagNavItemDraggable}`}
+        style={{ paddingLeft: '10px' }}
+        onClick={onSelect}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        <span
+          className={styles.dragHandle}
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+        >⠿</span>
+        <span className={styles.tagNavDot} style={{ background: color }} />
+        {icon && <span>{icon}</span>}
+        <span className={styles.tagNavLabel}>{name}</span>
+        {hovered && (
+          <button
+            className={styles.tagMenuBtn}
+            onClick={(e) => {
+              e.stopPropagation()
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+              onContextMenu(rect.right, rect.bottom)
+            }}
+            title="角色操作"
+          >…</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function RoleContextMenu({
+  roleId,
+  x,
+  y,
+  onEdit,
+  onDelete,
+  onClose,
+}: {
+  roleId: string
+  x: number
+  y: number
+  onEdit: (id: string) => void
+  onDelete: (id: string) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  return (
+    <div ref={ref} className={styles.contextMenu} style={{ position: 'fixed', left: x, top: y }}>
+      <button className={styles.contextMenuItem} onClick={() => onEdit(roleId)}>编辑角色</button>
+      <div className={styles.contextMenuDivider} />
+      <button
+        className={`${styles.contextMenuItem} ${styles.contextMenuItemDanger}`}
+        onClick={() => onDelete(roleId)}
+      >删除角色</button>
+    </div>
+  )
+}
+
+function RoleFormModal({
+  editingRoleId,
+  selectedColor,
+  errors,
+  isSubmitting,
+  register,
+  watch,
+  setValue,
+  onSubmit,
+  onClose,
+}: {
+  editingRoleId: string | null
+  selectedColor: string
+  errors: ReturnType<typeof useForm<RoleFormValues>>['formState']['errors']
+  isSubmitting: boolean
+  register: ReturnType<typeof useForm<RoleFormValues>>['register']
+  watch: ReturnType<typeof useForm<RoleFormValues>>['watch']
+  setValue: ReturnType<typeof useForm<RoleFormValues>>['setValue']
+  onSubmit: (e: React.FormEvent) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  return (
+    <div className={styles.formModalOverlay}>
+      <div ref={ref} className={styles.formModal}>
+        <div className={styles.formModalHeader}>
+          <span>{editingRoleId ? '编辑角色' : '新建角色'}</span>
+          <button className={styles.formModalClose} onClick={onClose}>✕</button>
+        </div>
+        <form onSubmit={onSubmit} className={styles.formModalBody}>
+          <div className={styles.formField}>
+            <label>角色名</label>
+            <input
+              {...register('name')}
+              placeholder="例如：主导"
+              autoFocus
+              className={styles.formInput}
+            />
+            {errors.name && <span className={styles.formError}>{errors.name.message}</span>}
+          </div>
+
+          <div className={styles.formField}>
+            <label>图标（可选）</label>
+            <div className={styles.emojiPickerRow}>
+              <span
+                className={`${styles.emojiSelected} ${!watch('icon') ? styles.emojiSelectedEmpty : ''}`}
+                onClick={() => setValue('icon', '', { shouldDirty: true })}
+                title="清除图标"
+              >
+                {watch('icon') || '—'}
+              </span>
+              <div className={styles.emojiGrid}>
+                {PRESET_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className={`${styles.emojiBtn} ${watch('icon') === emoji ? styles.emojiBtnSelected : ''}`}
+                    onClick={() => setValue('icon', watch('icon') === emoji ? '' : emoji, { shouldDirty: true })}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.formField}>
+            <label>颜色</label>
+            <div className={styles.colorGrid}>
+              {PRESET_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className={`${styles.colorDot} ${selectedColor === color ? styles.colorDotSelected : ''}`}
+                  style={{ background: color }}
+                  onClick={() => setValue('color', color)}
+                />
+              ))}
+            </div>
+            <div className={styles.colorCustomRow}>
+              <span className={styles.colorPreview} style={{ background: selectedColor }} />
+              <input
+                type="color"
+                value={selectedColor}
+                onChange={(e) => setValue('color', e.target.value)}
+                className={styles.colorPicker}
+              />
+              <span className={styles.colorHex}>{selectedColor}</span>
+            </div>
+          </div>
+
+          <div className={styles.formField}>
+            <label>预览</label>
+            <span
+              className={styles.previewChip}
+              style={{ background: selectedColor + '20', color: selectedColor, borderColor: selectedColor }}
+            >
+              {watch('icon')} {watch('name') || '角色名'}
             </span>
           </div>
 

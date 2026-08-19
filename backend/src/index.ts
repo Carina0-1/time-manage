@@ -10,6 +10,7 @@ import { tagsRouter } from './routes/tags.js'
 import { statsRouter } from './routes/stats.js'
 import { goalsRouter } from './routes/goals.js'
 import { phasesRouter } from './routes/phases.js'
+import { rolesRouter } from './routes/roles.js'
 import { settingsRouter } from './routes/settings.js'
 
 export const app = new Hono()
@@ -30,6 +31,7 @@ app.route('/api/tags', tagsRouter)
 app.route('/api/stats', statsRouter)
 app.route('/api/goals', goalsRouter)
 app.route('/api/phases', phasesRouter)
+app.route('/api/roles', rolesRouter)
 app.route('/api/settings', settingsRouter)
 
 // 统一错误处理

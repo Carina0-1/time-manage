@@ -220,7 +220,8 @@
 }
 
 .evGoalChip,
-.evTagChip {
+.evTagChip,
+.evRoleChip {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -232,7 +233,8 @@
 }
 
 .evGoalDot,
-.evTagDot {
+.evTagDot,
+.evRoleDot {
   width: 5px;
   height: 5px;
   border-radius: 50%;

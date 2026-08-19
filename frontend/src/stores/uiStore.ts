@@ -25,6 +25,9 @@ interface UiStore {
   // 侧边栏目标筛选
   activeGoalFilter: GoalFilter | null
   setGoalFilter: (filter: GoalFilter | null) => void
+  // 侧边栏角色筛选
+  activeRoleFilter: string | null
+  setRoleFilter: (roleId: string | null) => void
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -47,4 +50,7 @@ export const useUiStore = create<UiStore>((set) => ({
 
   activeGoalFilter: null,
   setGoalFilter: (filter) => set({ activeGoalFilter: filter }),
+
+  activeRoleFilter: null,
+  setRoleFilter: (roleId) => set({ activeRoleFilter: roleId }),
 }))

@@ -10,6 +10,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useGoalStore } from '@/stores/goalStore'
+import { useRoleStore } from '@/stores/roleStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { tasksApi } from '@/api/tasks'
 import { tagsApi } from '@/api/tags'
@@ -23,6 +24,7 @@ const PanelFormSchema = z.object({
   tagIds: z.array(z.string()),
   goalId: z.string().optional(),
   phaseId: z.string().optional(),
+  roleId: z.string().optional(),
 })
 
 type PanelFormValues = z.infer<typeof PanelFormSchema>
@@ -47,7 +49,12 @@ export default function QuickCreatePanel() {
   const { tasks, addTask, updateTask, removeTask } = useTaskStore()
   const { tags, addTag } = useTagStore()
   const { goals, adjustPhaseTaskCount } = useGoalStore()
+  const { roles, fetchRoles } = useRoleStore()
   const { goalTermLabel, tagTermLabel } = useSettingsStore()
+
+  useEffect(() => {
+    fetchRoles()
+  }, [fetchRoles])
 
   const editingTask = editingTaskId ? tasks.find((t) => t.id === editingTaskId) : null
 
@@ -67,6 +74,7 @@ export default function QuickCreatePanel() {
   const selectedTagIds = watch('tagIds') ?? []
   const selectedGoalId = watch('goalId')
   const selectedPhaseId = watch('phaseId')
+  const selectedRoleId = watch('roleId')
 
   useEffect(() => {
     if (!taskModalOpen) return
@@ -81,9 +89,10 @@ export default function QuickCreatePanel() {
         tagIds: editingTask.tagIds,
         goalId: editingTask.goalId ?? undefined,
         phaseId: editingTask.phaseId ?? undefined,
+        roleId: editingTask.roleId ?? undefined,
       })
     } else {
-      reset({ id: nanoid(), title: '', tagIds: [], goalId: undefined, phaseId: undefined })
+      reset({ id: nanoid(), title: '', tagIds: [], goalId: undefined, phaseId: undefined, roleId: undefined })
     }
   }, [taskModalOpen, editingTaskId, createDefaults, reset])
 
@@ -120,6 +129,7 @@ export default function QuickCreatePanel() {
       tagIds: data.tagIds.slice(0, 1),
       goalId: data.goalId || undefined,
       phaseId: data.phaseId || undefined,
+      roleId: data.roleId || undefined,
       startTime: startRaw?.toISOString(),
       endTime: endRaw?.toISOString(),
       isAllDay,
@@ -266,6 +276,26 @@ export default function QuickCreatePanel() {
       setValue('tagIds', next, { shouldDirty: true })
     }
     setTagOpen(false)
+  }
+
+  // Role selection
+  const sortedRoles = useMemo(() => [...roles].sort((a, b) => a.sortOrder - b.sortOrder), [roles])
+  const selectedRole = sortedRoles.find((r) => r.id === selectedRoleId)
+  const [roleOpen, setRoleOpen] = useState(false)
+  const roleRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!roleOpen) return
+    const handler = (e: MouseEvent) => {
+      if (roleRef.current && !roleRef.current.contains(e.target as Node)) setRoleOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [roleOpen])
+
+  const handleRoleClick = (roleId: string) => {
+    setValue('roleId', selectedRoleId === roleId ? undefined : roleId, { shouldDirty: true })
+    setRoleOpen(false)
   }
 
   // Title history autocomplete
@@ -490,6 +520,51 @@ export default function QuickCreatePanel() {
                     </div>
                   )
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* 角色 chip */}
+          <div className={styles.chipArea} ref={roleRef}>
+            <button
+              type="button"
+              className={styles.chipBtn}
+              onClick={() => setRoleOpen((o) => !o)}
+              style={selectedRole ? { color: selectedRole.color, borderColor: selectedRole.color + '66', background: selectedRole.color + '12' } : {}}
+            >
+              {selectedRole ? (
+                <>
+                  {selectedRole.icon && <span>{selectedRole.icon}</span>}
+                  <span className={styles.chipBtnLabel}>{selectedRole.name}</span>
+                  <span
+                    className={styles.chipRemove}
+                    onMouseDown={(e) => {
+                      e.stopPropagation()
+                      setValue('roleId', undefined, { shouldDirty: true })
+                    }}
+                  >×</span>
+                </>
+              ) : (
+                <span className={styles.chipPlaceholder}>◆ 角色</span>
+              )}
+            </button>
+
+            {roleOpen && (
+              <div className={styles.chipDropdown}>
+                {sortedRoles.length === 0 ? (
+                  <div className={styles.chipDropdownEmpty}>暂无角色</div>
+                ) : sortedRoles.map((role) => (
+                  <div
+                    key={role.id}
+                    className={`${styles.chipDropdownItem} ${selectedRoleId === role.id ? styles.chipDropdownItemSelected : ''}`}
+                    onMouseDown={(e) => { e.preventDefault(); handleRoleClick(role.id) }}
+                  >
+                    <span className={styles.chipDropdownDot} style={{ background: role.color }} />
+                    {role.icon && <span>{role.icon}</span>}
+                    <span className={styles.chipDropdownName}>{role.name}</span>
+                    {selectedRoleId === role.id && <span className={styles.chipDropdownCheck}>✓</span>}
+                  </div>
+                ))}
               </div>
             )}
           </div>

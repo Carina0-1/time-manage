@@ -5,12 +5,13 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { nanoid } from 'nanoid'
 import dayjs from 'dayjs'
 import { z } from 'zod'
-import type { CreateTaskInput, Tag } from '@time-manage/shared'
+import type { CreateTaskInput, Tag, Role } from '@time-manage/shared'
 import { buildTagTree, flattenTree, isVirtualNode } from '@/utils/tagTree'
 import { useTaskStore } from '@/stores/taskStore'
 import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useGoalStore } from '@/stores/goalStore'
+import { useRoleStore } from '@/stores/roleStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import type { GoalWithPhases } from '@/stores/goalStore'
 import { tasksApi } from '@/api/tasks'
@@ -28,6 +29,7 @@ const TaskFormSchema = z.object({
   tagIds: z.array(z.string()),
   goalId: z.string().optional(),
   phaseId: z.string().optional(),
+  roleId: z.string().optional(),
   status: z.enum(['todo', 'in_progress', 'done', 'cancelled']),
   color: z.string().nullish(),
 })
@@ -40,7 +42,12 @@ export default function TaskModal() {
   const { tasks, addTask, updateTask, removeTask } = useTaskStore()
   const { tags } = useTagStore()
   const { goals, adjustPhaseTaskCount } = useGoalStore()
+  const { roles, fetchRoles } = useRoleStore()
   const { tagTermLabel } = useSettingsStore()
+
+  useEffect(() => {
+    fetchRoles()
+  }, [fetchRoles])
 
   const editingTask = editingTaskId ? tasks.find((t) => t.id === editingTaskId) : null
 
@@ -64,6 +71,7 @@ export default function TaskModal() {
   const selectedTagIds = watch('tagIds') ?? []
   const selectedGoalId = watch('goalId')
   const selectedPhaseId = watch('phaseId')
+  const selectedRoleId = watch('roleId')
 
   // # 快速打标签状态
   const [hashQuery, setHashQuery] = useState<string | null>(null)
@@ -110,6 +118,7 @@ export default function TaskModal() {
         tagIds: editingTask.tagIds,
         goalId: editingTask.goalId ?? undefined,
         phaseId: editingTask.phaseId ?? undefined,
+        roleId: editingTask.roleId ?? undefined,
         status: editingTask.status,
         color: editingTask.color ?? undefined,
       })
@@ -282,6 +291,11 @@ export default function TaskModal() {
               tags={tags}
               selectedTagIds={selectedTagIds}
               onToggle={toggleTag}
+            />
+            <RoleSelector
+              roles={roles}
+              selectedRoleId={selectedRoleId}
+              onSelect={(id) => setValue('roleId', selectedRoleId === id ? undefined : id, { shouldDirty: true })}
             />
           </div>
 
@@ -623,6 +637,100 @@ function TagSelector({
               </div>
             )
           })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RoleSelector({
+  roles,
+  selectedRoleId,
+  onSelect,
+}: {
+  roles: Role[]
+  selectedRoleId: string | undefined
+  onSelect: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const lockedRef = useRef(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+        lockedRef.current = false
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const closeAndUnlock = () => {
+    setOpen(false)
+    lockedRef.current = false
+  }
+
+  const sortedRoles = useMemo(() => [...roles].sort((a, b) => a.sortOrder - b.sortOrder), [roles])
+  const selectedRole = sortedRoles.find((r) => r.id === selectedRoleId)
+
+  return (
+    <div
+      className={styles.chipSelector}
+      ref={ref}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => { if (!lockedRef.current) setOpen(false) }}
+    >
+      <div
+        className={`${styles.chipTrigger} ${selectedRole ? styles.chipTriggerActive : ''}`}
+        style={selectedRole ? {
+          background: selectedRole.color + '18',
+          color: selectedRole.color,
+          borderColor: selectedRole.color + '88',
+        } : {}}
+        onClick={() => {
+          if (lockedRef.current) {
+            closeAndUnlock()
+          } else {
+            lockedRef.current = true
+            setOpen(true)
+          }
+        }}
+      >
+        {selectedRole ? (
+          <>
+            {selectedRole.icon && <span>{selectedRole.icon}</span>}
+            <span className={styles.chipLabel}>{selectedRole.name}</span>
+            <span
+              className={styles.chipRemove}
+              onMouseDown={(e) => { e.stopPropagation(); onSelect(selectedRole.id) }}
+            >×</span>
+          </>
+        ) : (
+          <span className={styles.chipPlaceholder}>◆ 角色</span>
+        )}
+      </div>
+
+      {open && (
+        <div className={styles.chipDropdown}>
+          {sortedRoles.length === 0 ? (
+            <div className={styles.chipDropdownEmpty}>暂无角色</div>
+          ) : (
+            sortedRoles.map((role) => (
+              <div
+                key={role.id}
+                className={`${styles.chipDropdownItem} ${selectedRoleId === role.id ? styles.chipDropdownItemSelected : ''}`}
+                onMouseDown={(e) => { e.preventDefault(); onSelect(role.id); closeAndUnlock() }}
+              >
+                <span className={styles.chipDropdownDot} style={{ background: role.color }} />
+                {role.icon && <span>{role.icon}</span>}
+                <span className={styles.chipDropdownName}>{role.name}</span>
+                {selectedRoleId === role.id && <span className={styles.chipDropdownCheck}>✓</span>}
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>

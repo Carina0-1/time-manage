@@ -18,6 +18,7 @@ export const CreateTaskSchema = z.object({
   tagIds: z.array(z.string()).default([]),
   goalId: z.string().optional(),
   phaseId: z.string().optional(),
+  roleId: z.string().optional(),
   status: z.enum(['todo', 'in_progress', 'done', 'cancelled']).default('todo'),
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
   recurrence: RecurrenceSchema.optional(),
@@ -63,6 +64,16 @@ export const CreateTagSchema = z.object({
 
 export const UpdateTagSchema = CreateTagSchema.partial().omit({ id: true })
 
+export const CreateRoleSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(50),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  icon: z.string().optional(),
+  sortOrder: z.number().int().default(0),
+})
+
+export const UpdateRoleSchema = CreateRoleSchema.partial().omit({ id: true })
+
 export const StatsQuerySchema = z.object({
   start: z.string().datetime(),
   end: z.string().datetime(),
@@ -87,6 +98,8 @@ export type CreatePhaseInput = z.infer<typeof CreatePhaseSchema>
 export type UpdatePhaseInput = z.infer<typeof UpdatePhaseSchema>
 export type CreateTagInput = z.infer<typeof CreateTagSchema>
 export type UpdateTagInput = z.infer<typeof UpdateTagSchema>
+export type CreateRoleInput = z.infer<typeof CreateRoleSchema>
+export type UpdateRoleInput = z.infer<typeof UpdateRoleSchema>
 export type StatsQuery = z.infer<typeof StatsQuerySchema>
 export type SyncUpload = z.infer<typeof SyncUploadSchema>
 

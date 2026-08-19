@@ -13,7 +13,7 @@ import type {
 } from '@fullcalendar/core'
 import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import dayjs from 'dayjs'
-import type { Tag, Task } from '@time-manage/shared'
+import type { Tag, Task, Role } from '@time-manage/shared'
 import { buildTagTree, getDescendantTagIds } from '@/utils/tagTree'
 import type { TagTreeNode } from '@/utils/tagTree'
 import { useTaskStore } from '@/stores/taskStore'
@@ -21,6 +21,7 @@ import { useTagStore } from '@/stores/tagStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useGoalStore } from '@/stores/goalStore'
 import type { GoalWithPhases } from '@/stores/goalStore'
+import { useRoleStore } from '@/stores/roleStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import type { GoalFilter } from '@/stores/uiStore'
 import { tasksApi } from '@/api/tasks'
@@ -70,7 +71,8 @@ export default function CalendarPage() {
   const { tasks, fetchTasks, updateTask } = useTaskStore()
   const { tags, fetchTags } = useTagStore()
   const { goals } = useGoalStore()
-  const { taskModalOpen, openCreateModal, openEditModal, activeTagFilter, activeGoalFilter, setGoalFilter } = useUiStore()
+  const { roles, fetchRoles } = useRoleStore()
+  const { taskModalOpen, openCreateModal, openEditModal, activeTagFilter, activeGoalFilter, activeRoleFilter, setGoalFilter } = useUiStore()
 
   const [currentView, setCurrentView] = useState<ViewType>('timeGridWeek')
   const [dateTitle, setDateTitle] = useState('')
@@ -88,6 +90,10 @@ export default function CalendarPage() {
   useEffect(() => {
     fetchTags()
   }, [fetchTags])
+
+  useEffect(() => {
+    fetchRoles()
+  }, [fetchRoles])
 
   // 初次加载时滚动到当前时间（偏移 -30 分钟，让时间线不贴顶）
   useEffect(() => {
@@ -131,10 +137,16 @@ export default function CalendarPage() {
     return new Set(tasks.filter((t) => t.phaseId === activeGoalFilter.id).map((t) => t.id))
   }, [activeGoalFilter, tasks])
 
+  const filteredRoleTaskIds = useMemo(() => {
+    if (!activeRoleFilter) return null
+    return new Set(tasks.filter((t) => t.roleId === activeRoleFilter).map((t) => t.id))
+  }, [activeRoleFilter, tasks])
+
   const events = tasks
     .filter((task) => task.startTime && task.endTime)  // Inbox 任务不显示在日历
     .filter((task) => !filteredTagIds || task.tagIds.some((id) => filteredTagIds.has(id)))
     .filter((task) => !filteredGoalTaskIds || filteredGoalTaskIds.has(task.id))
+    .filter((task) => !filteredRoleTaskIds || filteredRoleTaskIds.has(task.id))
     .map((task) => {
       const goalColor = task.goalId ? goalColorMap.get(task.goalId) : undefined
       const hexColor = task.color ?? goalColor ?? '#57b683'
@@ -257,6 +269,7 @@ export default function CalendarPage() {
               info={info}
               tags={tags}
               goals={goals}
+              roles={roles}
               onToggleDone={(taskId, status) => handleToggleDone(taskId, status)}
             />
           )}
@@ -364,11 +377,13 @@ function EventContent({
   info,
   tags,
   goals,
+  roles,
   onToggleDone,
 }: {
   info: EventContentArg
   tags: Tag[]
   goals: GoalWithPhases[]
+  roles: Role[]
   onToggleDone: (taskId: string, status: string) => void
 }) {
   const { task, vars, isDone } = info.event.extendedProps as {
@@ -392,7 +407,8 @@ function EventContent({
 
   const goal = task.goalId ? goals.find((g) => g.id === task.goalId) : undefined
   const taskTags = tags.filter((tg) => task.tagIds.includes(tg.id))
-  const hasMeta = !!goal || taskTags.length > 0
+  const role = task.roleId ? roles.find((r) => r.id === task.roleId) : undefined
+  const hasMeta = !!goal || taskTags.length > 0 || !!role
 
   if (isTimeGrid) {
     const start = info.event.start
@@ -429,6 +445,12 @@ function EventContent({
                 {tg.name}
               </span>
             ))}
+            {role && (
+              <span className={styles.evRoleChip}>
+                <span className={styles.evRoleDot} style={{ background: role.color }} />
+                {role.name}
+              </span>
+            )}
           </div>
         )}
       </div>

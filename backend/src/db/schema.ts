@@ -51,6 +51,18 @@ export const tags = pgTable('tags', {
   deletedAt: timestamp('deleted_at'),
 })
 
+export const roles = pgTable('roles', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  color: text('color').notNull(),
+  icon: text('icon'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+})
+
 export const tasks = pgTable('tasks', {
   id: text('id').primaryKey(),
   userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
@@ -65,6 +77,7 @@ export const tasks = pgTable('tasks', {
   color: text('color'),
   goalId: text('goal_id').references(() => goals.id, { onDelete: 'set null' }),
   phaseId: text('phase_id').references(() => phases.id, { onDelete: 'set null' }),
+  roleId: text('role_id').references(() => roles.id, { onDelete: 'set null' }),
   expectedOutput: text('expected_output'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

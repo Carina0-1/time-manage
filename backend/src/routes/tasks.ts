@@ -14,6 +14,7 @@ const QuerySchema = z.object({
   end: z.string().optional(),
   goalId: z.string().optional(),
   phaseId: z.string().optional(),
+  roleId: z.string().optional(),
   inbox: z.string().optional(),  // "true" 表示只返回无排期任务
   all: z.string().optional(),    // "true" 表示返回所有任务（含有排期和无排期）
 })
@@ -21,7 +22,7 @@ const QuerySchema = z.object({
 // GET /tasks?start=&end=&goalId=&phaseId=&inbox=true&all=true
 tasksRouter.get('/', zValidator('query', QuerySchema), async (c) => {
   const userId = c.get('userId')
-  const { start, end, goalId, phaseId, inbox, all } = c.req.valid('query')
+  const { start, end, goalId, phaseId, roleId, inbox, all } = c.req.valid('query')
 
   const conditions = [eq(tasks.userId, userId), isNull(tasks.deletedAt)]
 
@@ -38,6 +39,7 @@ tasksRouter.get('/', zValidator('query', QuerySchema), async (c) => {
 
   if (goalId) conditions.push(eq(tasks.goalId, goalId))
   if (phaseId) conditions.push(eq(tasks.phaseId, phaseId))
+  if (roleId) conditions.push(eq(tasks.roleId, roleId))
 
   const rows = await db
     .select()

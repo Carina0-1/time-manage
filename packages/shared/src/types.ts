@@ -21,6 +21,7 @@ export interface Task {
   tagIds: string[]
   goalId?: string
   phaseId?: string
+  roleId?: string
   status: TaskStatus
   priority: Priority
   recurrence?: Recurrence
@@ -61,6 +62,17 @@ export interface Phase {
 }
 
 export interface Tag {
+  id: string
+  userId: string
+  name: string
+  color: string          // HEX, e.g. "#6366f1"
+  icon?: string          // emoji
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Role {
   id: string
   userId: string
   name: string
