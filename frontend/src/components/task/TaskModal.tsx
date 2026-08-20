@@ -38,7 +38,7 @@ type TaskFormValues = z.infer<typeof TaskFormSchema>
 
 export default function TaskModal() {
   const navigate = useNavigate()
-  const { taskModalOpen, panelPos, editingTaskId, createDefaults, closeTaskModal } = useUiStore()
+  const { taskModalOpen, panelPos, editingTaskId, createDefaults, closeTaskModal, openEditModal } = useUiStore()
   const { tasks, addTask, updateTask, removeTask } = useTaskStore()
   const { tags } = useTagStore()
   const { goals, adjustPhaseTaskCount } = useGoalStore()
@@ -170,6 +170,30 @@ export default function TaskModal() {
     removeTask(editingTask.id)
     if (editingTask.phaseId) adjustPhaseTaskCount(editingTask.phaseId, -1)
     closeTaskModal()
+  }
+
+  const handleDuplicate = async () => {
+    if (!editingTask) return
+    const input: CreateTaskInput = {
+      id: nanoid(),
+      title: editingTask.title,
+      description: editingTask.description ?? undefined,
+      expectedOutput: editingTask.expectedOutput ?? undefined,
+      startTime: editingTask.startTime ?? undefined,
+      endTime: editingTask.endTime ?? undefined,
+      isAllDay: editingTask.isAllDay,
+      tagIds: editingTask.tagIds,
+      goalId: editingTask.goalId ?? undefined,
+      phaseId: editingTask.phaseId ?? undefined,
+      roleId: editingTask.roleId ?? undefined,
+      status: editingTask.status,
+      priority: editingTask.priority,
+      color: editingTask.color ?? undefined,
+    }
+    const created = await tasksApi.create(input)
+    addTask(created)
+    if (created.phaseId) adjustPhaseTaskCount(created.phaseId, 1)
+    openEditModal(created.id)
   }
 
   const toggleTag = (tagId: string) => {
@@ -343,6 +367,11 @@ export default function TaskModal() {
               {editingTask && (
                 <button type="button" className={styles.deleteBtn} onClick={handleDelete}>
                   删除
+                </button>
+              )}
+              {editingTask && (
+                <button type="button" className={styles.contextLinkBtn} onClick={handleDuplicate}>
+                  复制任务
                 </button>
               )}
               {editingTask?.goalId && (

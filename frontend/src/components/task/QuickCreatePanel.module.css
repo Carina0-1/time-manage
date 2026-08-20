@@ -23,6 +23,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .deleteBtn {
   background: none;
   border: none;

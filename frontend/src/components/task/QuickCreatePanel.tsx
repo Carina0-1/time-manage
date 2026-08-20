@@ -45,7 +45,7 @@ function useTitleHistory(tasks: { title: string; updatedAt: string }[]) {
 }
 
 export default function QuickCreatePanel() {
-  const { taskModalOpen, editingTaskId, createDefaults, panelPos, closeTaskModal } = useUiStore()
+  const { taskModalOpen, editingTaskId, createDefaults, panelPos, closeTaskModal, openEditModal } = useUiStore()
   const { tasks, addTask, updateTask, removeTask } = useTaskStore()
   const { tags, addTag } = useTagStore()
   const { goals, adjustPhaseTaskCount } = useGoalStore()
@@ -195,6 +195,32 @@ export default function QuickCreatePanel() {
     closeTaskModal()
   }
 
+  const handleDuplicate = async () => {
+    if (!editingTask) return
+    isSavingRef.current = true
+    const input: CreateTaskInput = {
+      id: nanoid(),
+      title: editingTask.title,
+      description: editingTask.description ?? undefined,
+      expectedOutput: editingTask.expectedOutput ?? undefined,
+      startTime: editingTask.startTime ?? undefined,
+      endTime: editingTask.endTime ?? undefined,
+      isAllDay: editingTask.isAllDay,
+      tagIds: editingTask.tagIds,
+      goalId: editingTask.goalId ?? undefined,
+      phaseId: editingTask.phaseId ?? undefined,
+      roleId: editingTask.roleId ?? undefined,
+      status: editingTask.status,
+      priority: editingTask.priority,
+      color: editingTask.color ?? undefined,
+    }
+    const created = await tasksApi.create(input)
+    addTask(created)
+    if (created.phaseId) adjustPhaseTaskCount(created.phaseId, 1)
+    isSavingRef.current = false
+    openEditModal(created.id, panelPos ?? undefined)
+  }
+
   const startDate = editingTask?.startTime ? new Date(editingTask.startTime) : createDefaults?.start
   const endDate = editingTask?.endTime ? new Date(editingTask.endTime) : createDefaults?.end
   const isAllDay = editingTask ? editingTask.isAllDay : createDefaults?.isAllDay
@@ -341,9 +367,14 @@ export default function QuickCreatePanel() {
       <div className={styles.header}>
         <span className={styles.dateTime}>{dateLabel} · {timeLabel}</span>
         {editingTask && (
-          <button type="button" className={styles.deleteBtn} onClick={handleDelete} title="删除任务">
-            🗑
-          </button>
+          <div className={styles.headerActions}>
+            <button type="button" className={styles.deleteBtn} onClick={handleDuplicate} title="复制任务">
+              ⧉
+            </button>
+            <button type="button" className={styles.deleteBtn} onClick={handleDelete} title="删除任务">
+              🗑
+            </button>
+          </div>
         )}
       </div>
 
