@@ -210,7 +210,7 @@ export default function QuickCreatePanel() {
       goalId: editingTask.goalId ?? undefined,
       phaseId: editingTask.phaseId ?? undefined,
       roleId: editingTask.roleId ?? undefined,
-      status: editingTask.status,
+      status: 'todo',
       priority: editingTask.priority,
       color: editingTask.color ?? undefined,
     }
