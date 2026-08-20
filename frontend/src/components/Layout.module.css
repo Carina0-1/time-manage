@@ -503,9 +503,8 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
+  flex-shrink: 0;
+  margin-bottom: 8px;
 }
 .tagSectionHeader {
   display: flex;
