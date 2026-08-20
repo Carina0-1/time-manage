@@ -6,12 +6,9 @@ import { HTTPException } from 'hono/http-exception'
 import { authMiddleware } from './middleware/auth.js'
 import { authRouter } from './routes/auth.js'
 import { tasksRouter } from './routes/tasks.js'
-import { tagsRouter } from './routes/tags.js'
 import { statsRouter } from './routes/stats.js'
-import { goalsRouter } from './routes/goals.js'
-import { phasesRouter } from './routes/phases.js'
-import { rolesRouter } from './routes/roles.js'
-import { settingsRouter } from './routes/settings.js'
+import { dimensionsRouter } from './routes/dimensions.js'
+import { dimensionOptionsRouter } from './routes/dimensionOptions.js'
 
 export const app = new Hono()
 
@@ -27,12 +24,9 @@ app.route('/auth', authRouter)
 // 所有 /api/* 路由需要认证
 app.use('/api/*', authMiddleware)
 app.route('/api/tasks', tasksRouter)
-app.route('/api/tags', tagsRouter)
 app.route('/api/stats', statsRouter)
-app.route('/api/goals', goalsRouter)
-app.route('/api/phases', phasesRouter)
-app.route('/api/roles', rolesRouter)
-app.route('/api/settings', settingsRouter)
+app.route('/api/dimensions', dimensionsRouter)
+app.route('/api/dimension-options', dimensionOptionsRouter)
 
 // 统一错误处理
 app.onError((err, c) => {

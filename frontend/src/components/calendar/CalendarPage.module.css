@@ -219,9 +219,7 @@
   overflow: hidden;
 }
 
-.evGoalChip,
-.evTagChip,
-.evRoleChip {
+.evGenericChip {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -232,9 +230,7 @@
   opacity: 0.85;
 }
 
-.evGoalDot,
-.evTagDot,
-.evRoleDot {
+.evGenericDot {
   width: 5px;
   height: 5px;
   border-radius: 50%;

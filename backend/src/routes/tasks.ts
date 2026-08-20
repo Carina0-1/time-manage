@@ -2,8 +2,9 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { eq, and, isNull, gte, lte, inArray } from 'drizzle-orm'
 import { z } from 'zod'
+import { nanoid } from 'nanoid'
 import { db } from '../db/index.js'
-import { tasks, taskTags, tags } from '../db/schema.js'
+import { tasks, taskDimensionValues, dimensions, dimensionOptions } from '../db/schema.js'
 import { CreateTaskSchema, UpdateTaskSchema } from '@time-manage/shared'
 import type { AuthEnv } from '../middleware/auth.js'
 
@@ -12,22 +13,56 @@ export const tasksRouter = new Hono<AuthEnv>()
 const QuerySchema = z.object({
   start: z.string().optional(),
   end: z.string().optional(),
-  goalId: z.string().optional(),
-  phaseId: z.string().optional(),
-  roleId: z.string().optional(),
   inbox: z.string().optional(),  // "true" 表示只返回无排期任务
   all: z.string().optional(),    // "true" 表示返回所有任务（含有排期和无排期）
 })
 
-// GET /tasks?start=&end=&goalId=&phaseId=&inbox=true&all=true
-tasksRouter.get('/', zValidator('query', QuerySchema), async (c) => {
+// 展开某个 optionId 在其维度树内的所有子孙 optionId（single 类型直接返回自身）
+async function expandOptionIds(dimensionId: string, optionId: string, userId: string): Promise<string[]> {
+  const [dim] = await db.select().from(dimensions).where(eq(dimensions.id, dimensionId))
+  if (!dim || dim.type !== 'tree') return [optionId]
+
+  const allOptions = await db
+    .select()
+    .from(dimensionOptions)
+    .where(and(eq(dimensionOptions.dimensionId, dimensionId), eq(dimensionOptions.userId, userId)))
+
+  const childrenMap = new Map<string, string[]>()
+  for (const o of allOptions) {
+    if (!o.parentId) continue
+    const list = childrenMap.get(o.parentId) ?? []
+    list.push(o.id)
+    childrenMap.set(o.parentId, list)
+  }
+
+  const result: string[] = []
+  const queue = [optionId]
+  while (queue.length > 0) {
+    const id = queue.shift()!
+    result.push(id)
+    queue.push(...(childrenMap.get(id) ?? []))
+  }
+  return result
+}
+
+// GET /tasks?start=&end=&inbox=true&all=true&filter[<dimensionId>]=<optionId>
+tasksRouter.get('/', async (c) => {
   const userId = c.get('userId')
-  const { start, end, goalId, phaseId, roleId, inbox, all } = c.req.valid('query')
+  const rawQuery = c.req.query()
+  const parsed = QuerySchema.safeParse(rawQuery)
+  if (!parsed.success) return c.json({ error: 'Invalid query' }, 400)
+  const { start, end, inbox, all } = parsed.data
+
+  const dimensionFilters: { dimensionId: string; optionId: string }[] = []
+  for (const [key, value] of Object.entries(rawQuery)) {
+    const m = key.match(/^filter\[(.+)\]$/)
+    if (m) dimensionFilters.push({ dimensionId: m[1], optionId: value })
+  }
 
   const conditions = [eq(tasks.userId, userId), isNull(tasks.deletedAt)]
 
   if (all === 'true') {
-    // 全部任务：不过滤时间，goalId 筛选在下方统一处理
+    // 全部任务：不过滤时间，维度筛选在下方统一处理
   } else if (inbox === 'true') {
     // Inbox：无排期时间的任务
     conditions.push(isNull(tasks.startTime))
@@ -37,39 +72,49 @@ tasksRouter.get('/', zValidator('query', QuerySchema), async (c) => {
     if (start) conditions.push(gte(tasks.endTime, new Date(start)))
   }
 
-  if (goalId) conditions.push(eq(tasks.goalId, goalId))
-  if (phaseId) conditions.push(eq(tasks.phaseId, phaseId))
-  if (roleId) conditions.push(eq(tasks.roleId, roleId))
+  let filteredTaskIds: string[] | null = null
+  for (const f of dimensionFilters) {
+    const optionIds = await expandOptionIds(f.dimensionId, f.optionId, userId)
+    const rows = await db
+      .select({ taskId: taskDimensionValues.taskId })
+      .from(taskDimensionValues)
+      .where(and(eq(taskDimensionValues.dimensionId, f.dimensionId), inArray(taskDimensionValues.optionId, optionIds)))
+    const idSet = new Set(rows.map((r) => r.taskId))
+    filteredTaskIds = filteredTaskIds === null ? [...idSet] : filteredTaskIds.filter((id) => idSet.has(id))
+  }
+  if (filteredTaskIds !== null) {
+    if (filteredTaskIds.length === 0) return c.json({ data: [] })
+    conditions.push(inArray(tasks.id, filteredTaskIds))
+  }
 
   const rows = await db
     .select()
     .from(tasks)
     .where(and(...conditions))
 
-  // 批量查询关联的 tagIds
   if (rows.length === 0) return c.json({ data: [] })
 
   const taskIds = rows.map((t) => t.id)
-  const tagRelations = await db
+  const dimValueRows = await db
     .select()
-    .from(taskTags)
-    .where(inArray(taskTags.taskId, taskIds))
+    .from(taskDimensionValues)
+    .where(inArray(taskDimensionValues.taskId, taskIds))
 
-  const tagIdsByTask = new Map<string, string[]>()
-  for (const rel of tagRelations) {
-    const list = tagIdsByTask.get(rel.taskId) ?? []
-    list.push(rel.tagId)
-    tagIdsByTask.set(rel.taskId, list)
+  const dimValuesByTask = new Map<string, Record<string, string>>()
+  for (const rel of dimValueRows) {
+    const map = dimValuesByTask.get(rel.taskId) ?? {}
+    map[rel.dimensionId] = rel.optionId
+    dimValuesByTask.set(rel.taskId, map)
   }
 
-  const result = rows.map((t) => ({ ...t, tagIds: tagIdsByTask.get(t.id) ?? [] }))
+  const result = rows.map((t) => ({ ...t, dimensionValues: dimValuesByTask.get(t.id) ?? {} }))
   return c.json({ data: result })
 })
 
 // POST /tasks
 tasksRouter.post('/', zValidator('json', CreateTaskSchema), async (c) => {
   const userId = c.get('userId')
-  const { tagIds, ...body } = c.req.valid('json')
+  const { dimensionValues, ...body } = c.req.valid('json')
   const now = new Date()
 
   const [task] = await db.insert(tasks).values({
@@ -81,26 +126,25 @@ tasksRouter.post('/', zValidator('json', CreateTaskSchema), async (c) => {
     updatedAt: now,
   }).returning()
 
-  if (tagIds.length > 0) {
-    await db.insert(taskTags).values(tagIds.map((tagId) => ({ taskId: task.id, tagId })))
+  const entries = Object.entries(dimensionValues ?? {})
+  if (entries.length > 0) {
+    await db.insert(taskDimensionValues).values(
+      entries.map(([dimensionId, optionId]) => ({ id: nanoid(), taskId: task.id, dimensionId, optionId }))
+    )
   }
 
-  return c.json({ data: { ...task, tagIds } }, 201)
+  return c.json({ data: { ...task, dimensionValues: dimensionValues ?? {} } }, 201)
 })
 
 // PATCH /tasks/:id
 tasksRouter.patch('/:id', zValidator('json', UpdateTaskSchema), async (c) => {
   const userId = c.get('userId')
   const id = c.req.param('id')
-  const { tagIds, ...body } = c.req.valid('json')
+  const { dimensionValues, ...body } = c.req.valid('json')
 
   const updateData: Record<string, unknown> = { ...body, updatedAt: new Date() }
   if (body.startTime !== undefined) updateData.startTime = body.startTime ? new Date(body.startTime) : null
   if (body.endTime !== undefined) updateData.endTime = body.endTime ? new Date(body.endTime) : null
-  // 空字符串表示清空关联（undefined 会在 JSON 序列化时被丢弃，无法用来表达"清空"）
-  if (body.goalId === '') updateData.goalId = null
-  if (body.phaseId === '') updateData.phaseId = null
-  if (body.roleId === '') updateData.roleId = null
 
   const [task] = await db
     .update(tasks)
@@ -110,19 +154,22 @@ tasksRouter.patch('/:id', zValidator('json', UpdateTaskSchema), async (c) => {
 
   if (!task) return c.json({ error: 'Not found' }, 404)
 
-  // 更新标签关联（只保留第一个）
-  if (tagIds !== undefined) {
-    await db.delete(taskTags).where(eq(taskTags.taskId, id))
-    const singleTag = tagIds.slice(0, 1)
-    if (singleTag.length > 0) {
-      await db.insert(taskTags).values([{ taskId: id, tagId: singleTag[0] }])
+  // 全量替换该任务的维度取值（传了 dimensionValues 就整体覆盖，不传则维持不变）
+  if (dimensionValues !== undefined) {
+    await db.delete(taskDimensionValues).where(eq(taskDimensionValues.taskId, id))
+    const entries = Object.entries(dimensionValues)
+    if (entries.length > 0) {
+      await db.insert(taskDimensionValues).values(
+        entries.map(([dimensionId, optionId]) => ({ id: nanoid(), taskId: id, dimensionId, optionId }))
+      )
     }
   }
 
-  // 重新从数据库查最新的 tagIds
-  const tagRelations = await db.select().from(taskTags).where(eq(taskTags.taskId, id))
-  const finalTagIds = tagRelations.map((r) => r.tagId)
-  return c.json({ data: { ...task, tagIds: finalTagIds } })
+  const dimValueRows = await db.select().from(taskDimensionValues).where(eq(taskDimensionValues.taskId, id))
+  const finalDimensionValues: Record<string, string> = {}
+  for (const rel of dimValueRows) finalDimensionValues[rel.dimensionId] = rel.optionId
+
+  return c.json({ data: { ...task, dimensionValues: finalDimensionValues } })
 })
 
 // DELETE /tasks/:id  (软删除)

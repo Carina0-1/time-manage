@@ -1,0 +1,101 @@
+.chipSelector {
+  position: relative;
+}
+
+.chipTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 20px;
+  font-size: 12.5px;
+  cursor: pointer;
+  background: #fff;
+  color: #999;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.chipTrigger:hover {
+  border-color: #bbb;
+  color: #555;
+}
+
+.chipTriggerActive {
+  font-weight: 500;
+}
+
+.chipLabel {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipPlaceholder {
+  color: #bbb;
+}
+
+.chipRemove {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.55;
+  cursor: pointer;
+  margin-left: 1px;
+}
+.chipRemove:hover { opacity: 1; }
+
+.chipDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 200;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.chipDropdownEmpty {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.chipDropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.1s;
+}
+.chipDropdownItem:hover { background: #f5f5f5; }
+.chipDropdownItemSelected { background: #f0f1fe; }
+
+.chipDropdownDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chipDropdownName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipDropdownCheck {
+  color: #6366f1;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}

@@ -1,0 +1,414 @@
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { nanoid } from 'nanoid'
+import type { Dimension, DimensionOption } from '@time-manage/shared'
+import { useDimensionStore } from '@/stores/dimensionStore'
+import { dimensionsApi } from '@/api/dimensions'
+import { buildOptionTree, flattenOptionTree } from '@/utils/dimensionTree'
+import styles from './SettingsPage.module.css'
+import formStyles from '../Layout.module.css'
+
+const PRESET_EMOJIS = [
+  '💼', '📁', '📂', '📋', '📌', '📍', '✏️', '📝', '📖', '📚',
+  '🖥️', '💻', '⌨️', '🖨️', '📱', '☎️', '📧', '📨', '📩', '🗂️',
+  '🏠', '🏡', '🛒', '🍽️', '☕', '🍎', '🥗', '💊', '🏃', '🧘',
+  '💪', '🛌', '🚗', '✈️', '🚂', '🚲', '🛵', '⛽', '🗺️', '🏖️',
+  '🎮', '🎵', '🎸', '🎨', '📷', '🎬', '📺', '📻', '🎤', '🎭',
+  '⚽', '🏀', '🎾', '🏋️', '🎯', '♟️', '🃏', '🎲', '🎪', '🎠',
+  '💰', '💳', '📈', '📉', '🏦', '💹', '💎', '🏆', '🥇', '⭐',
+  '✅', '🔑', '🔒', '🔓', '⚡', '🔥', '💡', '🌟', '🎉', '🎊',
+  '🌱', '🌿', '🌸', '🌻', '🍀', '🌈', '☀️', '🌙', '⛅', '❄️',
+  '❤️', '💙', '💚', '💛', '🧡', '💜', '🖤', '🤍', '💕', '😊',
+]
+
+const PRESET_COLORS = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#ef4444',
+  '#f97316', '#eab308', '#22c55e', '#14b8a6',
+  '#3b82f6', '#06b6d4', '#64748b', '#1a1a1a',
+]
+
+const DimensionFormSchema = z.object({
+  name: z.string().min(1, '请输入名称').max(50),
+  type: z.enum(['single', 'tree']),
+  icon: z.string().optional(),
+  isRequired: z.boolean(),
+  showInSidebar: z.boolean(),
+})
+type DimensionFormValues = z.infer<typeof DimensionFormSchema>
+
+const OptionFormSchema = z.object({
+  name: z.string().min(1, '请输入名称').max(100),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, '请选择颜色'),
+  icon: z.string().optional(),
+  parentId: z.string().optional(),
+})
+type OptionFormValues = z.infer<typeof OptionFormSchema>
+
+export default function SettingsPage() {
+  const { dimensions, optionsByDimension, fetchDimensions, fetchOptions, addDimension, updateDimension, removeDimension } = useDimensionStore()
+  const [selectedDimensionId, setSelectedDimensionId] = useState<string | null>(null)
+  const [showDimensionForm, setShowDimensionForm] = useState(false)
+  const [editingDimensionId, setEditingDimensionId] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchDimensions()
+  }, [fetchDimensions])
+
+  useEffect(() => {
+    dimensions.forEach((d) => fetchOptions(d.id))
+  }, [dimensions, fetchOptions])
+
+  useEffect(() => {
+    if (!selectedDimensionId && dimensions.length > 0) setSelectedDimensionId(dimensions[0].id)
+  }, [dimensions, selectedDimensionId])
+
+  const sortedDimensions = [...dimensions].sort((a, b) => a.sortOrder - b.sortOrder)
+  const selectedDimension = dimensions.find((d) => d.id === selectedDimensionId) ?? null
+
+  const {
+    register: dimRegister,
+    handleSubmit: dimHandleSubmit,
+    reset: dimReset,
+    setValue: dimSetValue,
+    watch: dimWatch,
+    formState: { errors: dimErrors, isSubmitting: dimSubmitting },
+  } = useForm<DimensionFormValues>({
+    resolver: zodResolver(DimensionFormSchema),
+    defaultValues: { name: '', type: 'single', isRequired: false, showInSidebar: true },
+  })
+
+  const openCreateDimension = () => {
+    setEditingDimensionId(null)
+    dimReset({ name: '', type: 'single', icon: '', isRequired: false, showInSidebar: true })
+    setShowDimensionForm(true)
+  }
+
+  const openEditDimension = (dim: Dimension) => {
+    setEditingDimensionId(dim.id)
+    dimReset({ name: dim.name, type: dim.type, icon: dim.icon ?? '', isRequired: dim.isRequired, showInSidebar: dim.showInSidebar })
+    setShowDimensionForm(true)
+  }
+
+  const onDimensionSubmit = async (data: DimensionFormValues) => {
+    if (editingDimensionId) {
+      const updated = await dimensionsApi.update(editingDimensionId, {
+        name: data.name, icon: data.icon, isRequired: data.isRequired, showInSidebar: data.showInSidebar,
+      })
+      updateDimension(editingDimensionId, updated)
+    } else {
+      const nextOrder = dimensions.length > 0 ? Math.max(...dimensions.map((d) => d.sortOrder)) + 1 : 0
+      const created = await dimensionsApi.create({
+        id: nanoid(), name: data.name, type: data.type, icon: data.icon,
+        isRequired: data.isRequired, showInSidebar: data.showInSidebar, sortOrder: nextOrder,
+      })
+      addDimension(created)
+      setSelectedDimensionId(created.id)
+    }
+    setShowDimensionForm(false)
+  }
+
+  const handleDeleteDimension = async (id: string) => {
+    if (!confirm('删除该维度将清空所有任务在该维度上的取值，任务本身不会被删除，确定删除吗？')) return
+    await dimensionsApi.remove(id)
+    removeDimension(id)
+    if (selectedDimensionId === id) setSelectedDimensionId(null)
+  }
+
+  const handleSetColorSource = async (id: string) => {
+    await dimensionsApi.setColorSource(id)
+    dimensions.forEach((d) => updateDimension(d.id, { isColorSource: d.id === id }))
+  }
+
+  return (
+    <div className={styles.page}>
+      <h1 className={styles.title}>设置</h1>
+      <div className={styles.layout}>
+        <div className={styles.dimensionList}>
+          <div className={styles.dimensionListHeader}>
+            <span>维度</span>
+            <button className={styles.addBtn} onClick={openCreateDimension} title="新建维度">＋</button>
+          </div>
+          {sortedDimensions.map((dim) => (
+            <div
+              key={dim.id}
+              className={`${styles.dimensionItem} ${selectedDimensionId === dim.id ? styles.dimensionItemActive : ''}`}
+              onClick={() => setSelectedDimensionId(dim.id)}
+            >
+              <span>{dim.icon}</span>
+              <span className={styles.dimensionItemName}>{dim.name}</span>
+              <span className={styles.dimensionItemType}>{dim.type === 'tree' ? '树形' : '单选'}</span>
+              {dim.isColorSource && <span className={styles.colorBadge} title="配色维度">🎨</span>}
+            </div>
+          ))}
+        </div>
+
+        <div className={styles.detail}>
+          {selectedDimension ? (
+            <>
+              <div className={styles.detailHeader}>
+                <h2>{selectedDimension.icon} {selectedDimension.name}</h2>
+                <div className={styles.detailActions}>
+                  <button className={styles.linkBtn} onClick={() => openEditDimension(selectedDimension)}>编辑维度</button>
+                  <button
+                    className={styles.linkBtn}
+                    onClick={() => handleSetColorSource(selectedDimension.id)}
+                    disabled={selectedDimension.isColorSource}
+                  >
+                    {selectedDimension.isColorSource ? '当前配色维度' : '设为配色维度'}
+                  </button>
+                  <button className={styles.linkBtnDanger} onClick={() => handleDeleteDimension(selectedDimension.id)}>删除维度</button>
+                </div>
+              </div>
+              <div className={styles.detailMeta}>
+                <span>类型：{selectedDimension.type === 'tree' ? '树形（多级）' : '单选（平铺）'}</span>
+                <span>必填：{selectedDimension.isRequired ? '是' : '否'}</span>
+                <span>侧边栏展示：{selectedDimension.showInSidebar ? '是' : '否'}</span>
+              </div>
+              <OptionManager
+                dimension={selectedDimension}
+                options={optionsByDimension[selectedDimension.id] ?? []}
+              />
+            </>
+          ) : (
+            <div className={styles.empty}>请选择或新建一个维度</div>
+          )}
+        </div>
+      </div>
+
+      {showDimensionForm && (
+        <div className={formStyles.formModalOverlay}>
+          <div className={formStyles.formModal}>
+            <div className={formStyles.formModalHeader}>
+              <span>{editingDimensionId ? '编辑维度' : '新建维度'}</span>
+              <button className={formStyles.formModalClose} onClick={() => setShowDimensionForm(false)}>✕</button>
+            </div>
+            <form onSubmit={dimHandleSubmit(onDimensionSubmit)} className={formStyles.formModalBody}>
+              <div className={formStyles.formField}>
+                <label>维度名称</label>
+                <input {...dimRegister('name')} placeholder="例如：优先级" autoFocus className={formStyles.formInput} />
+                {dimErrors.name && <span className={formStyles.formError}>{dimErrors.name.message}</span>}
+              </div>
+              <div className={formStyles.formField}>
+                <label>类型{editingDimensionId ? '（创建后不可修改）' : ''}</label>
+                <select {...dimRegister('type')} disabled={!!editingDimensionId} className={formStyles.formInput}>
+                  <option value="single">单选（平铺列表）</option>
+                  <option value="tree">单选（树形，多级标签）</option>
+                </select>
+              </div>
+              <div className={formStyles.formField}>
+                <label>图标（可选）</label>
+                <div className={formStyles.emojiPickerRow}>
+                  <span
+                    className={`${formStyles.emojiSelected} ${!dimWatch('icon') ? formStyles.emojiSelectedEmpty : ''}`}
+                    onClick={() => dimSetValue('icon', '', { shouldDirty: true })}
+                  >
+                    {dimWatch('icon') || '—'}
+                  </span>
+                  <div className={formStyles.emojiGrid}>
+                    {PRESET_EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        className={`${formStyles.emojiBtn} ${dimWatch('icon') === emoji ? formStyles.emojiBtnSelected : ''}`}
+                        onClick={() => dimSetValue('icon', dimWatch('icon') === emoji ? '' : emoji, { shouldDirty: true })}
+                      >{emoji}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className={formStyles.formField}>
+                <label>
+                  <input type="checkbox" {...dimRegister('isRequired')} /> 创建任务时必须填写该维度
+                </label>
+              </div>
+              <div className={formStyles.formField}>
+                <label>
+                  <input type="checkbox" {...dimRegister('showInSidebar')} /> 在侧边栏与日历卡片展示
+                </label>
+              </div>
+              <div className={formStyles.formActions}>
+                <button type="button" className={formStyles.formCancelBtn} onClick={() => setShowDimensionForm(false)}>取消</button>
+                <button type="submit" className={formStyles.formSubmitBtn} disabled={dimSubmitting}>
+                  {dimSubmitting ? '保存中…' : '保存'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function OptionManager({ dimension, options }: { dimension: Dimension; options: DimensionOption[] }) {
+  const { addOption, updateOption, removeOption } = useDimensionStore()
+  const [showForm, setShowForm] = useState(false)
+  const [editingOptionId, setEditingOptionId] = useState<string | null>(null)
+  const [parentForNew, setParentForNew] = useState<string | undefined>(undefined)
+
+  const {
+    register, handleSubmit, reset, setValue, watch,
+    formState: { errors, isSubmitting },
+  } = useForm<OptionFormValues>({
+    resolver: zodResolver(OptionFormSchema),
+    defaultValues: { name: '', color: PRESET_COLORS[0] },
+  })
+
+  const selectedColor = watch('color')
+  const tree = buildOptionTree(options)
+  const flatOptions = flattenOptionTree(tree)
+
+  const openCreate = (parentId?: string) => {
+    setEditingOptionId(null)
+    setParentForNew(parentId)
+    reset({ name: '', color: PRESET_COLORS[0], icon: '', parentId })
+    setShowForm(true)
+  }
+
+  const openEdit = (option: DimensionOption) => {
+    setEditingOptionId(option.id)
+    setParentForNew(undefined)
+    reset({ name: option.name, color: option.color, icon: option.icon ?? '', parentId: option.parentId })
+    setShowForm(true)
+  }
+
+  const onSubmit = async (data: OptionFormValues) => {
+    if (editingOptionId) {
+      const updated = await dimensionsApi.updateOption(editingOptionId, {
+        name: data.name, color: data.color, icon: data.icon,
+        parentId: dimension.type === 'tree' ? data.parentId : undefined,
+      })
+      updateOption(dimension.id, editingOptionId, updated)
+    } else {
+      const nextOrder = options.length > 0 ? Math.max(...options.map((o) => o.sortOrder)) + 1 : 0
+      const created = await dimensionsApi.createOption({
+        id: nanoid(), dimensionId: dimension.id,
+        parentId: dimension.type === 'tree' ? (parentForNew ?? data.parentId) : undefined,
+        name: data.name, color: data.color, icon: data.icon, sortOrder: nextOrder,
+      })
+      addOption(dimension.id, created)
+    }
+    setShowForm(false)
+  }
+
+  const handleDelete = async (optionId: string) => {
+    if (!confirm('删除该选项将清空所有任务在该维度上的取值（若有子节点也一并删除），任务本身不会被删除，确定删除吗？')) return
+    await dimensionsApi.removeOption(optionId)
+    removeOption(dimension.id, optionId)
+  }
+
+  return (
+    <div className={styles.optionManager}>
+      <div className={styles.optionManagerHeader}>
+        <span>选项</span>
+        <button className={styles.addBtn} onClick={() => openCreate()} title="新建选项">＋</button>
+      </div>
+
+      {dimension.type === 'tree' ? (
+        flatOptions.map(({ option, depth }) => (
+          <div key={option.id} className={styles.optionRow} style={{ paddingLeft: `${depth * 20}px` }}>
+            <span className={styles.optionDot} style={{ background: option.color }} />
+            {option.icon && <span>{option.icon}</span>}
+            <span className={styles.optionName}>{option.name}</span>
+            <button className={styles.linkBtnSmall} onClick={() => openCreate(option.id)}>添加子节点</button>
+            <button className={styles.linkBtnSmall} onClick={() => openEdit(option)}>编辑</button>
+            <button className={styles.linkBtnSmallDanger} onClick={() => handleDelete(option.id)}>删除</button>
+          </div>
+        ))
+      ) : (
+        [...options].sort((a, b) => a.sortOrder - b.sortOrder).map((option) => (
+          <div key={option.id} className={styles.optionRow}>
+            <span className={styles.optionDot} style={{ background: option.color }} />
+            {option.icon && <span>{option.icon}</span>}
+            <span className={styles.optionName}>{option.name}</span>
+            <button className={styles.linkBtnSmall} onClick={() => openEdit(option)}>编辑</button>
+            <button className={styles.linkBtnSmallDanger} onClick={() => handleDelete(option.id)}>删除</button>
+          </div>
+        ))
+      )}
+      {options.length === 0 && <div className={styles.empty}>暂无选项</div>}
+
+      {showForm && (
+        <div className={formStyles.formModalOverlay}>
+          <div className={formStyles.formModal}>
+            <div className={formStyles.formModalHeader}>
+              <span>{editingOptionId ? '编辑选项' : '新建选项'}</span>
+              <button className={formStyles.formModalClose} onClick={() => setShowForm(false)}>✕</button>
+            </div>
+            <form onSubmit={handleSubmit(onSubmit)} className={formStyles.formModalBody}>
+              <div className={formStyles.formField}>
+                <label>名称</label>
+                <input {...register('name')} autoFocus className={formStyles.formInput} />
+                {errors.name && <span className={formStyles.formError}>{errors.name.message}</span>}
+              </div>
+              {dimension.type === 'tree' && (
+                <div className={formStyles.formField}>
+                  <label>上级节点（可选）</label>
+                  <select {...register('parentId')} className={formStyles.formInput}>
+                    <option value="">（无，作为根节点）</option>
+                    {flatOptions
+                      .filter((n) => n.option.id !== editingOptionId)
+                      .map(({ option, depth }) => (
+                        <option key={option.id} value={option.id}>
+                          {'　'.repeat(depth)}{option.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+              <div className={formStyles.formField}>
+                <label>图标（可选）</label>
+                <div className={formStyles.emojiPickerRow}>
+                  <span
+                    className={`${formStyles.emojiSelected} ${!watch('icon') ? formStyles.emojiSelectedEmpty : ''}`}
+                    onClick={() => setValue('icon', '', { shouldDirty: true })}
+                  >
+                    {watch('icon') || '—'}
+                  </span>
+                  <div className={formStyles.emojiGrid}>
+                    {PRESET_EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        className={`${formStyles.emojiBtn} ${watch('icon') === emoji ? formStyles.emojiBtnSelected : ''}`}
+                        onClick={() => setValue('icon', watch('icon') === emoji ? '' : emoji, { shouldDirty: true })}
+                      >{emoji}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className={formStyles.formField}>
+                <label>颜色</label>
+                <div className={formStyles.colorGrid}>
+                  {PRESET_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      className={`${formStyles.colorDot} ${selectedColor === color ? formStyles.colorDotSelected : ''}`}
+                      style={{ background: color }}
+                      onClick={() => setValue('color', color)}
+                    />
+                  ))}
+                </div>
+                <div className={formStyles.colorCustomRow}>
+                  <span className={formStyles.colorPreview} style={{ background: selectedColor }} />
+                  <input type="color" value={selectedColor} onChange={(e) => setValue('color', e.target.value)} className={formStyles.colorPicker} />
+                  <span className={formStyles.colorHex}>{selectedColor}</span>
+                </div>
+              </div>
+              <div className={formStyles.formActions}>
+                <button type="button" className={formStyles.formCancelBtn} onClick={() => setShowForm(false)}>取消</button>
+                <button type="submit" className={formStyles.formSubmitBtn} disabled={isSubmitting}>
+                  {isSubmitting ? '保存中…' : '保存'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+

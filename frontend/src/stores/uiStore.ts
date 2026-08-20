@@ -5,10 +5,7 @@ interface CreateTaskDefaults {
   end?: Date
   isAllDay: boolean
   prefillTaskId?: string
-  goalId?: string
 }
-
-export type GoalFilter = { type: 'goal'; id: string } | { type: 'phase'; id: string }
 
 interface UiStore {
   // 任务弹窗
@@ -19,15 +16,11 @@ interface UiStore {
   openCreateModal: (defaults: CreateTaskDefaults, pos?: { x: number; y: number }) => void
   openEditModal: (taskId: string, pos?: { x: number; y: number }) => void
   closeTaskModal: () => void
-  // 侧边栏标签筛选
-  activeTagFilter: string | null
-  setTagFilter: (fullPath: string | null) => void
-  // 侧边栏目标筛选
-  activeGoalFilter: GoalFilter | null
-  setGoalFilter: (filter: GoalFilter | null) => void
-  // 侧边栏角色筛选
-  activeRoleFilter: string | null
-  setRoleFilter: (roleId: string | null) => void
+  // 侧边栏维度筛选
+  activeDimensionFilters: Record<string, string | null>
+  setDimensionFilter: (dimensionId: string, optionId: string | null) => void
+  clearDimensionFilter: (dimensionId: string) => void
+  clearAllDimensionFilters: () => void
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -45,12 +38,14 @@ export const useUiStore = create<UiStore>((set) => ({
   closeTaskModal: () =>
     set({ taskModalOpen: false, editingTaskId: null, createDefaults: null, panelPos: null }),
 
-  activeTagFilter: null,
-  setTagFilter: (fullPath) => set({ activeTagFilter: fullPath }),
-
-  activeGoalFilter: null,
-  setGoalFilter: (filter) => set({ activeGoalFilter: filter }),
-
-  activeRoleFilter: null,
-  setRoleFilter: (roleId) => set({ activeRoleFilter: roleId }),
+  activeDimensionFilters: {},
+  setDimensionFilter: (dimensionId, optionId) =>
+    set((s) => ({ activeDimensionFilters: { ...s.activeDimensionFilters, [dimensionId]: optionId } })),
+  clearDimensionFilter: (dimensionId) =>
+    set((s) => {
+      const next = { ...s.activeDimensionFilters }
+      delete next[dimensionId]
+      return { activeDimensionFilters: next }
+    }),
+  clearAllDimensionFilters: () => set({ activeDimensionFilters: {} }),
 }))

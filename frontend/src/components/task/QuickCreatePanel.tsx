@@ -5,15 +5,11 @@ import { nanoid } from 'nanoid'
 import dayjs from 'dayjs'
 import { z } from 'zod'
 import type { CreateTaskInput } from '@time-manage/shared'
-import { buildTagTree, flattenTree, isVirtualNode } from '@/utils/tagTree'
 import { useTaskStore } from '@/stores/taskStore'
-import { useTagStore } from '@/stores/tagStore'
+import { useDimensionStore } from '@/stores/dimensionStore'
 import { useUiStore } from '@/stores/uiStore'
-import { useGoalStore } from '@/stores/goalStore'
-import { useRoleStore } from '@/stores/roleStore'
-import { useSettingsStore } from '@/stores/settingsStore'
 import { tasksApi } from '@/api/tasks'
-import { tagsApi } from '@/api/tags'
+import DimensionSelector from '@/components/dimension/DimensionSelector'
 import styles from './QuickCreatePanel.module.css'
 
 const PanelFormSchema = z.object({
@@ -21,10 +17,7 @@ const PanelFormSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().optional(),
   expectedOutput: z.string().optional(),
-  tagIds: z.array(z.string()),
-  goalId: z.string().optional(),
-  phaseId: z.string().optional(),
-  roleId: z.string().optional(),
+  dimensionValues: z.record(z.string(), z.string()),
 })
 
 type PanelFormValues = z.infer<typeof PanelFormSchema>
@@ -47,14 +40,15 @@ function useTitleHistory(tasks: { title: string; updatedAt: string }[]) {
 export default function QuickCreatePanel() {
   const { taskModalOpen, editingTaskId, createDefaults, panelPos, closeTaskModal, openEditModal } = useUiStore()
   const { tasks, addTask, updateTask, removeTask } = useTaskStore()
-  const { tags, addTag } = useTagStore()
-  const { goals, adjustPhaseTaskCount } = useGoalStore()
-  const { roles, fetchRoles } = useRoleStore()
-  const { goalTermLabel, tagTermLabel } = useSettingsStore()
+  const { dimensions, optionsByDimension, fetchDimensions, fetchOptions } = useDimensionStore()
 
   useEffect(() => {
-    fetchRoles()
-  }, [fetchRoles])
+    fetchDimensions()
+  }, [fetchDimensions])
+
+  useEffect(() => {
+    dimensions.forEach((d) => fetchOptions(d.id))
+  }, [dimensions, fetchOptions])
 
   const editingTask = editingTaskId ? tasks.find((t) => t.id === editingTaskId) : null
 
@@ -66,15 +60,12 @@ export default function QuickCreatePanel() {
 
   const { register, handleSubmit, reset, setValue, watch, getValues } = useForm<PanelFormValues>({
     resolver: zodResolver(PanelFormSchema),
-    defaultValues: { id: nanoid(), title: '', tagIds: [] },
+    defaultValues: { id: nanoid(), title: '', dimensionValues: {} },
   })
 
   getValuesRef.current = getValues
 
-  const selectedTagIds = watch('tagIds') ?? []
-  const selectedGoalId = watch('goalId')
-  const selectedPhaseId = watch('phaseId')
-  const selectedRoleId = watch('roleId')
+  const dimensionValues = watch('dimensionValues') ?? {}
 
   useEffect(() => {
     if (!taskModalOpen) return
@@ -86,13 +77,10 @@ export default function QuickCreatePanel() {
         title: editingTask.title,
         description: editingTask.description ?? undefined,
         expectedOutput: editingTask.expectedOutput ?? undefined,
-        tagIds: editingTask.tagIds,
-        goalId: editingTask.goalId ?? undefined,
-        phaseId: editingTask.phaseId ?? undefined,
-        roleId: editingTask.roleId ?? undefined,
+        dimensionValues: editingTask.dimensionValues,
       })
     } else {
-      reset({ id: nanoid(), title: '', tagIds: [], goalId: undefined, phaseId: undefined, roleId: undefined })
+      reset({ id: nanoid(), title: '', dimensionValues: {} })
     }
   }, [taskModalOpen, editingTaskId, createDefaults, reset])
 
@@ -126,31 +114,20 @@ export default function QuickCreatePanel() {
 
     const input = {
       ...data,
-      tagIds: data.tagIds.slice(0, 1),
-      // 编辑已有任务时用空字符串表达"清空"（undefined 序列化时会被丢弃，后端无法据此清空外键）
-      goalId: data.goalId || (editingTask ? '' : undefined),
-      phaseId: data.phaseId || (editingTask ? '' : undefined),
-      roleId: data.roleId || (editingTask ? '' : undefined),
       startTime: startRaw?.toISOString(),
       endTime: endRaw?.toISOString(),
       isAllDay,
       priority: 'medium',
       status: editingTask?.status ?? 'todo',
-      color: editingTask?.color ?? undefined,
     } as CreateTaskInput
 
     try {
       if (editingTask) {
         const updated = await tasksApi.update(editingTask.id, input)
         updateTask(editingTask.id, updated)
-        if (editingTask.phaseId !== updated.phaseId) {
-          if (editingTask.phaseId) adjustPhaseTaskCount(editingTask.phaseId, -1)
-          if (updated.phaseId) adjustPhaseTaskCount(updated.phaseId, 1)
-        }
       } else {
         const created = await tasksApi.create(input)
         addTask(created)
-        if (created.phaseId) adjustPhaseTaskCount(created.phaseId, 1)
       }
     } finally {
       closeTaskModal()
@@ -191,7 +168,6 @@ export default function QuickCreatePanel() {
     isSavingRef.current = true
     await tasksApi.remove(editingTask.id)
     removeTask(editingTask.id)
-    if (editingTask.phaseId) adjustPhaseTaskCount(editingTask.phaseId, -1)
     closeTaskModal()
   }
 
@@ -206,17 +182,12 @@ export default function QuickCreatePanel() {
       startTime: editingTask.startTime ?? undefined,
       endTime: editingTask.endTime ?? undefined,
       isAllDay: editingTask.isAllDay,
-      tagIds: editingTask.tagIds,
-      goalId: editingTask.goalId ?? undefined,
-      phaseId: editingTask.phaseId ?? undefined,
-      roleId: editingTask.roleId ?? undefined,
+      dimensionValues: editingTask.dimensionValues,
       status: 'todo',
       priority: editingTask.priority,
-      color: editingTask.color ?? undefined,
     }
     const created = await tasksApi.create(input)
     addTask(created)
-    if (created.phaseId) adjustPhaseTaskCount(created.phaseId, 1)
     isSavingRef.current = false
     openEditModal(created.id, panelPos ?? undefined)
   }
@@ -230,100 +201,6 @@ export default function QuickCreatePanel() {
   const timeLabel = (!isAllDay && startDate && endDate)
     ? `${dayjs(startDate).format('HH:mm')}-${dayjs(endDate).format('HH:mm')}`
     : '全天'
-
-  // Goal selection
-  const activeGoals = goals.filter((g) => g.status !== 'archived')
-  const selectedGoal = goals.find((g) => g.id === selectedGoalId)
-  const selectedPhase = selectedGoal?.phases.find((p) => p.id === selectedPhaseId)
-  const [goalOpen, setGoalOpen] = useState(false)
-  const goalRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!goalOpen) return
-    const handler = (e: MouseEvent) => {
-      if (goalRef.current && !goalRef.current.contains(e.target as Node)) setGoalOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [goalOpen])
-
-  const handleGoalClick = (goalId: string) => {
-    if (selectedGoalId === goalId) {
-      setValue('goalId', undefined, { shouldDirty: true })
-      setValue('phaseId', undefined, { shouldDirty: true })
-      setGoalOpen(false)
-    } else {
-      setValue('goalId', goalId, { shouldDirty: true })
-      setValue('phaseId', undefined, { shouldDirty: true })
-      // keep open for phase selection
-    }
-  }
-
-  const handlePhaseClick = (phaseId: string) => {
-    if (selectedPhaseId === phaseId) {
-      setValue('phaseId', undefined, { shouldDirty: true })
-    } else {
-      setValue('phaseId', phaseId, { shouldDirty: true })
-    }
-    setGoalOpen(false)
-  }
-
-  // Tag selection
-  const selectedTag = tags.find((t) => t.id === selectedTagIds[0])
-  const sortedNodes = useMemo(() => {
-    const sorted = [...tags].sort((a, b) => a.sortOrder - b.sortOrder)
-    return flattenTree(buildTagTree(sorted, true))
-  }, [tags])
-  const [tagOpen, setTagOpen] = useState(false)
-  const tagRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!tagOpen) return
-    const handler = (e: MouseEvent) => {
-      if (tagRef.current && !tagRef.current.contains(e.target as Node)) setTagOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [tagOpen])
-
-  const handleTagSelect = async (node: ReturnType<typeof flattenTree>[number]) => {
-    if (isVirtualNode(node)) {
-      const nextOrder = tags.length > 0 ? Math.max(...tags.map((t) => t.sortOrder)) + 1 : 0
-      const created = await tagsApi.create({
-        id: nanoid(),
-        name: node.fullPath,
-        color: node.tag.color,
-        icon: node.tag.icon,
-        sortOrder: nextOrder,
-      })
-      addTag(created)
-      setValue('tagIds', [created.id], { shouldDirty: true })
-    } else {
-      const next = selectedTagIds[0] === node.tag.id ? [] : [node.tag.id]
-      setValue('tagIds', next, { shouldDirty: true })
-    }
-    setTagOpen(false)
-  }
-
-  // Role selection
-  const sortedRoles = useMemo(() => [...roles].sort((a, b) => a.sortOrder - b.sortOrder), [roles])
-  const selectedRole = sortedRoles.find((r) => r.id === selectedRoleId)
-  const [roleOpen, setRoleOpen] = useState(false)
-  const roleRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!roleOpen) return
-    const handler = (e: MouseEvent) => {
-      if (roleRef.current && !roleRef.current.contains(e.target as Node)) setRoleOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [roleOpen])
-
-  const handleRoleClick = (roleId: string) => {
-    setValue('roleId', selectedRoleId === roleId ? undefined : roleId, { shouldDirty: true })
-    setRoleOpen(false)
-  }
 
   // Title history autocomplete
   const titleHistory = useTitleHistory(tasks)
@@ -360,6 +237,8 @@ export default function QuickCreatePanel() {
   }
 
   if (!taskModalOpen) return null
+
+  const sortedDimensions = [...dimensions].sort((a, b) => a.sortOrder - b.sortOrder)
 
   return (
     <div ref={panelRef} className={styles.panel} style={{ left: pos.left, top: pos.top }}>
@@ -435,171 +314,22 @@ export default function QuickCreatePanel() {
           className={styles.textarea}
         />
 
-        {/* 底部：目标 + 标签 */}
+        {/* 底部：维度选择器（动态遍历所有维度） */}
         <div className={styles.footer}>
-          {/* 目标 chip */}
-          <div className={styles.chipArea} ref={goalRef}>
-            <button
-              type="button"
-              className={styles.chipBtn}
-              onClick={() => setGoalOpen((o) => !o)}
-              style={selectedGoal ? {
-                color: selectedGoal.color,
-                borderColor: selectedGoal.color + '66',
-                background: selectedGoal.color + '12',
-              } : {}}
-            >
-              {selectedGoal ? (
-                <>
-                  {selectedGoal.icon && <span>{selectedGoal.icon}</span>}
-                  <span className={styles.chipBtnLabel}>{selectedGoal.name}</span>
-                  {selectedPhase && (
-                    <>
-                      <span className={styles.chipSep}>/</span>
-                      <span className={styles.chipBtnLabel}>{selectedPhase.name}</span>
-                    </>
-                  )}
-                  <span
-                    className={styles.chipRemove}
-                    onMouseDown={(e) => {
-                      e.stopPropagation()
-                      setValue('goalId', undefined, { shouldDirty: true })
-                      setValue('phaseId', undefined, { shouldDirty: true })
-                    }}
-                  >×</span>
-                </>
-              ) : (
-                <span className={styles.chipPlaceholder}>● {goalTermLabel}</span>
-              )}
-            </button>
-
-            {goalOpen && (
-              <div className={styles.chipDropdown}>
-                {activeGoals.length === 0 ? (
-                  <div className={styles.chipDropdownEmpty}>暂无{goalTermLabel}</div>
-                ) : activeGoals.map((goal) => (
-                  <div key={goal.id}>
-                    <div
-                      className={`${styles.chipDropdownItem} ${selectedGoalId === goal.id ? styles.chipDropdownItemSelected : ''}`}
-                      onMouseDown={(e) => { e.preventDefault(); handleGoalClick(goal.id) }}
-                    >
-                      <span className={styles.chipDropdownDot} style={{ background: goal.color }} />
-                      {goal.icon && <span>{goal.icon}</span>}
-                      <span className={styles.chipDropdownName}>{goal.name}</span>
-                      {selectedGoalId === goal.id && <span className={styles.chipDropdownCheck}>✓</span>}
-                    </div>
-                    {selectedGoalId === goal.id && goal.phases.map((phase) => (
-                      <div
-                        key={phase.id}
-                        className={`${styles.chipDropdownPhase} ${selectedPhaseId === phase.id ? styles.chipDropdownItemSelected : ''}`}
-                        onMouseDown={(e) => { e.preventDefault(); handlePhaseClick(phase.id) }}
-                      >
-                        <span className={styles.chipDropdownPhaseDot} style={{ borderColor: goal.color }} />
-                        <span className={`${styles.chipDropdownName} ${phase.isDone ? styles.chipDropdownNameDone : ''}`}>
-                          {phase.name}
-                        </span>
-                        {selectedPhaseId === phase.id && <span className={styles.chipDropdownCheck}>✓</span>}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 标签 chip */}
-          <div className={styles.chipArea} ref={tagRef}>
-            <button
-              type="button"
-              className={styles.chipBtn}
-              onClick={() => setTagOpen((o) => !o)}
-              style={selectedTag ? { color: selectedTag.color, borderColor: selectedTag.color + '66', background: selectedTag.color + '12' } : {}}
-            >
-              {selectedTag ? (
-                <>
-                  {selectedTag.icon && <span>{selectedTag.icon}</span>}
-                  <span className={styles.chipBtnLabel}>{selectedTag.name}</span>
-                  <span
-                    className={styles.chipRemove}
-                    onMouseDown={(e) => {
-                      e.stopPropagation()
-                      setValue('tagIds', [], { shouldDirty: true })
-                    }}
-                  >×</span>
-                </>
-              ) : (
-                <span className={styles.chipPlaceholder}># {tagTermLabel}</span>
-              )}
-            </button>
-
-            {tagOpen && tags.length > 0 && (
-              <div className={styles.chipDropdown}>
-                {sortedNodes.map((node) => {
-                  const virt = isVirtualNode(node)
-                  const sel = !virt && selectedTagIds.includes(node.tag.id)
-                  return (
-                    <div
-                      key={node.fullPath}
-                      className={`${styles.chipDropdownItem} ${sel ? styles.chipDropdownItemSelected : ''} ${virt ? styles.chipDropdownItemVirtual : ''}`}
-                      style={{ paddingLeft: `${10 + node.depth * 14}px` }}
-                      onMouseDown={(e) => { e.preventDefault(); handleTagSelect(node) }}
-                    >
-                      <span className={styles.chipDropdownDot} style={{ background: node.tag.color }} />
-                      {node.tag.icon && <span>{node.tag.icon}</span>}
-                      <span className={styles.chipDropdownName}>{node.segment}</span>
-                      {virt && <span className={styles.chipDropdownVirtual}>自动创建</span>}
-                      {sel && <span className={styles.chipDropdownCheck}>✓</span>}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* 角色 chip */}
-          <div className={styles.chipArea} ref={roleRef}>
-            <button
-              type="button"
-              className={styles.chipBtn}
-              onClick={() => setRoleOpen((o) => !o)}
-              style={selectedRole ? { color: selectedRole.color, borderColor: selectedRole.color + '66', background: selectedRole.color + '12' } : {}}
-            >
-              {selectedRole ? (
-                <>
-                  {selectedRole.icon && <span>{selectedRole.icon}</span>}
-                  <span className={styles.chipBtnLabel}>{selectedRole.name}</span>
-                  <span
-                    className={styles.chipRemove}
-                    onMouseDown={(e) => {
-                      e.stopPropagation()
-                      setValue('roleId', undefined, { shouldDirty: true })
-                    }}
-                  >×</span>
-                </>
-              ) : (
-                <span className={styles.chipPlaceholder}>◆ 角色</span>
-              )}
-            </button>
-
-            {roleOpen && (
-              <div className={styles.chipDropdown}>
-                {sortedRoles.length === 0 ? (
-                  <div className={styles.chipDropdownEmpty}>暂无角色</div>
-                ) : sortedRoles.map((role) => (
-                  <div
-                    key={role.id}
-                    className={`${styles.chipDropdownItem} ${selectedRoleId === role.id ? styles.chipDropdownItemSelected : ''}`}
-                    onMouseDown={(e) => { e.preventDefault(); handleRoleClick(role.id) }}
-                  >
-                    <span className={styles.chipDropdownDot} style={{ background: role.color }} />
-                    {role.icon && <span>{role.icon}</span>}
-                    <span className={styles.chipDropdownName}>{role.name}</span>
-                    {selectedRoleId === role.id && <span className={styles.chipDropdownCheck}>✓</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {sortedDimensions.map((dim) => (
+            <DimensionSelector
+              key={dim.id}
+              dimension={dim}
+              options={optionsByDimension[dim.id] ?? []}
+              selectedOptionId={dimensionValues[dim.id]}
+              onSelect={(optionId) => {
+                const next = { ...dimensionValues }
+                if (optionId) next[dim.id] = optionId
+                else delete next[dim.id]
+                setValue('dimensionValues', next, { shouldDirty: true })
+              }}
+            />
+          ))}
         </div>
       </form>
     </div>

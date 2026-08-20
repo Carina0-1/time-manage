@@ -13,23 +13,17 @@ import type {
 } from '@fullcalendar/core'
 import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import dayjs from 'dayjs'
-import type { Tag, Task, Role } from '@time-manage/shared'
-import { buildTagTree, getDescendantTagIds } from '@/utils/tagTree'
-import type { TagTreeNode } from '@/utils/tagTree'
+import type { Dimension, DimensionOption, Task } from '@time-manage/shared'
+import { buildOptionTree, flattenOptionTree, getDescendantIds } from '@/utils/dimensionTree'
 import { useTaskStore } from '@/stores/taskStore'
-import { useTagStore } from '@/stores/tagStore'
+import { useDimensionStore } from '@/stores/dimensionStore'
 import { useUiStore } from '@/stores/uiStore'
-import { useGoalStore } from '@/stores/goalStore'
-import type { GoalWithPhases } from '@/stores/goalStore'
-import { useRoleStore } from '@/stores/roleStore'
-import { useSettingsStore } from '@/stores/settingsStore'
-import type { GoalFilter } from '@/stores/uiStore'
 import { tasksApi } from '@/api/tasks'
 import styles from './CalendarPage.module.css'
 
 const fmt = (d: Date) => dayjs(d).format('HH:mm')
 
-// 将标签颜色（hex）映射到颜色组
+// 将颜色（hex）映射到颜色组
 function hexToHue(hex: string): number {
   const r = parseInt(hex.slice(1, 3), 16) / 255
   const g = parseInt(hex.slice(3, 5), 16) / 255
@@ -69,10 +63,8 @@ type ViewType = 'timeGridWeek' | 'timeGridDay' | 'dayGridMonth'
 export default function CalendarPage() {
   const calendarRef = useRef<FullCalendar>(null)
   const { tasks, fetchTasks, updateTask } = useTaskStore()
-  const { tags, fetchTags } = useTagStore()
-  const { goals } = useGoalStore()
-  const { roles, fetchRoles } = useRoleStore()
-  const { taskModalOpen, openCreateModal, openEditModal, activeTagFilter, activeGoalFilter, activeRoleFilter, setGoalFilter } = useUiStore()
+  const { dimensions, optionsByDimension, fetchDimensions, fetchOptions } = useDimensionStore()
+  const { taskModalOpen, openCreateModal, openEditModal, activeDimensionFilters, setDimensionFilter } = useUiStore()
 
   const [currentView, setCurrentView] = useState<ViewType>('timeGridWeek')
   const [dateTitle, setDateTitle] = useState('')
@@ -88,12 +80,12 @@ export default function CalendarPage() {
   }
 
   useEffect(() => {
-    fetchTags()
-  }, [fetchTags])
+    fetchDimensions()
+  }, [fetchDimensions])
 
   useEffect(() => {
-    fetchRoles()
-  }, [fetchRoles])
+    dimensions.forEach((d) => fetchOptions(d.id))
+  }, [dimensions, fetchOptions])
 
   // 初次加载时滚动到当前时间（偏移 -30 分钟，让时间线不贴顶）
   useEffect(() => {
@@ -107,49 +99,43 @@ export default function CalendarPage() {
     return () => clearTimeout(id)
   }, [])
 
-  const filteredTagIds = useMemo(() => {
-    if (!activeTagFilter) return null
-    const tree = buildTagTree(tags)
-    function findNode(nodes: TagTreeNode[], path: string): TagTreeNode | null {
-      for (const n of nodes) {
-        if (n.fullPath === path) return n
-        const found = findNode(n.children, path)
-        if (found) return found
+  const colorDimension = dimensions.find((d) => d.isColorSource)
+
+  const getEventColor = (task: Task): string => {
+    if (!colorDimension) return '#57b683'
+    const optionId = task.dimensionValues[colorDimension.id]
+    if (!optionId) return '#57b683'
+    const option = optionsByDimension[colorDimension.id]?.find((o) => o.id === optionId)
+    return option?.color ?? '#57b683'
+  }
+
+  const filteredTaskIds = useMemo(() => {
+    const activeFilters = Object.entries(activeDimensionFilters).filter(([, v]) => v) as [string, string][]
+    if (activeFilters.length === 0) return null
+
+    const idSetsPerFilter: Set<string>[] = activeFilters.map(([dimensionId, optionId]) => {
+      const dim = dimensions.find((d) => d.id === dimensionId)
+      const options = optionsByDimension[dimensionId] ?? []
+      let matchOptionIds = new Set([optionId])
+      if (dim?.type === 'tree') {
+        const tree = buildOptionTree(options)
+        const node = flattenOptionTree(tree).find((n) => n.option.id === optionId)
+        if (node) matchOptionIds = new Set(getDescendantIds(node))
       }
-      return null
-    }
-    const node = findNode(tree, activeTagFilter)
-    if (!node) return null
-    return new Set(getDescendantTagIds(node))
-  }, [activeTagFilter, tags])
+      return new Set(tasks.filter((t) => matchOptionIds.has(t.dimensionValues[dimensionId])).map((t) => t.id))
+    })
 
-  const goalColorMap = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const goal of goals) map.set(goal.id, goal.color)
-    return map
-  }, [goals])
-
-  const filteredGoalTaskIds = useMemo(() => {
-    if (!activeGoalFilter) return null
-    if (activeGoalFilter.type === 'goal') {
-      return new Set(tasks.filter((t) => t.goalId === activeGoalFilter.id).map((t) => t.id))
-    }
-    return new Set(tasks.filter((t) => t.phaseId === activeGoalFilter.id).map((t) => t.id))
-  }, [activeGoalFilter, tasks])
-
-  const filteredRoleTaskIds = useMemo(() => {
-    if (!activeRoleFilter) return null
-    return new Set(tasks.filter((t) => t.roleId === activeRoleFilter).map((t) => t.id))
-  }, [activeRoleFilter, tasks])
+    return idSetsPerFilter.reduce<Set<string>>((acc, idSet, idx) => {
+      if (idx === 0) return idSet
+      return new Set([...acc].filter((id) => idSet.has(id)))
+    }, new Set<string>())
+  }, [activeDimensionFilters, dimensions, optionsByDimension, tasks])
 
   const events = tasks
     .filter((task) => task.startTime && task.endTime)  // Inbox 任务不显示在日历
-    .filter((task) => !filteredTagIds || task.tagIds.some((id) => filteredTagIds.has(id)))
-    .filter((task) => !filteredGoalTaskIds || filteredGoalTaskIds.has(task.id))
-    .filter((task) => !filteredRoleTaskIds || filteredRoleTaskIds.has(task.id))
+    .filter((task) => !filteredTaskIds || filteredTaskIds.has(task.id))
     .map((task) => {
-      const goalColor = task.goalId ? goalColorMap.get(task.goalId) : undefined
-      const hexColor = task.color ?? goalColor ?? '#57b683'
+      const hexColor = getEventColor(task)
       const group = colorToGroup(hexColor)
       const vars = GROUP_VARS[group]
       const isDone = task.status === 'done'
@@ -237,9 +223,9 @@ export default function CalendarPage() {
         calendarRef={calendarRef}
         currentView={currentView}
         dateTitle={dateTitle}
-        activeGoalFilter={activeGoalFilter}
-        onClearGoalFilter={() => setGoalFilter(null)}
-        goals={goals}
+        optionsByDimension={optionsByDimension}
+        activeDimensionFilters={activeDimensionFilters}
+        onClearFilter={(dimensionId) => setDimensionFilter(dimensionId, null)}
       />
       <div className={styles.calendarWrap}>
         <FullCalendar
@@ -267,9 +253,8 @@ export default function CalendarPage() {
           eventContent={(info) => (
             <EventContent
               info={info}
-              tags={tags}
-              goals={goals}
-              roles={roles}
+              dimensions={dimensions}
+              optionsByDimension={optionsByDimension}
               onToggleDone={(taskId, status) => handleToggleDone(taskId, status)}
             />
           )}
@@ -284,20 +269,19 @@ function CalendarTopBar({
   calendarRef,
   currentView,
   dateTitle,
-  activeGoalFilter,
-  onClearGoalFilter,
-  goals,
+  optionsByDimension,
+  activeDimensionFilters,
+  onClearFilter,
 }: {
   calendarRef: React.RefObject<FullCalendar | null>
   currentView: ViewType
   dateTitle: string
-  activeGoalFilter: GoalFilter | null
-  onClearGoalFilter: () => void
-  goals: import('@/stores/goalStore').GoalWithPhases[]
+  optionsByDimension: Record<string, DimensionOption[]>
+  activeDimensionFilters: Record<string, string | null>
+  onClearFilter: (dimensionId: string) => void
 }) {
   const api = () => calendarRef.current?.getApi()
   const { theme, toggle } = useTheme()
-  const { goalTermLabel } = useSettingsStore()
 
   const views: { key: ViewType; label: string }[] = [
     { key: 'dayGridMonth', label: '月' },
@@ -305,28 +289,13 @@ function CalendarTopBar({
     { key: 'timeGridDay',  label: '日' },
   ]
 
-  const filterLabel = activeGoalFilter
-    ? activeGoalFilter.type === 'goal'
-      ? goals.find((g) => g.id === activeGoalFilter.id)?.name ?? goalTermLabel
-      : (() => {
-          for (const g of goals) {
-            const p = g.phases.find((p) => p.id === activeGoalFilter.id)
-            if (p) return p.name
-          }
-          return '阶段'
-        })()
-    : null
-
-  const filterColor = activeGoalFilter
-    ? activeGoalFilter.type === 'goal'
-      ? goals.find((g) => g.id === activeGoalFilter.id)?.color
-      : (() => {
-          for (const g of goals) {
-            if (g.phases.some((p) => p.id === activeGoalFilter.id)) return g.color
-          }
-          return undefined
-        })()
-    : undefined
+  const activeFilterChips = Object.entries(activeDimensionFilters)
+    .filter(([, optionId]) => optionId)
+    .map(([dimensionId, optionId]) => {
+      const option = optionsByDimension[dimensionId]?.find((o) => o.id === optionId)
+      return option ? { dimensionId, name: option.name, color: option.color } : null
+    })
+    .filter((v): v is { dimensionId: string; name: string; color: string } => v !== null)
 
   return (
     <div className={styles.topbar}>
@@ -336,18 +305,19 @@ function CalendarTopBar({
         <button className={styles.todayBtn} onClick={() => api()?.today()}>今天</button>
       </div>
       <div className={styles.dateTitle}>{dateTitle}</div>
-      {filterLabel && (
+      {activeFilterChips.map((chip) => (
         <button
+          key={chip.dimensionId}
           className={styles.filterChip}
-          style={{ borderColor: filterColor, color: filterColor, background: filterColor ? filterColor + '22' : undefined }}
-          onClick={onClearGoalFilter}
+          style={{ borderColor: chip.color, color: chip.color, background: chip.color + '22' }}
+          onClick={() => onClearFilter(chip.dimensionId)}
           title="取消筛选"
         >
-          <span className={styles.filterChipDot} style={{ background: filterColor }} />
-          {filterLabel}
+          <span className={styles.filterChipDot} style={{ background: chip.color }} />
+          {chip.name}
           <span className={styles.filterChipClose}>×</span>
         </button>
-      )}
+      ))}
       <div className={styles.rightGroup}>
         <button
           className={styles.iconBtn}
@@ -375,15 +345,13 @@ function CalendarTopBar({
 
 function EventContent({
   info,
-  tags,
-  goals,
-  roles,
+  dimensions,
+  optionsByDimension,
   onToggleDone,
 }: {
   info: EventContentArg
-  tags: Tag[]
-  goals: GoalWithPhases[]
-  roles: Role[]
+  dimensions: Dimension[]
+  optionsByDimension: Record<string, DimensionOption[]>
   onToggleDone: (taskId: string, status: string) => void
 }) {
   const { task, vars, isDone } = info.event.extendedProps as {
@@ -405,10 +373,17 @@ function EventContent({
     borderRadius: 'var(--r-sm)',
   }
 
-  const goal = task.goalId ? goals.find((g) => g.id === task.goalId) : undefined
-  const taskTags = tags.filter((tg) => task.tagIds.includes(tg.id))
-  const role = task.roleId ? roles.find((r) => r.id === task.roleId) : undefined
-  const hasMeta = !!goal || taskTags.length > 0 || !!role
+  const sidebarDimensions = [...dimensions].filter((d) => d.showInSidebar).sort((a, b) => a.sortOrder - b.sortOrder)
+  const chips = sidebarDimensions
+    .map((dim) => {
+      const optionId = task.dimensionValues[dim.id]
+      if (!optionId) return null
+      const option = optionsByDimension[dim.id]?.find((o) => o.id === optionId)
+      return option ? { dimensionId: dim.id, option } : null
+    })
+    .filter((v): v is { dimensionId: string; option: DimensionOption } => v !== null)
+
+  const hasMeta = chips.length > 0
 
   if (isTimeGrid) {
     const start = info.event.start
@@ -433,24 +408,12 @@ function EventContent({
         {timeRange && <div className={styles.evTime}>{timeRange}</div>}
         {hasMeta && (
           <div className={styles.evMeta}>
-            {goal && (
-              <span className={styles.evGoalChip}>
-                <span className={styles.evGoalDot} style={{ background: goal.color }} />
-                {goal.name}
-              </span>
-            )}
-            {taskTags.map((tg) => (
-              <span key={tg.id} className={styles.evTagChip}>
-                <span className={styles.evTagDot} style={{ background: tg.color }} />
-                {tg.name}
+            {chips.map(({ dimensionId, option }) => (
+              <span key={dimensionId} className={styles.evGenericChip}>
+                <span className={styles.evGenericDot} style={{ background: option.color }} />
+                {option.name}
               </span>
             ))}
-            {role && (
-              <span className={styles.evRoleChip}>
-                <span className={styles.evRoleDot} style={{ background: role.color }} />
-                {role.name}
-              </span>
-            )}
           </div>
         )}
       </div>

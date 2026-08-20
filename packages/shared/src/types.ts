@@ -18,78 +18,42 @@ export interface Task {
   startTime?: string     // ISO 8601，Inbox 任务为空
   endTime?: string       // ISO 8601，Inbox 任务为空
   isAllDay: boolean
-  tagIds: string[]
-  goalId?: string
-  phaseId?: string
-  roleId?: string
+  dimensionValues: Record<string, string>  // dimensionId -> optionId
   status: TaskStatus
   priority: Priority
   recurrence?: Recurrence
-  color?: string
   expectedOutput?: string
   createdAt: string
   updatedAt: string
 }
 
-export type GoalStatus = 'active' | 'done' | 'archived'
+export type DimensionType = 'single' | 'tree'
 
-export interface Goal {
+export interface Dimension {
   id: string
   userId: string
   name: string
-  color: string
+  type: DimensionType
   icon?: string
+  isRequired: boolean
+  isColorSource: boolean
+  showInSidebar: boolean
   sortOrder: number
-  status: GoalStatus
-  background?: string
-  successCriteria?: string
   createdAt: string
   updatedAt: string
 }
 
-export interface Phase {
+export interface DimensionOption {
   id: string
-  goalId: string
+  dimensionId: string
   userId: string
-  name: string
-  isDone: boolean
-  sortOrder: number
-  reason?: string
-  currentState?: string
-  completionCriteria?: string
-  createdAt: string
-  updatedAt: string
-}
-
-export interface Tag {
-  id: string
-  userId: string
+  parentId?: string
   name: string
   color: string          // HEX, e.g. "#6366f1"
   icon?: string          // emoji
   sortOrder: number
   createdAt: string
   updatedAt: string
-}
-
-export interface Role {
-  id: string
-  userId: string
-  name: string
-  color: string          // HEX, e.g. "#6366f1"
-  icon?: string          // emoji
-  sortOrder: number
-  createdAt: string
-  updatedAt: string
-}
-
-export interface TagStats {
-  tagId: string
-  tagName: string
-  color: string
-  totalMinutes: number
-  taskCount: number
-  percentage: number
 }
 
 export interface DailyActivity {
@@ -102,37 +66,32 @@ export interface DailyMinutes {
   totalMinutes: number
 }
 
-export interface DailyTagMinutes {
-  date: string        // "YYYY-MM-DD"
-  tagName: string     // 一级标签名
+export interface DimensionStats {
+  dimensionId: string
+  optionId: string
+  optionName: string
   color: string
-  minutes: number
+  totalMinutes: number
+  taskCount: number
+  percentage: number
 }
 
-export interface DailyGoalMinutes {
+export interface DailyDimensionMinutes {
   date: string        // "YYYY-MM-DD"
-  goalId: string
-  goalName: string
+  dimensionId: string
+  optionName: string  // tree 类型取根节点名称聚合
   color: string
   minutes: number
 }
 
 export interface StatsResult {
-  tags: TagStats[]
   totalMinutes: number
   completedCount: number
   totalCount: number
   dailyActivity: DailyActivity[]
   dailyMinutes: DailyMinutes[]
-  dailyTagMinutes: DailyTagMinutes[]
-  dailyGoalMinutes: DailyGoalMinutes[]
-}
-
-export interface UserSettings {
-  userId: string
-  goalTermLabel: string
-  tagTermLabel: string
-  updatedAt: string
+  dimensionStats: Record<string, DimensionStats[]>
+  dailyDimensionMinutes: Record<string, DailyDimensionMinutes[]>
 }
 
 export interface AuthUser {

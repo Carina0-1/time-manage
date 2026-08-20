@@ -635,7 +635,8 @@
   white-space: nowrap;
 }
 
-.logoutBtn {
+.logoutBtn,
+.settingsBtn {
   font-size: 12px;
   color: var(--ink-faint);
   background: none;
@@ -646,7 +647,8 @@
   flex-shrink: 0;
 }
 
-.logoutBtn:hover {
+.logoutBtn:hover,
+.settingsBtn:hover {
   color: var(--ink-soft);
   background: var(--hover);
 }

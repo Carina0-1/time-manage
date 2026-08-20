@@ -64,6 +64,20 @@
       "when": 1787115535504,
       "tag": "0008_daily_pete_wisdom",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787210824058,
+      "tag": "0009_add_dimensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787211028450,
+      "tag": "0010_drop_legacy_tables",
+      "breakpoints": true
     }
   ]
 }

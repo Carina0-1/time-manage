@@ -15,100 +15,51 @@ export const CreateTaskSchema = z.object({
   startTime: z.string().datetime().optional(),
   endTime: z.string().datetime().optional(),
   isAllDay: z.boolean().default(false),
-  tagIds: z.array(z.string()).default([]),
-  goalId: z.string().optional(),
-  phaseId: z.string().optional(),
-  roleId: z.string().optional(),
+  dimensionValues: z.record(z.string(), z.string()).default({}),
   status: z.enum(['todo', 'in_progress', 'done', 'cancelled']).default('todo'),
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
   recurrence: RecurrenceSchema.optional(),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   expectedOutput: z.string().optional(),
 })
 
 export const UpdateTaskSchema = CreateTaskSchema.partial().omit({ id: true })
 
-export const CreateGoalSchema = z.object({
+export const CreateDimensionSchema = z.object({
   id: z.string(),
+  name: z.string().min(1).max(50),
+  type: z.enum(['single', 'tree']),
+  icon: z.string().optional(),
+  isRequired: z.boolean().default(false),
+  showInSidebar: z.boolean().default(true),
+  sortOrder: z.number().int().default(0),
+})
+
+export const UpdateDimensionSchema = CreateDimensionSchema.partial().omit({ id: true, type: true })
+
+export const CreateDimensionOptionSchema = z.object({
+  id: z.string(),
+  dimensionId: z.string(),
+  parentId: z.string().optional(),
   name: z.string().min(1).max(100),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   icon: z.string().optional(),
   sortOrder: z.number().int().default(0),
-  status: z.enum(['active', 'done', 'archived']).default('active'),
-  background: z.string().optional(),
-  successCriteria: z.string().optional(),
 })
 
-export const UpdateGoalSchema = CreateGoalSchema.partial().omit({ id: true })
-
-export const CreatePhaseSchema = z.object({
-  id: z.string(),
-  goalId: z.string(),
-  name: z.string().min(1).max(100),
-  isDone: z.boolean().default(false),
-  sortOrder: z.number().int().default(0),
-  reason: z.string().optional(),
-  currentState: z.string().optional(),
-  completionCriteria: z.string().optional(),
-})
-
-export const UpdatePhaseSchema = CreatePhaseSchema.partial().omit({ id: true, goalId: true })
-
-export const CreateTagSchema = z.object({
-  id: z.string(),
-  name: z.string().min(1).max(50),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  icon: z.string().optional(),
-  sortOrder: z.number().int().default(0),
-})
-
-export const UpdateTagSchema = CreateTagSchema.partial().omit({ id: true })
-
-export const CreateRoleSchema = z.object({
-  id: z.string(),
-  name: z.string().min(1).max(50),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  icon: z.string().optional(),
-  sortOrder: z.number().int().default(0),
-})
-
-export const UpdateRoleSchema = CreateRoleSchema.partial().omit({ id: true })
+export const UpdateDimensionOptionSchema = CreateDimensionOptionSchema.partial().omit({ id: true, dimensionId: true })
 
 export const StatsQuerySchema = z.object({
   start: z.string().datetime(),
   end: z.string().datetime(),
 })
 
-export const SyncUploadSchema = z.object({
-  tasks: z.array(CreateTaskSchema.extend({
-    updatedAt: z.string().datetime(),
-    deletedAt: z.string().datetime().optional(),
-  })),
-  tags: z.array(CreateTagSchema.extend({
-    updatedAt: z.string().datetime(),
-    deletedAt: z.string().datetime().optional(),
-  })),
-})
-
 export type CreateTaskInput = z.infer<typeof CreateTaskSchema>
 export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>
-export type CreateGoalInput = z.infer<typeof CreateGoalSchema>
-export type UpdateGoalInput = z.infer<typeof UpdateGoalSchema>
-export type CreatePhaseInput = z.infer<typeof CreatePhaseSchema>
-export type UpdatePhaseInput = z.infer<typeof UpdatePhaseSchema>
-export type CreateTagInput = z.infer<typeof CreateTagSchema>
-export type UpdateTagInput = z.infer<typeof UpdateTagSchema>
-export type CreateRoleInput = z.infer<typeof CreateRoleSchema>
-export type UpdateRoleInput = z.infer<typeof UpdateRoleSchema>
+export type CreateDimensionInput = z.infer<typeof CreateDimensionSchema>
+export type UpdateDimensionInput = z.infer<typeof UpdateDimensionSchema>
+export type CreateDimensionOptionInput = z.infer<typeof CreateDimensionOptionSchema>
+export type UpdateDimensionOptionInput = z.infer<typeof UpdateDimensionOptionSchema>
 export type StatsQuery = z.infer<typeof StatsQuerySchema>
-export type SyncUpload = z.infer<typeof SyncUploadSchema>
-
-export const UpdateSettingsSchema = z.object({
-  goalTermLabel: z.string().min(1).max(20).optional(),
-  tagTermLabel: z.string().min(1).max(20).optional(),
-})
-
-export type UpdateSettingsInput = z.infer<typeof UpdateSettingsSchema>
 
 export const LoginSchema = z.object({
   username: z.string().min(1),

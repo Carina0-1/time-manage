@@ -9,8 +9,7 @@ interface TaskStore {
   addTask: (task: Task) => void
   updateTask: (id: string, data: Partial<Task>) => void
   removeTask: (id: string) => void
-  removeTasksByTagId: (tagId: string) => void
-  removeTasksByPhaseId: (phaseId: string) => void
+  clearDimensionValueForTasks: (dimensionId: string, optionIds: string[]) => void
 }
 
 export const useTaskStore = create<TaskStore>((set) => ({
@@ -38,9 +37,13 @@ export const useTaskStore = create<TaskStore>((set) => ({
   removeTask: (id) =>
     set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
 
-  removeTasksByTagId: (tagId) =>
-    set((s) => ({ tasks: s.tasks.filter((t) => !t.tagIds.includes(tagId)) })),
-
-  removeTasksByPhaseId: (phaseId) =>
-    set((s) => ({ tasks: s.tasks.filter((t) => t.phaseId !== phaseId) })),
+  // 删除维度选项不删除任务，只清空任务在该维度上的取值
+  clearDimensionValueForTasks: (dimensionId, optionIds) =>
+    set((s) => ({
+      tasks: s.tasks.map((t) => {
+        if (!optionIds.includes(t.dimensionValues[dimensionId])) return t
+        const { [dimensionId]: _removed, ...rest } = t.dimensionValues
+        return { ...t, dimensionValues: rest }
+      }),
+    })),
 }))

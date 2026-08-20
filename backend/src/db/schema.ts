@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, jsonb, primaryKey, integer } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, timestamp, jsonb, integer, foreignKey, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -9,39 +9,26 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
-export const goals = pgTable('goals', {
+export const dimensions = pgTable('dimensions', {
   id: text('id').primaryKey(),
   userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   name: text('name').notNull(),
-  color: text('color').notNull(),
+  type: text('type').notNull(), // 'single' | 'tree'
   icon: text('icon'),
+  isRequired: boolean('is_required').default(false).notNull(),
+  isColorSource: boolean('is_color_source').default(false).notNull(),
+  showInSidebar: boolean('show_in_sidebar').default(true).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
-  status: text('status').default('active').notNull(),
-  background: text('background'),
-  successCriteria: text('success_criteria'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'),
 })
 
-export const phases = pgTable('phases', {
+export const dimensionOptions = pgTable('dimension_options', {
   id: text('id').primaryKey(),
-  goalId: text('goal_id').references(() => goals.id, { onDelete: 'cascade' }).notNull(),
+  dimensionId: text('dimension_id').references(() => dimensions.id, { onDelete: 'cascade' }).notNull(),
   userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  name: text('name').notNull(),
-  isDone: boolean('is_done').default(false).notNull(),
-  sortOrder: integer('sort_order').default(0).notNull(),
-  reason: text('reason'),
-  currentState: text('current_state'),
-  completionCriteria: text('completion_criteria'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-  deletedAt: timestamp('deleted_at'),
-})
-
-export const tags = pgTable('tags', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  parentId: text('parent_id'),
   name: text('name').notNull(),
   color: text('color').notNull(),
   icon: text('icon'),
@@ -49,19 +36,10 @@ export const tags = pgTable('tags', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'),
-})
-
-export const roles = pgTable('roles', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  name: text('name').notNull(),
-  color: text('color').notNull(),
-  icon: text('icon'),
-  sortOrder: integer('sort_order').default(0).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-  deletedAt: timestamp('deleted_at'),
-})
+}, (t) => [
+  foreignKey({ columns: [t.parentId], foreignColumns: [t.id], name: 'dimension_options_parent_id_fk' })
+    .onDelete('cascade'),
+])
 
 export const tasks = pgTable('tasks', {
   id: text('id').primaryKey(),
@@ -74,24 +52,17 @@ export const tasks = pgTable('tasks', {
   status: text('status').default('todo').notNull(),
   priority: text('priority').default('medium').notNull(),
   recurrence: jsonb('recurrence'),
-  color: text('color'),
-  goalId: text('goal_id').references(() => goals.id, { onDelete: 'set null' }),
-  phaseId: text('phase_id').references(() => phases.id, { onDelete: 'set null' }),
-  roleId: text('role_id').references(() => roles.id, { onDelete: 'set null' }),
   expectedOutput: text('expected_output'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'),
 })
 
-export const taskTags = pgTable('task_tags', {
+export const taskDimensionValues = pgTable('task_dimension_values', {
+  id: text('id').primaryKey(),
   taskId: text('task_id').references(() => tasks.id, { onDelete: 'cascade' }).notNull(),
-  tagId: text('tag_id').references(() => tags.id, { onDelete: 'cascade' }).notNull(),
-}, (t) => [primaryKey({ columns: [t.taskId, t.tagId] })])
-
-export const userSettings = pgTable('user_settings', {
-  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
-  goalTermLabel: text('goal_term_label').default('目标').notNull(),
-  tagTermLabel: text('tag_term_label').default('标签').notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
+  dimensionId: text('dimension_id').references(() => dimensions.id, { onDelete: 'cascade' }).notNull(),
+  optionId: text('option_id').references(() => dimensionOptions.id, { onDelete: 'cascade' }).notNull(),
+}, (t) => [
+  uniqueIndex('task_dimension_values_task_dimension_uq').on(t.taskId, t.dimensionId),
+])
