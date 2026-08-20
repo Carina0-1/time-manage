@@ -24,16 +24,18 @@ export default function Layout() {
   return (
     <div className={styles.shell}>
       <nav className={styles.sidebar}>
-        <div className={styles.brand} onClick={() => navigate('/calendar')}>
-          <span className={styles.brandDot} />
-          <span className={styles.brandName}>TiGo</span>
+        <div className={styles.brandRow}>
+          <div className={styles.brand} onClick={() => navigate('/calendar')}>
+            <span className={styles.brandDot} />
+            <span className={styles.brandName}>TiGo</span>
+          </div>
+          <button className={styles.settingsBtn} onClick={() => navigate('/settings')} title="设置">⚙</button>
         </div>
         <SidebarStats onClickStats={() => navigate('/stats')} />
         <ActivityHeatmap />
         <DimensionNav />
         <div className={styles.sidebarFooter}>
           <span className={styles.sidebarUsername}>{user?.username}</span>
-          <button className={styles.settingsBtn} onClick={() => navigate('/settings')} title="设置">⚙</button>
           <button className={styles.logoutBtn} onClick={handleLogout}>退出</button>
         </div>
       </nav>

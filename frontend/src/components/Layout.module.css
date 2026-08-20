@@ -412,11 +412,17 @@
 .sidebar::-webkit-scrollbar { width: 0; }
 
 /* Brand */
+.brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 18px;
+}
+
 .brand {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 8px 8px 18px;
   cursor: pointer;
 }
 .brandDot {
@@ -635,8 +641,7 @@
   white-space: nowrap;
 }
 
-.logoutBtn,
-.settingsBtn {
+.logoutBtn {
   font-size: 12px;
   color: var(--ink-faint);
   background: none;
@@ -647,10 +652,30 @@
   flex-shrink: 0;
 }
 
-.logoutBtn:hover,
+.logoutBtn:hover {
+  color: var(--ink-soft);
+  background: var(--hover);
+}
+
+.settingsBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+  color: var(--ink-faint);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .settingsBtn:hover {
   color: var(--ink-soft);
   background: var(--hover);
+  border-color: var(--ink-faint);
 }
 
 /* Main area — white card */
