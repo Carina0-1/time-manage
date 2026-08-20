@@ -3,6 +3,21 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { nanoid } from 'nanoid'
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { Dimension, DimensionOption } from '@time-manage/shared'
 import { useDimensionStore } from '@/stores/dimensionStore'
 import { dimensionsApi } from '@/api/dimensions'
@@ -243,10 +258,11 @@ export default function SettingsPage() {
 }
 
 function OptionManager({ dimension, options }: { dimension: Dimension; options: DimensionOption[] }) {
-  const { addOption, updateOption, removeOption } = useDimensionStore()
+  const { addOption, updateOption, removeOption, reorderOptions } = useDimensionStore()
   const [showForm, setShowForm] = useState(false)
   const [editingOptionId, setEditingOptionId] = useState<string | null>(null)
   const [parentForNew, setParentForNew] = useState<string | undefined>(undefined)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const {
     register, handleSubmit, reset, setValue, watch,
@@ -299,6 +315,42 @@ function OptionManager({ dimension, options }: { dimension: Dimension; options: 
     removeOption(dimension.id, optionId)
   }
 
+  // 平铺列表：整体拖拽排序
+  const sortedFlatOptions = [...options].sort((a, b) => a.sortOrder - b.sortOrder)
+
+  const handleFlatDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = sortedFlatOptions.findIndex((o) => o.id === active.id)
+    const newIndex = sortedFlatOptions.findIndex((o) => o.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const reordered = arrayMove(sortedFlatOptions, oldIndex, newIndex).map((o, i) => ({ ...o, sortOrder: i }))
+    reorderOptions(dimension.id, reordered)
+    try {
+      await dimensionsApi.reorderOptions(reordered.map((o) => ({ id: o.id, sortOrder: o.sortOrder })))
+    } catch {
+      reorderOptions(dimension.id, sortedFlatOptions)
+    }
+  }
+
+  // 树形列表：同一父节点下的兄弟节点之间拖拽排序（不改变父子关系）
+  const handleTreeDragEnd = async (parentId: string | null, event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const siblings = options.filter((o) => (o.parentId ?? null) === parentId).sort((a, b) => a.sortOrder - b.sortOrder)
+    const oldIndex = siblings.findIndex((o) => o.id === active.id)
+    const newIndex = siblings.findIndex((o) => o.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const reorderedSiblings = arrayMove(siblings, oldIndex, newIndex).map((o, i) => ({ ...o, sortOrder: i }))
+    const merged = options.map((o) => reorderedSiblings.find((r) => r.id === o.id) ?? o)
+    reorderOptions(dimension.id, merged)
+    try {
+      await dimensionsApi.reorderOptions(reorderedSiblings.map((o) => ({ id: o.id, sortOrder: o.sortOrder })))
+    } catch {
+      reorderOptions(dimension.id, options)
+    }
+  }
+
   return (
     <div className={styles.optionManager}>
       <div className={styles.optionManagerHeader}>
@@ -307,26 +359,22 @@ function OptionManager({ dimension, options }: { dimension: Dimension; options: 
       </div>
 
       {dimension.type === 'tree' ? (
-        flatOptions.map(({ option, depth }) => (
-          <div key={option.id} className={styles.optionRow} style={{ paddingLeft: `${depth * 20}px` }}>
-            <span className={styles.optionDot} style={{ background: option.color }} />
-            {option.icon && <span>{option.icon}</span>}
-            <span className={styles.optionName}>{option.name}</span>
-            <button className={styles.linkBtnSmall} onClick={() => openCreate(option.id)}>添加子节点</button>
-            <button className={styles.linkBtnSmall} onClick={() => openEdit(option)}>编辑</button>
-            <button className={styles.linkBtnSmallDanger} onClick={() => handleDelete(option.id)}>删除</button>
-          </div>
-        ))
+        <TreeOptionList
+          tree={tree}
+          sensors={sensors}
+          onDragEnd={handleTreeDragEnd}
+          onAddChild={openCreate}
+          onEdit={openEdit}
+          onDelete={handleDelete}
+        />
       ) : (
-        [...options].sort((a, b) => a.sortOrder - b.sortOrder).map((option) => (
-          <div key={option.id} className={styles.optionRow}>
-            <span className={styles.optionDot} style={{ background: option.color }} />
-            {option.icon && <span>{option.icon}</span>}
-            <span className={styles.optionName}>{option.name}</span>
-            <button className={styles.linkBtnSmall} onClick={() => openEdit(option)}>编辑</button>
-            <button className={styles.linkBtnSmallDanger} onClick={() => handleDelete(option.id)}>删除</button>
-          </div>
-        ))
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleFlatDragEnd}>
+          <SortableContext items={sortedFlatOptions.map((o) => o.id)} strategy={verticalListSortingStrategy}>
+            {sortedFlatOptions.map((option) => (
+              <SortableOptionRow key={option.id} option={option} onEdit={openEdit} onDelete={handleDelete} />
+            ))}
+          </SortableContext>
+        </DndContext>
       )}
       {options.length === 0 && <div className={styles.empty}>暂无选项</div>}
 
@@ -408,6 +456,125 @@ function OptionManager({ dimension, options }: { dimension: Dimension; options: 
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function TreeOptionList({
+  tree,
+  sensors,
+  onDragEnd,
+  onAddChild,
+  onEdit,
+  onDelete,
+}: {
+  tree: ReturnType<typeof buildOptionTree>
+  sensors: ReturnType<typeof useSensors>
+  onDragEnd: (parentId: string | null, event: DragEndEvent) => void
+  onAddChild: (parentId: string) => void
+  onEdit: (option: DimensionOption) => void
+  onDelete: (optionId: string) => void
+}) {
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onDragEnd(null, e)}>
+      <SortableContext items={tree.map((n) => n.option.id)} strategy={verticalListSortingStrategy}>
+        {tree.map((node) => (
+          <TreeOptionNode
+            key={node.option.id}
+            node={node}
+            sensors={sensors}
+            onDragEnd={onDragEnd}
+            onAddChild={onAddChild}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+      </SortableContext>
+    </DndContext>
+  )
+}
+
+function TreeOptionNode({
+  node,
+  sensors,
+  onDragEnd,
+  onAddChild,
+  onEdit,
+  onDelete,
+}: {
+  node: ReturnType<typeof buildOptionTree>[number]
+  sensors: ReturnType<typeof useSensors>
+  onDragEnd: (parentId: string | null, event: DragEndEvent) => void
+  onAddChild: (parentId: string) => void
+  onEdit: (option: DimensionOption) => void
+  onDelete: (optionId: string) => void
+}) {
+  const { option, depth, children } = node
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: option.id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div className={styles.optionRow} style={{ paddingLeft: `${depth * 20}px` }}>
+        <span className={formStyles.dragHandle} {...attributes} {...listeners}>⠿</span>
+        <span className={styles.optionDot} style={{ background: option.color }} />
+        {option.icon && <span>{option.icon}</span>}
+        <span className={styles.optionName}>{option.name}</span>
+        <button className={styles.linkBtnSmall} onClick={() => onAddChild(option.id)}>添加子节点</button>
+        <button className={styles.linkBtnSmall} onClick={() => onEdit(option)}>编辑</button>
+        <button className={styles.linkBtnSmallDanger} onClick={() => onDelete(option.id)}>删除</button>
+      </div>
+      {children.length > 0 && (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onDragEnd(option.id, e)}>
+          <SortableContext items={children.map((c) => c.option.id)} strategy={verticalListSortingStrategy}>
+            {children.map((child) => (
+              <TreeOptionNode
+                key={child.option.id}
+                node={child}
+                sensors={sensors}
+                onDragEnd={onDragEnd}
+                onAddChild={onAddChild}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      )}
+    </div>
+  )
+}
+
+function SortableOptionRow({
+  option,
+  onEdit,
+  onDelete,
+}: {
+  option: DimensionOption
+  onEdit: (option: DimensionOption) => void
+  onDelete: (optionId: string) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: option.id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} className={styles.optionRow}>
+      <span className={formStyles.dragHandle} {...attributes} {...listeners}>⠿</span>
+      <span className={styles.optionDot} style={{ background: option.color }} />
+      {option.icon && <span>{option.icon}</span>}
+      <span className={styles.optionName}>{option.name}</span>
+      <button className={styles.linkBtnSmall} onClick={() => onEdit(option)}>编辑</button>
+      <button className={styles.linkBtnSmallDanger} onClick={() => onDelete(option.id)}>删除</button>
     </div>
   )
 }

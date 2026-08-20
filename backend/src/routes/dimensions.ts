@@ -36,23 +36,7 @@ dimensionsRouter.post('/', zValidator('json', CreateDimensionSchema), async (c) 
   return c.json({ data: dimension }, 201)
 })
 
-// PATCH /dimensions/:id
-dimensionsRouter.patch('/:id', zValidator('json', UpdateDimensionSchema), async (c) => {
-  const userId = c.get('userId')
-  const id = c.req.param('id')
-  const body = c.req.valid('json')
-
-  const [dimension] = await db
-    .update(dimensions)
-    .set({ ...body, updatedAt: new Date() })
-    .where(and(eq(dimensions.id, id), eq(dimensions.userId, userId)))
-    .returning()
-
-  if (!dimension) return c.json({ error: 'Not found' }, 404)
-  return c.json({ data: dimension })
-})
-
-// PATCH /dimensions/reorder
+// PATCH /dimensions/reorder — 必须注册在 /:id 之前，否则会被参数化路由抢先匹配（Hono 按注册顺序匹配）
 const ReorderSchema = z.object({
   orders: z.array(z.object({ id: z.string(), sortOrder: z.number().int() })),
 })
@@ -67,6 +51,22 @@ dimensionsRouter.patch('/reorder', zValidator('json', ReorderSchema), async (c) 
     )
   )
   return c.json({ data: null })
+})
+
+// PATCH /dimensions/:id
+dimensionsRouter.patch('/:id', zValidator('json', UpdateDimensionSchema), async (c) => {
+  const userId = c.get('userId')
+  const id = c.req.param('id')
+  const body = c.req.valid('json')
+
+  const [dimension] = await db
+    .update(dimensions)
+    .set({ ...body, updatedAt: new Date() })
+    .where(and(eq(dimensions.id, id), eq(dimensions.userId, userId)))
+    .returning()
+
+  if (!dimension) return c.json({ error: 'Not found' }, 404)
+  return c.json({ data: dimension })
 })
 
 // PATCH /dimensions/:id/set-color-source — 设为配色维度（应用层保证全局唯一）

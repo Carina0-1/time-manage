@@ -42,6 +42,23 @@ dimensionOptionsRouter.post('/', zValidator('json', CreateDimensionOptionSchema)
   return c.json({ data: option }, 201)
 })
 
+// PATCH /dimension-options/reorder — 必须注册在 /:id 之前，否则会被参数化路由抢先匹配（Hono 按注册顺序匹配）
+const ReorderSchema = z.object({
+  orders: z.array(z.object({ id: z.string(), sortOrder: z.number().int() })),
+})
+dimensionOptionsRouter.patch('/reorder', zValidator('json', ReorderSchema), async (c) => {
+  const userId = c.get('userId')
+  const { orders } = c.req.valid('json')
+  await Promise.all(
+    orders.map(({ id, sortOrder }) =>
+      db.update(dimensionOptions)
+        .set({ sortOrder, updatedAt: new Date() })
+        .where(and(eq(dimensionOptions.id, id), eq(dimensionOptions.userId, userId)))
+    )
+  )
+  return c.json({ data: null })
+})
+
 // 校验 newParentId 是否会形成环（newParentId 是 optionId 自身的子孙）
 async function wouldCreateCycle(optionId: string, newParentId: string, userId: string): Promise<boolean> {
   let cursor: string | null = newParentId
@@ -78,23 +95,6 @@ dimensionOptionsRouter.patch('/:id', zValidator('json', UpdateDimensionOptionSch
 
   if (!option) return c.json({ error: 'Not found' }, 404)
   return c.json({ data: option })
-})
-
-// PATCH /dimension-options/reorder
-const ReorderSchema = z.object({
-  orders: z.array(z.object({ id: z.string(), sortOrder: z.number().int() })),
-})
-dimensionOptionsRouter.patch('/reorder', zValidator('json', ReorderSchema), async (c) => {
-  const userId = c.get('userId')
-  const { orders } = c.req.valid('json')
-  await Promise.all(
-    orders.map(({ id, sortOrder }) =>
-      db.update(dimensionOptions)
-        .set({ sortOrder, updatedAt: new Date() })
-        .where(and(eq(dimensionOptions.id, id), eq(dimensionOptions.userId, userId)))
-    )
-  )
-  return c.json({ data: null })
 })
 
 // DELETE /dimension-options/:id  (递归软删自己+子孙，清空引用，不删任务)
