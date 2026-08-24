@@ -49,14 +49,18 @@
 
 .chipDropdown {
   position: absolute;
-  top: calc(100% + 6px);
+  top: 100%;
   left: 0;
+  padding-top: 6px;
   min-width: 200px;
+  z-index: 200;
+}
+
+.chipDropdownInner {
   background: #fff;
   border: 1px solid #e0e0e0;
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  z-index: 200;
   max-height: 300px;
   overflow-y: auto;
 }

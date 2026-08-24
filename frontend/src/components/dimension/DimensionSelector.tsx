@@ -80,27 +80,29 @@ export default function DimensionSelector({
 
       {open && (
         <div className={styles.chipDropdown}>
-          {flatOptions.length === 0 ? (
-            <div className={styles.chipDropdownEmpty}>暂无{dimension.name}</div>
-          ) : (
-            flatOptions.map(({ option, depth }) => (
-              <div
-                key={option.id}
-                className={`${styles.chipDropdownItem} ${selectedOptionId === option.id ? styles.chipDropdownItemSelected : ''}`}
-                style={{ paddingLeft: `${12 + depth * 16}px` }}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  onSelect(selectedOptionId === option.id ? undefined : option.id)
-                  closeAndUnlock()
-                }}
-              >
-                <span className={styles.chipDropdownDot} style={{ background: option.color }} />
-                {option.icon && <span>{option.icon}</span>}
-                <span className={styles.chipDropdownName}>{option.name}</span>
-                {selectedOptionId === option.id && <span className={styles.chipDropdownCheck}>✓</span>}
-              </div>
-            ))
-          )}
+          <div className={styles.chipDropdownInner}>
+            {flatOptions.length === 0 ? (
+              <div className={styles.chipDropdownEmpty}>暂无{dimension.name}</div>
+            ) : (
+              flatOptions.map(({ option, depth }) => (
+                <div
+                  key={option.id}
+                  className={`${styles.chipDropdownItem} ${selectedOptionId === option.id ? styles.chipDropdownItemSelected : ''}`}
+                  style={{ paddingLeft: `${12 + depth * 16}px` }}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    onSelect(selectedOptionId === option.id ? undefined : option.id)
+                    closeAndUnlock()
+                  }}
+                >
+                  <span className={styles.chipDropdownDot} style={{ background: option.color }} />
+                  {option.icon && <span>{option.icon}</span>}
+                  <span className={styles.chipDropdownName}>{option.name}</span>
+                  {selectedOptionId === option.id && <span className={styles.chipDropdownCheck}>✓</span>}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>
