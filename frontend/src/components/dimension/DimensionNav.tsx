@@ -97,6 +97,7 @@ function DimensionSection({
           style={{ paddingLeft: '10px' }}
           onClick={() => handleSelect(option.id)}
         >
+          <span className={styles.expandIcon} />
           <span className={styles.tagNavDot} style={{ background: option.color }} />
           {option.icon && <span>{option.icon}</span>}
           <span className={styles.tagNavLabel}>{option.name}</span>
