@@ -102,7 +102,7 @@ export default function OptionTimelinePanel({
 
   return (
     <div className={formStyles.formModalOverlay}>
-      <div className={formStyles.formModal}>
+      <div className={`${formStyles.formModal} ${styles.timelineModal}`}>
         <div className={formStyles.formModalHeader}>
           <span>{option.name} 的状态时间线</span>
           <button className={formStyles.formModalClose} onClick={onClose}>✕</button>

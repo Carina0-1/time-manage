@@ -212,6 +212,10 @@
   white-space: nowrap;
 }
 
+.timelineModal {
+  width: 440px;
+}
+
 .timelineRow {
   display: flex;
   align-items: center;
@@ -226,6 +230,7 @@
   flex: 1;
   color: var(--ink-soft);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .timelineOngoing {
