@@ -7,15 +7,18 @@ import { buildOptionTree, getDescendantIds } from '@/utils/dimensionTree'
 import styles from '../Layout.module.css'
 
 export default function DimensionNav() {
-  const { dimensions, optionsByDimension, fetchDimensions, fetchOptions } = useDimensionStore()
+  const { dimensions, optionsByDimension, currentStateByOption, fetchDimensions, fetchOptions, fetchCurrentStates } = useDimensionStore()
 
   useEffect(() => {
     fetchDimensions()
   }, [fetchDimensions])
 
   useEffect(() => {
-    dimensions.forEach((d) => fetchOptions(d.id))
-  }, [dimensions, fetchOptions])
+    dimensions.forEach((d) => {
+      fetchOptions(d.id)
+      if (d.type === 'entity') fetchCurrentStates(d.id)
+    })
+  }, [dimensions, fetchOptions, fetchCurrentStates])
 
   const visibleDimensions = [...dimensions]
     .filter((d) => d.showInSidebar)
@@ -24,13 +27,26 @@ export default function DimensionNav() {
   return (
     <>
       {visibleDimensions.map((dim) => (
-        <DimensionSection key={dim.id} dimension={dim} options={optionsByDimension[dim.id] ?? []} />
+        <DimensionSection
+          key={dim.id}
+          dimension={dim}
+          options={optionsByDimension[dim.id] ?? []}
+          currentStateByOption={currentStateByOption}
+        />
       ))}
     </>
   )
 }
 
-function DimensionSection({ dimension, options }: { dimension: Dimension; options: DimensionOption[] }) {
+function DimensionSection({
+  dimension,
+  options,
+  currentStateByOption,
+}: {
+  dimension: Dimension
+  options: DimensionOption[]
+  currentStateByOption: Record<string, { name: string; color?: string }>
+}) {
   const { activeDimensionFilters, setDimensionFilter } = useUiStore()
   const navigate = useNavigate()
   const location = useLocation()
@@ -84,6 +100,17 @@ function DimensionSection({ dimension, options }: { dimension: Dimension; option
           <span className={styles.tagNavDot} style={{ background: option.color }} />
           {option.icon && <span>{option.icon}</span>}
           <span className={styles.tagNavLabel}>{option.name}</span>
+          {dimension.type === 'entity' && currentStateByOption[option.id] && (
+            <span
+              className={styles.stateBadge}
+              style={{
+                background: currentStateByOption[option.id].color ? currentStateByOption[option.id].color + '20' : 'var(--panel-2)',
+                color: currentStateByOption[option.id].color ?? 'var(--ink-faint)',
+              }}
+            >
+              {currentStateByOption[option.id].name}
+            </span>
+          )}
         </div>
       ))}
     </div>

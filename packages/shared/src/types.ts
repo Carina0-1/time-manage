@@ -27,7 +27,7 @@ export interface Task {
   updatedAt: string
 }
 
-export type DimensionType = 'single' | 'tree'
+export type DimensionType = 'single' | 'tree' | 'entity'
 
 export interface Dimension {
   id: string
@@ -54,6 +54,36 @@ export interface DimensionOption {
   sortOrder: number
   createdAt: string
   updatedAt: string
+}
+
+export interface DimensionState {
+  id: string
+  dimensionId: string
+  userId: string
+  name: string
+  color?: string
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DimensionOptionState {
+  id: string
+  optionId: string
+  stateId: string
+  userId: string
+  startDate: string   // "YYYY-MM-DD"
+  endDate?: string     // "YYYY-MM-DD"，为空表示进行中
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CurrentOptionState {
+  optionId: string
+  stateId: string
+  name: string
+  color?: string
+  startDate: string
 }
 
 export interface DailyActivity {

@@ -9,6 +9,8 @@ import { tasksRouter } from './routes/tasks.js'
 import { statsRouter } from './routes/stats.js'
 import { dimensionsRouter } from './routes/dimensions.js'
 import { dimensionOptionsRouter } from './routes/dimensionOptions.js'
+import { dimensionStatesRouter } from './routes/dimensionStates.js'
+import { dimensionOptionStatesRouter } from './routes/dimensionOptionStates.js'
 
 export const app = new Hono()
 
@@ -27,6 +29,8 @@ app.route('/api/tasks', tasksRouter)
 app.route('/api/stats', statsRouter)
 app.route('/api/dimensions', dimensionsRouter)
 app.route('/api/dimension-options', dimensionOptionsRouter)
+app.route('/api/dimension-states', dimensionStatesRouter)
+app.route('/api/dimension-option-states', dimensionOptionStatesRouter)
 
 // 统一错误处理
 app.onError((err, c) => {

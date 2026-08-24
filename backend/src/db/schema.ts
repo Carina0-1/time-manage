@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, jsonb, integer, foreignKey, uniqueIndex } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, timestamp, jsonb, integer, foreignKey, uniqueIndex, date } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -40,6 +40,29 @@ export const dimensionOptions = pgTable('dimension_options', {
   foreignKey({ columns: [t.parentId], foreignColumns: [t.id], name: 'dimension_options_parent_id_fk' })
     .onDelete('cascade'),
 ])
+
+export const dimensionStates = pgTable('dimension_states', {
+  id: text('id').primaryKey(),
+  dimensionId: text('dimension_id').references(() => dimensions.id, { onDelete: 'cascade' }).notNull(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  color: text('color'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+})
+
+export const dimensionOptionStates = pgTable('dimension_option_states', {
+  id: text('id').primaryKey(),
+  optionId: text('option_id').references(() => dimensionOptions.id, { onDelete: 'cascade' }).notNull(),
+  stateId: text('state_id').references(() => dimensionStates.id, { onDelete: 'cascade' }).notNull(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
 
 export const tasks = pgTable('tasks', {
   id: text('id').primaryKey(),

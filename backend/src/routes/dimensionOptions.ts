@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator'
 import { eq, and, isNull, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/index.js'
-import { dimensionOptions, taskDimensionValues } from '../db/schema.js'
+import { dimensions, dimensionOptions, taskDimensionValues } from '../db/schema.js'
 import { CreateDimensionOptionSchema, UpdateDimensionOptionSchema } from '@time-manage/shared'
 import type { AuthEnv } from '../middleware/auth.js'
 
@@ -30,6 +30,15 @@ dimensionOptionsRouter.get('/', zValidator('query', ListQuerySchema), async (c) 
 dimensionOptionsRouter.post('/', zValidator('json', CreateDimensionOptionSchema), async (c) => {
   const userId = c.get('userId')
   const body = c.req.valid('json')
+
+  if (body.parentId) {
+    const [dimension] = await db
+      .select({ type: dimensions.type })
+      .from(dimensions)
+      .where(and(eq(dimensions.id, body.dimensionId), eq(dimensions.userId, userId)))
+    if (dimension?.type === 'entity') return c.json({ error: '实体型维度的选项不支持上级节点' }, 400)
+  }
+
   const now = new Date()
 
   const [option] = await db.insert(dimensionOptions).values({
@@ -83,6 +92,17 @@ dimensionOptionsRouter.patch('/:id', zValidator('json', UpdateDimensionOptionSch
   const body = c.req.valid('json')
 
   if (body.parentId) {
+    const [existing] = await db
+      .select({ dimensionId: dimensionOptions.dimensionId })
+      .from(dimensionOptions)
+      .where(and(eq(dimensionOptions.id, id), eq(dimensionOptions.userId, userId)))
+    if (!existing) return c.json({ error: 'Not found' }, 404)
+    const [dimension] = await db
+      .select({ type: dimensions.type })
+      .from(dimensions)
+      .where(and(eq(dimensions.id, existing.dimensionId), eq(dimensions.userId, userId)))
+    if (dimension?.type === 'entity') return c.json({ error: '实体型维度的选项不支持上级节点' }, 400)
+
     const cycle = await wouldCreateCycle(id, body.parentId, userId)
     if (cycle) return c.json({ error: '不能将节点移动到自己的子孙节点下' }, 400)
   }

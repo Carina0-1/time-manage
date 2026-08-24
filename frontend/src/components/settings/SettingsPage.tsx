@@ -18,10 +18,12 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { Dimension, DimensionOption } from '@time-manage/shared'
+import type { Dimension, DimensionOption, DimensionType } from '@time-manage/shared'
 import { useDimensionStore } from '@/stores/dimensionStore'
 import { dimensionsApi } from '@/api/dimensions'
 import { buildOptionTree, flattenOptionTree } from '@/utils/dimensionTree'
+import StateManager from './StateManager'
+import OptionTimelinePanel from './OptionTimelinePanel'
 import styles from './SettingsPage.module.css'
 import formStyles from '../Layout.module.css'
 
@@ -46,7 +48,7 @@ const PRESET_COLORS = [
 
 const DimensionFormSchema = z.object({
   name: z.string().min(1, '请输入名称').max(50),
-  type: z.enum(['single', 'tree']),
+  type: z.enum(['single', 'tree', 'entity']),
   icon: z.string().optional(),
   isRequired: z.boolean(),
   showInSidebar: z.boolean(),
@@ -193,10 +195,13 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className={styles.detailMeta}>
-                <span>类型：{selectedDimension.type === 'tree' ? '树形（多级）' : '单选（平铺）'}</span>
+                <span>类型：{selectedDimension.type === 'tree' ? '树形（多级）' : selectedDimension.type === 'entity' ? '实体型（带状态时间线）' : '单选（平铺）'}</span>
                 <span>必填：{selectedDimension.isRequired ? '是' : '否'}</span>
                 <span>侧边栏展示：{selectedDimension.showInSidebar ? '是' : '否'}</span>
               </div>
+              {selectedDimension.type === 'entity' && (
+                <StateManager dimension={selectedDimension} />
+              )}
               <OptionManager
                 dimension={selectedDimension}
                 options={optionsByDimension[selectedDimension.id] ?? []}
@@ -226,6 +231,7 @@ export default function SettingsPage() {
                 <select {...dimRegister('type')} disabled={!!editingDimensionId} className={formStyles.formInput}>
                   <option value="single">单选（平铺列表）</option>
                   <option value="tree">单选（树形，多级标签）</option>
+                  <option value="entity">实体型（带状态时间线）</option>
                 </select>
               </div>
               <div className={formStyles.formField}>
@@ -312,11 +318,19 @@ function SortableDimensionItem({
 }
 
 function OptionManager({ dimension, options }: { dimension: Dimension; options: DimensionOption[] }) {
-  const { addOption, updateOption, removeOption, reorderOptions } = useDimensionStore()
+  const { addOption, updateOption, removeOption, reorderOptions, statesByDimension, currentStateByOption, fetchStates, fetchCurrentStates } = useDimensionStore()
   const [showForm, setShowForm] = useState(false)
   const [editingOptionId, setEditingOptionId] = useState<string | null>(null)
   const [parentForNew, setParentForNew] = useState<string | undefined>(undefined)
+  const [timelineOption, setTimelineOption] = useState<DimensionOption | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  useEffect(() => {
+    if (dimension.type === 'entity') {
+      fetchStates(dimension.id)
+      fetchCurrentStates(dimension.id)
+    }
+  }, [dimension.id, dimension.type, fetchStates, fetchCurrentStates])
 
   const {
     register, handleSubmit, reset, setValue, watch,
@@ -425,12 +439,31 @@ function OptionManager({ dimension, options }: { dimension: Dimension; options: 
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleFlatDragEnd}>
           <SortableContext items={sortedFlatOptions.map((o) => o.id)} strategy={verticalListSortingStrategy}>
             {sortedFlatOptions.map((option) => (
-              <SortableOptionRow key={option.id} option={option} onEdit={openEdit} onDelete={handleDelete} />
+              <SortableOptionRow
+                key={option.id}
+                option={option}
+                onEdit={openEdit}
+                onDelete={handleDelete}
+                dimensionType={dimension.type}
+                currentState={currentStateByOption[option.id]}
+                onOpenTimeline={dimension.type === 'entity' ? () => setTimelineOption(option) : undefined}
+              />
             ))}
           </SortableContext>
         </DndContext>
       )}
       {options.length === 0 && <div className={styles.empty}>暂无选项</div>}
+
+      {timelineOption && (
+        <OptionTimelinePanel
+          option={timelineOption}
+          states={statesByDimension[dimension.id] ?? []}
+          onClose={() => {
+            setTimelineOption(null)
+            fetchCurrentStates(dimension.id)
+          }}
+        />
+      )}
 
       {showForm && (
         <div className={formStyles.formModalOverlay}>
@@ -608,10 +641,16 @@ function SortableOptionRow({
   option,
   onEdit,
   onDelete,
+  dimensionType,
+  currentState,
+  onOpenTimeline,
 }: {
   option: DimensionOption
   onEdit: (option: DimensionOption) => void
   onDelete: (optionId: string) => void
+  dimensionType?: DimensionType
+  currentState?: { name: string; color?: string }
+  onOpenTimeline?: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: option.id })
   const style: React.CSSProperties = {
@@ -627,6 +666,19 @@ function SortableOptionRow({
       <span className={styles.optionDot} style={{ background: option.color }} />
       {option.icon && <span>{option.icon}</span>}
       <span className={styles.optionName}>{option.name}</span>
+      {dimensionType === 'entity' && (
+        <button className={styles.linkBtnSmall} onClick={onOpenTimeline}>
+          状态时间线
+          {currentState && (
+            <span
+              className={styles.stateBadge}
+              style={{ background: currentState.color ? currentState.color + '20' : 'var(--panel-2)', color: currentState.color ?? 'var(--ink-faint)' }}
+            >
+              {currentState.name}
+            </span>
+          )}
+        </button>
+      )}
       <button className={styles.linkBtnSmall} onClick={() => onEdit(option)}>编辑</button>
       <button className={styles.linkBtnSmallDanger} onClick={() => onDelete(option.id)}>删除</button>
     </div>
