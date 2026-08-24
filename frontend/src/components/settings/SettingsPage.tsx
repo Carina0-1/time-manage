@@ -62,10 +62,11 @@ const OptionFormSchema = z.object({
 type OptionFormValues = z.infer<typeof OptionFormSchema>
 
 export default function SettingsPage() {
-  const { dimensions, optionsByDimension, fetchDimensions, fetchOptions, addDimension, updateDimension, removeDimension } = useDimensionStore()
+  const { dimensions, optionsByDimension, fetchDimensions, fetchOptions, addDimension, updateDimension, removeDimension, reorderDimensions } = useDimensionStore()
   const [selectedDimensionId, setSelectedDimensionId] = useState<string | null>(null)
   const [showDimensionForm, setShowDimensionForm] = useState(false)
   const [editingDimensionId, setEditingDimensionId] = useState<string | null>(null)
+  const dimensionSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   useEffect(() => {
     fetchDimensions()
@@ -136,6 +137,21 @@ export default function SettingsPage() {
     dimensions.forEach((d) => updateDimension(d.id, { isColorSource: d.id === id }))
   }
 
+  const handleDimensionDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = sortedDimensions.findIndex((d) => d.id === active.id)
+    const newIndex = sortedDimensions.findIndex((d) => d.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const reordered = arrayMove(sortedDimensions, oldIndex, newIndex).map((d, i) => ({ ...d, sortOrder: i }))
+    reorderDimensions(reordered)
+    try {
+      await dimensionsApi.reorder(reordered.map((d) => ({ id: d.id, sortOrder: d.sortOrder })))
+    } catch {
+      reorderDimensions(sortedDimensions)
+    }
+  }
+
   return (
     <div className={styles.page}>
       <h1 className={styles.title}>设置</h1>
@@ -145,18 +161,18 @@ export default function SettingsPage() {
             <span>维度</span>
             <button className={styles.addBtn} onClick={openCreateDimension} title="新建维度">＋</button>
           </div>
-          {sortedDimensions.map((dim) => (
-            <div
-              key={dim.id}
-              className={`${styles.dimensionItem} ${selectedDimensionId === dim.id ? styles.dimensionItemActive : ''}`}
-              onClick={() => setSelectedDimensionId(dim.id)}
-            >
-              <span>{dim.icon}</span>
-              <span className={styles.dimensionItemName}>{dim.name}</span>
-              <span className={styles.dimensionItemType}>{dim.type === 'tree' ? '树形' : '单选'}</span>
-              {dim.isColorSource && <span className={styles.colorBadge} title="配色维度">🎨</span>}
-            </div>
-          ))}
+          <DndContext sensors={dimensionSensors} collisionDetection={closestCenter} onDragEnd={handleDimensionDragEnd}>
+            <SortableContext items={sortedDimensions.map((d) => d.id)} strategy={verticalListSortingStrategy}>
+              {sortedDimensions.map((dim) => (
+                <SortableDimensionItem
+                  key={dim.id}
+                  dimension={dim}
+                  active={selectedDimensionId === dim.id}
+                  onSelect={() => setSelectedDimensionId(dim.id)}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         </div>
 
         <div className={styles.detail}>
@@ -253,6 +269,44 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function SortableDimensionItem({
+  dimension,
+  active,
+  onSelect,
+}: {
+  dimension: Dimension
+  active: boolean
+  onSelect: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dimension.id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`${styles.dimensionItem} ${active ? styles.dimensionItemActive : ''}`}
+      onClick={onSelect}
+    >
+      <span
+        className={formStyles.dragHandle}
+        onClick={(e) => e.stopPropagation()}
+        {...attributes}
+        {...listeners}
+      >⠿</span>
+      <span>{dimension.icon}</span>
+      <span className={styles.dimensionItemName}>{dimension.name}</span>
+      <span className={styles.dimensionItemType}>{dimension.type === 'tree' ? '树形' : '单选'}</span>
+      {dimension.isColorSource && <span className={styles.colorBadge} title="配色维度">🎨</span>}
     </div>
   )
 }
