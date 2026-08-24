@@ -354,7 +354,7 @@ function OptionManager({ dimension, options }: { dimension: Dimension; options: 
   const openEdit = (option: DimensionOption) => {
     setEditingOptionId(option.id)
     setParentForNew(undefined)
-    reset({ name: option.name, color: option.color, icon: option.icon ?? '', parentId: option.parentId })
+    reset({ name: option.name, color: option.color, icon: option.icon ?? '', parentId: option.parentId ?? undefined })
     setShowForm(true)
   }
 
