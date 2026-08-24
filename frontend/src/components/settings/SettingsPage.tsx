@@ -348,14 +348,14 @@ function OptionManager({ dimension, options }: { dimension: Dimension; options: 
     if (editingOptionId) {
       const updated = await dimensionsApi.updateOption(editingOptionId, {
         name: data.name, color: data.color, icon: data.icon,
-        parentId: dimension.type === 'tree' ? data.parentId : undefined,
+        parentId: dimension.type === 'tree' ? (data.parentId || undefined) : undefined,
       })
       updateOption(dimension.id, editingOptionId, updated)
     } else {
       const nextOrder = options.length > 0 ? Math.max(...options.map((o) => o.sortOrder)) + 1 : 0
       const created = await dimensionsApi.createOption({
         id: nanoid(), dimensionId: dimension.id,
-        parentId: dimension.type === 'tree' ? (parentForNew ?? data.parentId) : undefined,
+        parentId: dimension.type === 'tree' ? ((parentForNew || data.parentId) || undefined) : undefined,
         name: data.name, color: data.color, icon: data.icon, sortOrder: nextOrder,
       })
       addOption(dimension.id, created)
