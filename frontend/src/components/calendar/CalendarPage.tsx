@@ -13,6 +13,7 @@ import type {
 } from '@fullcalendar/core'
 import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import dayjs from 'dayjs'
+import isoWeek from 'dayjs/plugin/isoWeek'
 import type { Dimension, DimensionOption, Task } from '@time-manage/shared'
 import { buildOptionTree, flattenOptionTree, getDescendantIds } from '@/utils/dimensionTree'
 import { useTaskStore } from '@/stores/taskStore'
@@ -20,6 +21,8 @@ import { useDimensionStore } from '@/stores/dimensionStore'
 import { useUiStore } from '@/stores/uiStore'
 import { tasksApi } from '@/api/tasks'
 import styles from './CalendarPage.module.css'
+
+dayjs.extend(isoWeek)
 
 const fmt = (d: Date) => dayjs(d).format('HH:mm')
 
@@ -235,6 +238,28 @@ export default function CalendarPage() {
           headerToolbar={false}
           locale="zh-cn"
           firstDay={1}
+          views={{
+            timeGridWeek: {
+              dayHeaderClassNames: (info) => info.date.getDay() === 0 ? [styles.weekNumberHeader] : [],
+              dayHeaderContent: (info) => info.date.getDay() === 0 ? (
+                <span className={styles.weekHeaderContent}>
+                  <WeekNumber date={info.date} />
+                  <span>{info.text}</span>
+                </span>
+              ) : info.text,
+            },
+            dayGridMonth: {
+              dayCellClassNames: (info) => info.date.getDay() === 0 ? [styles.weekNumberCell] : [],
+              dayCellContent: (info) => (
+                <>
+                  {info.date.getDay() === 0 && (
+                    <WeekNumber date={info.date} className={styles.monthWeekNumber} />
+                  )}
+                  <span className={styles.monthDayNumber}>{info.dayNumberText}</span>
+                </>
+              ),
+            },
+          }}
           slotMinTime="06:00:00"
           slotMaxTime="24:00:00"
           allDayText="全天"
@@ -262,6 +287,17 @@ export default function CalendarPage() {
         />
       </div>
     </div>
+  )
+}
+
+function WeekNumber({ date, className = '' }: { date: Date; className?: string }) {
+  const week = dayjs(date).isoWeek()
+  const label = `第 ${week} 周`
+
+  return (
+    <span className={`${styles.weekNumber} ${className}`} title={label} aria-label={label}>
+      {week}
+    </span>
   )
 }
 

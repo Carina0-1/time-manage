@@ -152,6 +152,42 @@
   overflow: hidden;
 }
 
+/* 周数放在周日左侧，与日期保持相同的顶部对齐。 */
+.weekNumber {
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.weekNumberHeader :global(.fc-col-header-cell-cushion) {
+  display: block;
+  padding-inline: 8px;
+}
+
+.weekHeaderContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.weekNumberCell :global(.fc-daygrid-day-number) {
+  position: static;
+}
+
+.monthWeekNumber {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+}
+
+.monthDayNumber {
+  white-space: nowrap;
+}
+
 /* ============ Event card — timeGrid ============ */
 .evCard {
   padding: 5px 8px;
