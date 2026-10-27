@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Dimension, DimensionOption } from '@time-manage/shared'
-import { buildOptionTree, flattenOptionTree, getOptionPath } from '@/utils/dimensionTree'
+import { getOrderedOptionNodes, getOptionPath } from '@/utils/dimensionTree'
 import styles from './DimensionSelector.module.css'
 
 export default function DimensionSelector({
@@ -35,9 +35,7 @@ export default function DimensionSelector({
     lockedRef.current = false
   }
 
-  const flatOptions = dimension.type === 'tree'
-    ? flattenOptionTree(buildOptionTree(options))
-    : options.map((o) => ({ option: o, depth: 0, children: [] }))
+  const flatOptions = getOrderedOptionNodes(options, dimension.type)
 
   const selected = options.find((o) => o.id === selectedOptionId)
 
@@ -93,6 +91,8 @@ export default function DimensionSelector({
                 <button
                   type="button"
                   key={option.id}
+                  title={getOptionPath(options, option.id)}
+                  aria-label={getOptionPath(options, option.id)}
                   className={`${styles.chipDropdownItem} ${selectedOptionId === option.id ? styles.chipDropdownItemSelected : ''}`}
                   style={{ paddingLeft: `${12 + depth * 16}px` }}
                   onMouseDown={e => e.preventDefault()}
@@ -103,7 +103,7 @@ export default function DimensionSelector({
                 >
                   <span className={styles.chipDropdownDot} style={{ background: option.color }} />
                   {option.icon && <span>{option.icon}</span>}
-                  <span className={styles.chipDropdownName}>{dimension.type === 'tree' ? getOptionPath(options, option.id) : option.name}</span>
+                  <span className={styles.chipDropdownName}>{option.name}</span>
                   {selectedOptionId === option.id && <span className={styles.chipDropdownCheck}>✓</span>}
                 </button>
               ))

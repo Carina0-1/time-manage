@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Dimension, DimensionOption } from '@time-manage/shared'
 import { UNSET_DIMENSION_VALUE } from '@time-manage/shared'
-import { getOptionPath } from '@/utils/dimensionTree'
+import { getOptionPath, getOrderedOptionNodes } from '@/utils/dimensionTree'
 import { canLeaveTaskEditor } from '@/stores/taskListStore'
 import styles from './TaskListPage.module.css'
 
@@ -24,8 +24,8 @@ export default function DimensionFields({ dimensions, optionsByDimension, values
     {!dimensions.length && <p className={styles.hint}>暂无维度，<Link to="/settings" onClick={async e => { e.preventDefault(); if (await canLeaveTaskEditor()) navigate('/settings') }}>前往设置</Link>添加。</p>}
     <div className={styles.dimensionGrid}>
       {dimensions.map(dim => {
-        const options = [...(optionsByDimension[dim.id] ?? [])].sort((a, b) => a.sortOrder - b.sortOrder)
-        const paths = options.map(option => ({ option, path: getOptionPath(options, option.id) }))
+        const options = optionsByDimension[dim.id] ?? []
+        const paths = getOrderedOptionNodes(options, dim.type).map(({ option, depth }) => ({ option, depth, path: getOptionPath(options, option.id) }))
         const matching = mode === 'tag' ? paths : paths.filter(({ option, path }) => option.id === values[dim.id] || `${dim.name} ${path}`.toLowerCase().includes(query.trim().toLowerCase()))
         if (mode === 'filter' && query && !matching.length && !dim.name.toLowerCase().includes(query.toLowerCase())) return null
         return <label key={dim.id} className={styles.field}>
@@ -42,12 +42,12 @@ export default function DimensionFields({ dimensions, optionsByDimension, values
               }
             }}>
               <button type="button" disabled={dim.isRequired && !!values[dim.id]} onClick={() => { onChange(dim.id, null); setOpenId(null) }}>未设置</button>
-              {paths.map(({ option, path }) => <button type="button" key={option.id} aria-pressed={option.id === values[dim.id]} onClick={() => { onChange(dim.id, option.id); setOpenId(null) }}>{option.icon && `${option.icon} `}{path}{option.id === values[dim.id] && <span aria-hidden="true">✓</span>}</button>)}
+              {paths.map(({ option, path, depth }) => <button type="button" key={option.id} title={path} aria-label={path} aria-pressed={option.id === values[dim.id]} style={{ paddingLeft: 8 + depth * 14 }} onClick={() => { onChange(dim.id, option.id); setOpenId(null) }}>{option.icon && `${option.icon} `}{option.name}{option.id === values[dim.id] && <span aria-hidden="true">✓</span>}</button>)}
             </div>}
           </div> : <select aria-label={`筛选${dim.name}`} value={values[dim.id] ?? ''} disabled={disabled} onChange={e => onChange(dim.id, e.target.value || null)}>
             <option value="">不限</option>
             <option value={UNSET_DIMENSION_VALUE}>未设置</option>
-            {matching.map(({ option, path }) => <option key={option.id} value={option.id}>{option.icon ? `${option.icon} ` : ''}{path}{mode === 'filter' && dim.type === 'tree' && options.some(o => o.parentId === option.id) ? '（及下级）' : ''}</option>)}
+            {matching.map(({ option, path, depth }) => <option key={option.id} value={option.id}>{'\u00a0\u00a0'.repeat(depth)}{option.icon ? `${option.icon} ` : ''}{path}{mode === 'filter' && dim.type === 'tree' && options.some(o => o.parentId === option.id) ? '（及下级）' : ''}</option>)}
           </select>}
           {!options.length && <span className={styles.hint}>暂无选项，请在设置中添加</span>}
         </label>

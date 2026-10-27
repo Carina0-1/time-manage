@@ -1,4 +1,4 @@
-import type { DimensionOption } from '@time-manage/shared'
+import type { DimensionOption, DimensionType } from '@time-manage/shared'
 
 export interface OptionTreeNode {
   option: DimensionOption
@@ -41,6 +41,12 @@ export function flattenOptionTree(nodes: OptionTreeNode[]): OptionTreeNode[] {
   }
   walk(nodes)
   return result
+}
+
+// 树形维度先排列同级节点，再按父子层级展开；不能直接对整棵树扁平排序。
+export function getOrderedOptionNodes(options: DimensionOption[], type: DimensionType): OptionTreeNode[] {
+  if (type === 'tree') return flattenOptionTree(buildOptionTree(options))
+  return [...options].sort((a, b) => a.sortOrder - b.sortOrder).map(option => ({ option, depth: 0, children: [] }))
 }
 
 export function searchOptions(options: DimensionOption[], query: string): DimensionOption[] {

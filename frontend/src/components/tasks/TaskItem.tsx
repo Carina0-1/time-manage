@@ -145,7 +145,6 @@ export default function TaskItem({ task, isNew = false, dimensions, optionsByDim
       <div className={styles.detailContent}>
         <label className={styles.field}><span>任务名称</span>{textInput('title', '任务名称')}</label>
         <label className={styles.field}><span>备注</span>{textInput('description', '备注')}</label>
-        <section className={styles.section}><h3>状态</h3><label className={styles.checkLabel}><input type="checkbox" checked={draft.status === 'done'} disabled={editor.saving || !editor.persisted} onChange={e => editor.changeStatus(e.target.checked)} />已完成</label></section>
         <section className={styles.section}><h3>排期</h3>{schedule}{(task.startTime || task.isAllDay) && <p className={styles.duration}>时长：{durationLabel(task)}</p>}</section>
         <section className={styles.section}><h3>维度信息</h3>{tags}</section>
       </div>
