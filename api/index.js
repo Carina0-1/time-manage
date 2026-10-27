@@ -19622,7 +19622,7 @@ var CreateTaskSchema = external_exports.object({
   endTime: external_exports.string().datetime().optional(),
   isAllDay: external_exports.boolean().default(false),
   dimensionValues: external_exports.record(external_exports.string(), external_exports.string()).default({}),
-  status: external_exports.enum(["todo", "in_progress", "done"]).default("todo"),
+  status: external_exports.enum(["todo", "done"]).default("todo"),
   priority: external_exports.enum(["low", "medium", "high"]).default("medium"),
   recurrence: RecurrenceSchema.optional(),
   expectedOutput: external_exports.string().optional()
@@ -19773,7 +19773,13 @@ async function dimensionConditions(raw2, userId) {
   }
   return conditions;
 }
-var isScheduled = and(isNotNull(tasks.startTime), isNotNull(tasks.endTime), gt(tasks.endTime, tasks.startTime));
+var isScheduled = or(eq(tasks.isAllDay, true), and(isNotNull(tasks.startTime), isNotNull(tasks.endTime), gt(tasks.endTime, tasks.startTime)));
+var isUnscheduled = not(isScheduled);
+var effectiveEndTime = sql`case
+  when ${tasks.isAllDay} = true and ${tasks.startTime} is not null
+    and (${tasks.endTime} is null or ${tasks.endTime} = ${tasks.startTime})
+  then ${tasks.startTime} + interval '1 day'
+  else ${tasks.endTime} end`;
 tasksRouter.get("/list", zValidator("query", TaskListQuerySchema), async (c) => {
   const userId = c.get("userId");
   const query = c.req.valid("query");
@@ -19783,11 +19789,11 @@ tasksRouter.get("/list", zValidator("query", TaskListQuerySchema), async (c) => 
     const pattern = `%${query.q.replace(/[\\%_]/g, "\\$&")}%`;
     conditions.push(sql`(${tasks.title} ilike ${pattern} or ${tasks.description} ilike ${pattern} or ${tasks.expectedOutput} ilike ${pattern})`);
   }
-  if (query.status === "unfinished") conditions.push(inArray(tasks.status, ["todo", "in_progress"]));
+  if (query.status === "unfinished") conditions.push(eq(tasks.status, "todo"));
   else if (query.status !== "all") conditions.push(eq(tasks.status, query.status));
   if (query.schedule === "scheduled" || query.start || query.end) conditions.push(isScheduled);
-  if (query.schedule === "unscheduled") conditions.push(or(isNull(tasks.startTime), isNull(tasks.endTime), lte(tasks.endTime, tasks.startTime)));
-  if (query.start) conditions.push(gt(tasks.endTime, new Date(query.start)));
+  if (query.schedule === "unscheduled") conditions.push(isUnscheduled);
+  if (query.start) conditions.push(gt(effectiveEndTime, new Date(query.start)));
   if (query.end) conditions.push(lt(tasks.startTime, new Date(query.end)));
   const order = query.sort === "created_asc" ? asc(tasks.createdAt) : query.sort === "start_asc" ? sql`${tasks.startTime} asc nulls last` : query.sort === "start_desc" ? sql`${tasks.startTime} desc nulls last` : desc(tasks.createdAt);
   const result = await db.transaction(async (tx) => {
@@ -19804,13 +19810,13 @@ tasksRouter.get("/", async (c) => {
   const query = c.req.query();
   const conditions = [eq(tasks.userId, userId), isNull(tasks.deletedAt), ...await dimensionConditions(query, userId)];
   if (query.all !== "true") {
-    if (query.inbox === "true") conditions.push(isNull(tasks.startTime));
+    if (query.inbox === "true") conditions.push(isUnscheduled);
     else {
       for (const key of ["start", "end"]) {
         if (query[key] && Number.isNaN(new Date(query[key]).getTime())) return badRequest("\u65E5\u671F\u683C\u5F0F\u65E0\u6548");
       }
-      if (query.end) conditions.push(lte(tasks.startTime, new Date(query.end)));
-      if (query.start) conditions.push(gte(tasks.endTime, new Date(query.start)));
+      if (query.end) conditions.push(lt(tasks.startTime, new Date(query.end)));
+      if (query.start) conditions.push(gt(effectiveEndTime, new Date(query.start)));
     }
   }
   const rows = await db.select().from(tasks).where(and(...conditions));
@@ -19822,10 +19828,14 @@ tasksRouter.get("/:id", async (c) => {
   const [result] = await attachDimensions([task]);
   return c.json({ data: result });
 });
-function validateTimes(start, end) {
-  if (!start && !end) return;
+function validateTimes(start, end, isAllDay) {
+  if (!start && !end) return { startTime: null, endTime: null };
+  if (isAllDay && start && (!end || end.getTime() === start.getTime())) {
+    end = new Date(start.getTime() + 24 * 60 * 60 * 1e3);
+  }
   if (!start || !end) return badRequest("\u8BF7\u540C\u65F6\u586B\u5199\u5F00\u59CB\u548C\u7ED3\u675F\u65F6\u95F4\uFF0C\u6216\u540C\u65F6\u7559\u7A7A");
   if (end <= start) return badRequest("\u7ED3\u675F\u65F6\u95F4\u987B\u665A\u4E8E\u5F00\u59CB\u65F6\u95F4");
+  return { startTime: start, endTime: end };
 }
 async function validateDimensions(conn, userId, values) {
   const dims = await conn.select().from(dimensions).where(and(eq(dimensions.userId, userId), isNull(dimensions.deletedAt)));
@@ -19841,9 +19851,7 @@ async function validateDimensions(conn, userId, values) {
 tasksRouter.post("/", zValidator("json", CreateTaskSchema), async (c) => {
   const userId = c.get("userId");
   const { dimensionValues, ...body } = c.req.valid("json");
-  const startTime = body.startTime ? new Date(body.startTime) : null;
-  const endTime = body.endTime ? new Date(body.endTime) : null;
-  validateTimes(startTime, endTime);
+  const { startTime, endTime } = validateTimes(body.startTime ? new Date(body.startTime) : null, body.endTime ? new Date(body.endTime) : null, body.isAllDay);
   const result = await db.transaction(async (tx) => {
     await validateDimensions(tx, userId, dimensionValues);
     const now = /* @__PURE__ */ new Date();
@@ -19861,9 +19869,11 @@ tasksRouter.patch("/:id", zValidator("json", UpdateTaskSchema), async (c) => {
   const result = await db.transaction(async (tx) => {
     const [existing] = await tx.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.userId, userId), isNull(tasks.deletedAt))).for("update");
     if (!existing) return notFound();
-    const startTime = body.startTime === void 0 ? existing.startTime : body.startTime === null ? null : new Date(body.startTime);
-    const endTime = body.endTime === void 0 ? existing.endTime : body.endTime === null ? null : new Date(body.endTime);
-    if (body.startTime !== void 0 || body.endTime !== void 0) validateTimes(startTime, endTime);
+    let startTime = body.startTime === void 0 ? existing.startTime : body.startTime === null ? null : new Date(body.startTime);
+    let endTime = body.endTime === void 0 ? existing.endTime : body.endTime === null ? null : new Date(body.endTime);
+    if (body.startTime !== void 0 || body.endTime !== void 0 || body.isAllDay !== void 0) {
+      ({ startTime, endTime } = validateTimes(startTime, endTime, body.isAllDay ?? existing.isAllDay));
+    }
     if (dimensionValues !== void 0) await validateDimensions(tx, userId, dimensionValues);
     const [task] = await tx.update(tasks).set({ ...body, startTime, endTime, updatedAt: /* @__PURE__ */ new Date() }).where(eq(tasks.id, id)).returning();
     if (dimensionValues !== void 0) {

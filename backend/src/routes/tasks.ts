@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { zValidator } from '@hono/zod-validator'
-import { eq, and, isNull, isNotNull, gte, lte, lt, gt, inArray, or, sql, asc, desc, count, type SQL } from 'drizzle-orm'
+import { eq, and, isNull, isNotNull, lt, gt, inArray, or, not, sql, asc, desc, count, type SQL } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '../db/index.js'
 import { tasks, taskDimensionValues, dimensions, dimensionOptions } from '../db/schema.js'
@@ -61,7 +61,14 @@ async function dimensionConditions(raw: Record<string, string>, userId: string) 
   return conditions
 }
 
-const isScheduled = and(isNotNull(tasks.startTime), isNotNull(tasks.endTime), gt(tasks.endTime, tasks.startTime))!
+// 全天任务按全天标记归入已排期，兼容历史单日记录的起止时间相同。
+const isScheduled = or(eq(tasks.isAllDay, true), and(isNotNull(tasks.startTime), isNotNull(tasks.endTime), gt(tasks.endTime, tasks.startTime)))!
+const isUnscheduled = not(isScheduled)
+const effectiveEndTime = sql<Date>`case
+  when ${tasks.isAllDay} = true and ${tasks.startTime} is not null
+    and (${tasks.endTime} is null or ${tasks.endTime} = ${tasks.startTime})
+  then ${tasks.startTime} + interval '1 day'
+  else ${tasks.endTime} end`
 
 // 独立分页接口，保留旧的日历 /tasks 数组响应。
 tasksRouter.get('/list', zValidator('query', TaskListQuerySchema), async c => {
@@ -73,12 +80,12 @@ tasksRouter.get('/list', zValidator('query', TaskListQuerySchema), async c => {
     const pattern = `%${query.q.replace(/[\\%_]/g, '\\$&')}%`
     conditions.push(sql`(${tasks.title} ilike ${pattern} or ${tasks.description} ilike ${pattern} or ${tasks.expectedOutput} ilike ${pattern})`)
   }
-  if (query.status === 'unfinished') conditions.push(inArray(tasks.status, ['todo', 'in_progress']))
+  if (query.status === 'unfinished') conditions.push(eq(tasks.status, 'todo'))
   else if (query.status !== 'all') conditions.push(eq(tasks.status, query.status))
   if (query.schedule === 'scheduled' || query.start || query.end) conditions.push(isScheduled)
-  if (query.schedule === 'unscheduled') conditions.push(or(isNull(tasks.startTime), isNull(tasks.endTime), lte(tasks.endTime, tasks.startTime))!)
+  if (query.schedule === 'unscheduled') conditions.push(isUnscheduled)
   // 结束日期由客户端转为次日零点，按半开区间匹配，避免相邻任务误入日期范围。
-  if (query.start) conditions.push(gt(tasks.endTime, new Date(query.start)))
+  if (query.start) conditions.push(gt(effectiveEndTime, new Date(query.start)))
   if (query.end) conditions.push(lt(tasks.startTime, new Date(query.end)))
   const order = query.sort === 'created_asc' ? asc(tasks.createdAt)
     : query.sort === 'start_asc' ? sql`${tasks.startTime} asc nulls last`
@@ -100,13 +107,13 @@ tasksRouter.get('/', async c => {
   const query = c.req.query()
   const conditions = [eq(tasks.userId, userId), isNull(tasks.deletedAt), ...await dimensionConditions(query, userId)]
   if (query.all !== 'true') {
-    if (query.inbox === 'true') conditions.push(isNull(tasks.startTime))
+    if (query.inbox === 'true') conditions.push(isUnscheduled)
     else {
       for (const key of ['start', 'end']) {
         if (query[key] && Number.isNaN(new Date(query[key]).getTime())) return badRequest('日期格式无效')
       }
-      if (query.end) conditions.push(lte(tasks.startTime, new Date(query.end)))
-      if (query.start) conditions.push(gte(tasks.endTime, new Date(query.start)))
+      if (query.end) conditions.push(lt(tasks.startTime, new Date(query.end)))
+      if (query.start) conditions.push(gt(effectiveEndTime, new Date(query.start)))
     }
   }
   const rows = await db.select().from(tasks).where(and(...conditions))
@@ -120,10 +127,14 @@ tasksRouter.get('/:id', async c => {
   return c.json({ data: result })
 })
 
-function validateTimes(start: Date | null, end: Date | null) {
-  if (!start && !end) return
+function validateTimes(start: Date | null, end: Date | null, isAllDay: boolean) {
+  if (!start && !end) return { startTime: null, endTime: null }
+  if (isAllDay && start && (!end || end.getTime() === start.getTime())) {
+    end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
+  }
   if (!start || !end) return badRequest('请同时填写开始和结束时间，或同时留空')
   if (end <= start) return badRequest('结束时间须晚于开始时间')
+  return { startTime: start, endTime: end }
 }
 
 async function validateDimensions(conn: TaskDb, userId: string, values: Record<string, string>) {
@@ -141,9 +152,7 @@ async function validateDimensions(conn: TaskDb, userId: string, values: Record<s
 tasksRouter.post('/', zValidator('json', CreateTaskSchema), async c => {
   const userId = c.get('userId')
   const { dimensionValues, ...body } = c.req.valid('json')
-  const startTime = body.startTime ? new Date(body.startTime) : null
-  const endTime = body.endTime ? new Date(body.endTime) : null
-  validateTimes(startTime, endTime)
+  const { startTime, endTime } = validateTimes(body.startTime ? new Date(body.startTime) : null, body.endTime ? new Date(body.endTime) : null, body.isAllDay)
   const result = await db.transaction(async tx => {
     await validateDimensions(tx, userId, dimensionValues)
     const now = new Date()
@@ -162,9 +171,11 @@ tasksRouter.patch('/:id', zValidator('json', UpdateTaskSchema), async c => {
   const result = await db.transaction(async tx => {
     const [existing] = await tx.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.userId, userId), isNull(tasks.deletedAt))).for('update')
     if (!existing) return notFound()
-    const startTime = body.startTime === undefined ? existing.startTime : body.startTime === null ? null : new Date(body.startTime)
-    const endTime = body.endTime === undefined ? existing.endTime : body.endTime === null ? null : new Date(body.endTime)
-    if (body.startTime !== undefined || body.endTime !== undefined) validateTimes(startTime, endTime)
+    let startTime = body.startTime === undefined ? existing.startTime : body.startTime === null ? null : new Date(body.startTime)
+    let endTime = body.endTime === undefined ? existing.endTime : body.endTime === null ? null : new Date(body.endTime)
+    if (body.startTime !== undefined || body.endTime !== undefined || body.isAllDay !== undefined) {
+      ({ startTime, endTime } = validateTimes(startTime, endTime, body.isAllDay ?? existing.isAllDay))
+    }
     if (dimensionValues !== undefined) await validateDimensions(tx, userId, dimensionValues)
     const [task] = await tx.update(tasks).set({ ...body, startTime, endTime, updatedAt: new Date() }).where(eq(tasks.id, id)).returning()
     if (dimensionValues !== undefined) {

@@ -19,6 +19,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useDimensionStore } from '@/stores/dimensionStore'
 import { useUiStore } from '@/stores/uiStore'
 import { tasksApi } from '@/api/tasks'
+import { getTaskEndTime } from '@/components/tasks/taskForm'
 import styles from './CalendarPage.module.css'
 
 dayjs.extend(isoWeek)
@@ -143,7 +144,7 @@ export default function CalendarPage() {
   }, [activeDimensionFilters, dimensions, optionsByDimension, tasks])
 
   const events = tasks
-    .filter((task) => task.startTime && task.endTime)  // Inbox 任务不显示在日历
+    .filter((task) => task.startTime && (task.isAllDay || task.endTime))  // Inbox 任务不显示在日历
     .filter((task) => !filteredTaskIds || filteredTaskIds.has(task.id))
     .map((task) => {
       const hexColor = getEventColor(task)
@@ -154,7 +155,7 @@ export default function CalendarPage() {
         id: task.id,
         title: task.title,
         start: task.startTime ?? undefined,
-        end: task.endTime ?? undefined,
+        end: getTaskEndTime(task) ?? undefined,
         allDay: task.isAllDay,
         // 传递颜色信息给 eventContent
         backgroundColor: 'transparent',

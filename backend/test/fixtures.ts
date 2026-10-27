@@ -28,9 +28,9 @@ export async function createTaskFixtures() {
   }
   const special = [
     ['ui-task', '任务列表验收', 'todo', null, null, '可以双击名称进行行内编辑', '产出验收记录'],
-    ['scheduled', '排期任务', 'in_progress', '2026-10-27T08:00:00Z', '2026-10-27T09:00:00Z', '复盘', '完成方案'],
+    ['scheduled', '排期任务', 'todo', '2026-10-27T08:00:00Z', '2026-10-27T09:00:00Z', '复盘', '完成方案'],
     ['boundary', '日期边界任务', 'done', '2026-10-26T15:00:00Z', '2026-10-26T16:00:00Z', null, null],
-    ['all-day', '全天任务', 'todo', '2026-10-26T16:00:00Z', '2026-10-27T16:00:00Z', null, null],
+    ['all-day', '全天任务', 'todo', '2026-10-26T16:00:00Z', '2026-10-26T16:00:00Z', null, null],
     ['todo-extra', '待办任务', 'todo', null, null, null, null],
     ['legacy', '历史缺少必填维度', 'todo', null, null, null, null],
     ['literal', '完成 100%_\\ 验收', 'todo', null, null, 'Mixed CASE notes', '跨页查找唯一产出'],

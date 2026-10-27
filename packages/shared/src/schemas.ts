@@ -16,7 +16,7 @@ export const CreateTaskSchema = z.object({
   endTime: z.string().datetime().optional(),
   isAllDay: z.boolean().default(false),
   dimensionValues: z.record(z.string(), z.string()).default({}),
-  status: z.enum(['todo', 'in_progress', 'done']).default('todo'),
+  status: z.enum(['todo', 'done']).default('todo'),
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
   recurrence: RecurrenceSchema.optional(),
   expectedOutput: z.string().optional(),

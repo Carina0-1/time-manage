@@ -135,7 +135,7 @@ export default function TaskListPage() {
   }
   const activeChips: { key: string; label: string; clear: () => void }[] = []
   if (filters.q) activeChips.push({ key: 'q', label: `搜索：${filters.q}`, clear: () => changeFilters({ q: '' }) })
-  if (filters.status !== 'all') activeChips.push({ key: 'status', label: `状态：${{ unfinished: '未完成', done: '已完成' }[filters.status]}`, clear: () => changeFilters({ status: 'all' }) })
+  if (filters.status !== 'all') activeChips.push({ key: 'status', label: `状态：${{ unfinished: '待办', done: '已完成' }[filters.status]}`, clear: () => changeFilters({ status: 'all' }) })
   if (filters.schedule !== 'all') activeChips.push({ key: 'schedule', label: filters.schedule === 'scheduled' ? '已排期' : '未排期', clear: () => changeFilters({ schedule: 'all' }) })
   if (filters.startDate || filters.endDate) activeChips.push({ key: 'date', label: `${filters.startDate || '不限'} 至 ${filters.endDate || '不限'}`, clear: () => changeFilters({ startDate: '', endDate: '' }) })
   for (const [id, value] of Object.entries(filters.dimensionFilters)) {
@@ -192,7 +192,7 @@ export default function TaskListPage() {
     <section className={styles.toolbar} aria-label="搜索与筛选">
       <div className={styles.searchBox}><span aria-hidden="true">⌕</span><input aria-label="搜索任务" type="search" maxLength={200} placeholder="搜索任务标题、备注、预期产出…" value={filters.q} onChange={e => changeFilters({ q: e.target.value })} /></div>
       <div className={styles.filterRow}>
-        <label className={styles.filterField}><span>状态</span><select aria-label="筛选任务状态" value={filters.status} onChange={e => changeFilters({ status: e.target.value as TaskListFilters['status'] })}><option value="all">全部状态</option><option value="unfinished">未完成</option><option value="done">已完成</option></select></label>
+        <label className={styles.filterField}><span>状态</span><select aria-label="筛选任务状态" value={filters.status} onChange={e => changeFilters({ status: e.target.value as TaskListFilters['status'] })}><option value="all">全部状态</option><option value="unfinished">待办</option><option value="done">已完成</option></select></label>
         <label className={styles.filterField}><span>排期</span><select aria-label="筛选排期" value={filters.schedule} onChange={e => {
           const schedule = e.target.value as TaskListFilters['schedule']
           changeFilters({ schedule, ...(schedule === 'unscheduled' ? { startDate: '', endDate: '' } : {}) })

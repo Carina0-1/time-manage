@@ -151,11 +151,47 @@ test('按字段修改内容、排期和状态，其他字段保持不变', async
   assert.equal((await request('/legacy', 'PATCH', { description: '仅补充历史任务备注' })).status, 200)
 })
 
-test('取消状态不进入新增、编辑或筛选接口', async () => {
+test('任务状态只允许待办和已完成', async () => {
   const before = (await query({})).body.data.total
-  assert.equal((await request('', 'POST', { id: 'cancelled-input', title: '不支持取消', status: 'cancelled', dimensionValues: { project: 'project-a' } })).status, 400)
-  assert.equal((await request('/ui-task', 'PATCH', { status: 'cancelled' })).status, 400)
-  assert.equal((await query({ status: 'cancelled' })).status, 400)
+  for (const status of ['cancelled', 'in_progress']) {
+    assert.equal((await request('', 'POST', { id: `unsupported-${status}`, title: '不支持的状态', status, dimensionValues: { project: 'project-a' } })).status, 400)
+    assert.equal((await request('/ui-task', 'PATCH', { status })).status, 400)
+    assert.equal((await query({ status })).status, 400)
+  }
   assert.equal((await request('/ui-task')).body.data.status, 'todo')
   assert.equal((await query({})).body.data.total, before)
+})
+
+
+test('全天记录属于已排期，兼容相同起止时间和缺少结束时间的历史数据', async () => {
+  const legacy = (await request('/all-day')).body.data
+  assert.equal(legacy.startTime, legacy.endTime)
+  assert.equal((await query({ id: 'all-day', schedule: 'scheduled' })).body.data.total, 1)
+  assert.equal((await query({ id: 'all-day', schedule: 'unscheduled' })).body.data.total, 0)
+  assert(!(await request('?inbox=true')).body.data.some((t: any) => t.id === 'all-day'))
+  const calendar = await request('?start=2026-10-26T16:00:00.000Z&end=2026-10-27T16:00:00.000Z')
+  assert(calendar.body.data.some((t: any) => t.id === 'all-day'))
+  const { scheduleLabel, durationLabel, toTimeFields, getTaskEndTime } = await import('../../frontend/src/components/tasks/taskForm.js')
+  assert.equal(toTimeFields(legacy).startTime, toTimeFields(legacy).endTime)
+  assert(scheduleLabel(legacy).includes('全天'))
+  assert.equal(durationLabel(legacy), '全天')
+  assert(new Date(getTaskEndTime(legacy)!) > new Date(legacy.startTime))
+  await fixtures.client.query(`INSERT INTO tasks (id,user_id,title,is_all_day,start_time) VALUES
+    ('legacy-all-day-no-end','qa-user','历史全天缺少结束时间',true,'2026-10-28T00:00:00Z'),
+    ('legacy-all-day-no-dates','qa-user','历史全天未保存日期',true,null)`)
+  for (const id of ['legacy-all-day-no-end', 'legacy-all-day-no-dates']) {
+    assert.equal((await query({ id, schedule: 'scheduled' })).body.data.total, 1)
+    assert.equal((await query({ id, schedule: 'unscheduled' })).body.data.total, 0)
+    const row = (await request(`/${id}`)).body.data
+    assert(scheduleLabel(row).includes('全天'))
+    assert.equal(durationLabel(row), '全天')
+  }
+  assert.equal((await query({ id: 'legacy-all-day-no-end', start: '2026-10-28T00:00:00.000Z', end: '2026-10-29T00:00:00.000Z' })).body.data.total, 1)
+  const canonical = await request('', 'POST', { id: 'canonical-all-day', title: '保存全天排期', isAllDay: true, startTime: '2026-10-29T00:00:00.000Z', endTime: '2026-10-29T00:00:00.000Z', dimensionValues: { project: 'project-a' } })
+  assert.equal(canonical.status, 201)
+  assert.equal(canonical.body.data.endTime, '2026-10-30T00:00:00.000Z')
+  assert.equal((await query({ id: 'canonical-all-day', schedule: 'unscheduled' })).body.data.total, 0)
+  const unplanned = await request('/canonical-all-day', 'PATCH', { isAllDay: false, startTime: null, endTime: null })
+  assert.equal(unplanned.status, 200)
+  assert.equal((await query({ id: 'canonical-all-day', schedule: 'unscheduled' })).body.data.total, 1)
 })
