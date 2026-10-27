@@ -464,3 +464,22 @@
   text-align: left;
 }
 .contextLinkBtn:hover { color: var(--accent-ink); }
+
+/* 与列表使用同一套主题，创建任务沿用统一表单。 */
+.modal { background: var(--panel); color: var(--ink); }
+.form input, .form textarea, .form select { background: var(--panel); color: var(--ink); font-family: var(--font); }
+.field label { color: var(--ink-soft); }
+.field input[type=date], .field input[type=datetime-local] { min-width: 0; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 6px; outline: none; width: 100%; }
+.timeRow > .field { min-width: 0; }
+.titleInput { border-color: var(--line-strong); }
+.titleInput:focus { border-color: var(--accent); }
+.textarea { border-color: var(--line-strong); }
+.textarea:focus { border-color: var(--accent); }
+.submitBtn { background: var(--accent-ink); color: var(--panel); }
+.cancelBtn { background: var(--panel-2); color: var(--ink-soft); border-color: var(--line-strong); }
+.allDayToggle { display: flex; align-items: center; gap: 7px; color: var(--ink-soft); font-size: 12px; }
+.allDayToggle input { accent-color: var(--accent); }
+.field input[type=date], .field input[type=datetime-local], .field select { background: var(--panel); color: var(--ink); }
+.hashDropdown { background: var(--panel); border-color: var(--line-strong); }
+.hashItem:hover { background: var(--panel-2); }
+.hashItemActive { background: var(--accent-soft); }

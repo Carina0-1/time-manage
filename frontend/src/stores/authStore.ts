@@ -1,5 +1,9 @@
 import { create } from 'zustand'
 import type { AuthUser } from '@time-manage/shared'
+import { useTaskListStore } from './taskListStore'
+import { useTaskStore } from './taskStore'
+import { useUiStore } from './uiStore'
+import { useDimensionStore } from './dimensionStore'
 
 const TOKEN_KEY = 'auth_token'
 const USER_KEY = 'auth_user'
@@ -27,6 +31,11 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   logout: () => {
+    useTaskListStore.getState().reset()
+    useTaskStore.getState().reset()
+    useUiStore.getState().clearAllDimensionFilters()
+    useUiStore.getState().closeTaskModal()
+    useDimensionStore.setState({ dimensions: [], optionsByDimension: {}, loading: false })
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     set({ token: null, user: null, isAuthenticated: false })

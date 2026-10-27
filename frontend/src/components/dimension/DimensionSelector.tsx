@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Dimension, DimensionOption } from '@time-manage/shared'
-import { buildOptionTree, flattenOptionTree } from '@/utils/dimensionTree'
+import { buildOptionTree, flattenOptionTree, getOptionPath } from '@/utils/dimensionTree'
 import styles from './DimensionSelector.module.css'
 
 export default function DimensionSelector({
@@ -49,6 +49,11 @@ export default function DimensionSelector({
       onMouseLeave={() => { if (!lockedRef.current) setOpen(false) }}
     >
       <div
+        role="button"
+        tabIndex={0}
+        aria-label={`选择${dimension.name}`}
+        aria-expanded={open}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); lockedRef.current = !open; setOpen(!open) } }}
         className={`${styles.chipTrigger} ${selected ? styles.chipTriggerActive : ''}`}
         style={selected ? {
           background: selected.color + '18',
@@ -68,13 +73,13 @@ export default function DimensionSelector({
           <>
             {selected.icon && <span>{selected.icon}</span>}
             <span className={styles.chipLabel}>{selected.name}</span>
-            <span
+            {!dimension.isRequired && <span
               className={styles.chipRemove}
               onMouseDown={(e) => { e.stopPropagation(); onSelect(undefined) }}
-            >×</span>
+            >×</span>}
           </>
         ) : (
-          <span className={styles.chipPlaceholder}>{dimension.icon ?? '●'} {dimension.name}</span>
+          <span className={styles.chipPlaceholder}>{dimension.icon ?? '●'} {dimension.name}{dimension.isRequired ? ' *' : ''}</span>
         )}
       </div>
 
@@ -85,21 +90,22 @@ export default function DimensionSelector({
               <div className={styles.chipDropdownEmpty}>暂无{dimension.name}</div>
             ) : (
               flatOptions.map(({ option, depth }) => (
-                <div
+                <button
+                  type="button"
                   key={option.id}
                   className={`${styles.chipDropdownItem} ${selectedOptionId === option.id ? styles.chipDropdownItemSelected : ''}`}
                   style={{ paddingLeft: `${12 + depth * 16}px` }}
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    onSelect(selectedOptionId === option.id ? undefined : option.id)
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => {
+                    onSelect(selectedOptionId === option.id && !dimension.isRequired ? undefined : option.id)
                     closeAndUnlock()
                   }}
                 >
                   <span className={styles.chipDropdownDot} style={{ background: option.color }} />
                   {option.icon && <span>{option.icon}</span>}
-                  <span className={styles.chipDropdownName}>{option.name}</span>
+                  <span className={styles.chipDropdownName}>{dimension.type === 'tree' ? getOptionPath(options, option.id) : option.name}</span>
                   {selectedOptionId === option.id && <span className={styles.chipDropdownCheck}>✓</span>}
-                </div>
+                </button>
               ))
             )}
           </div>

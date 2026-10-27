@@ -10,7 +10,7 @@ export const RecurrenceSchema = z.object({
 
 export const CreateTaskSchema = z.object({
   id: z.string(),
-  title: z.string().min(1).max(200),
+  title: z.string().trim().min(1, '请填写任务名称').max(200),
   description: z.string().optional(),
   startTime: z.string().datetime().optional(),
   endTime: z.string().datetime().optional(),
@@ -22,7 +22,31 @@ export const CreateTaskSchema = z.object({
   expectedOutput: z.string().optional(),
 })
 
-export const UpdateTaskSchema = CreateTaskSchema.partial().omit({ id: true })
+export const UpdateTaskSchema = CreateTaskSchema.partial().omit({ id: true }).extend({
+  startTime: z.string().datetime().nullable().optional(),
+  endTime: z.string().datetime().nullable().optional(),
+})
+
+export const UNSET_DIMENSION_VALUE = '__unset__'
+
+export const TaskListQuerySchema = z.object({
+  q: z.string().trim().max(200).default(''),
+  status: z.enum(['all', 'unfinished', 'done', 'cancelled']).default('all'),
+  schedule: z.enum(['all', 'scheduled', 'unscheduled']).default('all'),
+  start: z.string().datetime().optional(),
+  end: z.string().datetime().optional(),
+  sort: z.enum(['created_desc', 'created_asc', 'start_asc', 'start_desc']).default('created_desc'),
+  page: z.coerce.number().int().min(1).max(1000000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+  id: z.string().optional(),
+}).refine((v) => !v.start || !v.end || new Date(v.start) < new Date(v.end), '开始日期须早于结束日期')
+  .refine((v) => v.schedule !== 'unscheduled' || (!v.start && !v.end), '未排期任务不适用日期筛选')
+
+export const UpdateTaskDimensionSchema = z.object({
+  optionId: z.string().min(1).nullable(),
+})
+
+export type TaskListQuery = z.infer<typeof TaskListQuerySchema>
 
 export const CreateDimensionSchema = z.object({
   id: z.string(),

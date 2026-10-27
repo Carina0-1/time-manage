@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import type { Dimension, DimensionOption } from '@time-manage/shared'
 import { useDimensionStore } from '@/stores/dimensionStore'
 import { useUiStore } from '@/stores/uiStore'
+import { useTaskListStore } from '@/stores/taskListStore'
 import { buildOptionTree, getDescendantIds } from '@/utils/dimensionTree'
 import styles from '../Layout.module.css'
 
@@ -46,13 +47,28 @@ function DimensionSection({
   const { activeDimensionFilters, setDimensionFilter } = useUiStore()
   const navigate = useNavigate()
   const location = useLocation()
+  const listFilters = useTaskListStore(s => s.dimensionFilters)
+  const setListFilter = useTaskListStore(s => s.setDimensionFilter)
+  const inTaskList = location.pathname === '/tasks'
 
-  const activeOptionId = activeDimensionFilters[dimension.id] ?? null
+  const activeOptionId = (inTaskList ? listFilters : activeDimensionFilters)[dimension.id] ?? null
   const tree = useMemo(() => buildOptionTree(options), [options])
 
   const handleSelect = (optionId: string) => {
+    if (inTaskList) {
+      const guard = useTaskListStore.getState().confirmLeave
+      if (!guard || guard()) setListFilter(dimension.id, activeOptionId === optionId ? null : optionId)
+      return
+    }
     setDimensionFilter(dimension.id, activeOptionId === optionId ? null : optionId)
     if (location.pathname !== '/calendar') navigate('/calendar')
+  }
+
+  const clearFilter = () => {
+    if (inTaskList) {
+      const guard = useTaskListStore.getState().confirmLeave
+      if (!guard || guard()) setListFilter(dimension.id, null)
+    } else setDimensionFilter(dimension.id, null)
   }
 
   if (dimension.type === 'tree') {
@@ -62,7 +78,7 @@ function DimensionSection({
           <span
             className={`${styles.tagSectionTitle} ${activeOptionId ? styles.tagSectionTitleActive : ''}`}
             title={activeOptionId ? '点击显示全部任务' : dimension.name}
-            onClick={() => setDimensionFilter(dimension.id, null)}
+            onClick={clearFilter}
           >
             {dimension.icon} {dimension.name}
           </span>
@@ -81,7 +97,7 @@ function DimensionSection({
         <span
           className={`${styles.tagSectionTitle} ${activeOptionId ? styles.tagSectionTitleActive : ''}`}
           title={activeOptionId ? '点击显示全部任务' : dimension.name}
-          onClick={() => setDimensionFilter(dimension.id, null)}
+          onClick={clearFilter}
         >
           {dimension.icon} {dimension.name}
         </span>

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { nanoid } from 'nanoid'
-import dayjs from 'dayjs'
 import { z } from 'zod'
 import type { CreateTaskInput } from '@time-manage/shared'
 import { buildOptionTree, flattenOptionTree } from '@/utils/dimensionTree'
@@ -11,6 +10,7 @@ import { useDimensionStore } from '@/stores/dimensionStore'
 import { useUiStore } from '@/stores/uiStore'
 import { tasksApi } from '@/api/tasks'
 import DimensionSelector from '@/components/dimension/DimensionSelector'
+import { encodeTimes, toTimeFields } from '../tasks/taskForm'
 import styles from './TaskModal.module.css'
 
 const TaskFormSchema = z.object({
@@ -29,7 +29,7 @@ type TaskFormValues = z.infer<typeof TaskFormSchema>
 
 export default function TaskModal() {
   const { taskModalOpen, panelPos, editingTaskId, createDefaults, closeTaskModal, openEditModal } = useUiStore()
-  const { tasks, addTask, updateTask, removeTask } = useTaskStore()
+  const { tasks, taskCache, loadTask, addTask, updateTask, removeTask } = useTaskStore()
   const { dimensions, optionsByDimension, fetchDimensions, fetchOptions } = useDimensionStore()
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export default function TaskModal() {
     dimensions.forEach((d) => fetchOptions(d.id))
   }, [dimensions, fetchOptions])
 
-  const editingTask = editingTaskId ? tasks.find((t) => t.id === editingTaskId) : null
+  const editingTask = editingTaskId ? (taskCache[editingTaskId] ?? tasks.find((t) => t.id === editingTaskId)) : null
 
   const {
     register,
@@ -49,7 +49,7 @@ export default function TaskModal() {
     setValue,
     watch,
     setError,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<TaskFormValues>({
     resolver: zodResolver(TaskFormSchema),
     defaultValues: {
@@ -61,6 +61,9 @@ export default function TaskModal() {
   })
 
   const dimensionValues = watch('dimensionValues') ?? {}
+  const isAllDay = watch('isAllDay')
+  const [detailError, setDetailError] = useState('')
+  const requestClose = () => { if (!isSubmitting && (!isDirty || window.confirm('有未保存的任务内容，确定放弃吗？'))) closeTaskModal() }
 
   // # 快速打标签：只对第一个 tree 类型且展示中的维度生效
   const hashDimension = useMemo(
@@ -80,7 +83,12 @@ export default function TaskModal() {
     return flat.filter((n) => n.option.name.toLowerCase().includes(q))
   }, [hashDimension, optionsByDimension, hashQuery])
 
-  const toLocalInput = (iso: string) => dayjs(iso).format('YYYY-MM-DDTHH:mm')
+  useEffect(() => {
+    if (editingTaskId && !editingTask) {
+      setDetailError('')
+      loadTask(editingTaskId).catch(e => setDetailError(e instanceof Error ? e.message : '任务加载失败'))
+    }
+  }, [editingTaskId, editingTask?.id, loadTask])
 
   useEffect(() => {
     if (!taskModalOpen) return
@@ -92,24 +100,22 @@ export default function TaskModal() {
         title: editingTask.title,
         description: editingTask.description ?? undefined,
         expectedOutput: editingTask.expectedOutput ?? undefined,
-        startTime: editingTask.startTime ? toLocalInput(editingTask.startTime) : '',
-        endTime: editingTask.endTime ? toLocalInput(editingTask.endTime) : '',
+        ...toTimeFields(editingTask),
         isAllDay: editingTask.isAllDay,
         dimensionValues: editingTask.dimensionValues,
         status: editingTask.status,
       })
-    } else if (createDefaults) {
+    } else if (!editingTaskId) {
       reset({
         id: nanoid(),
         title: '',
-        startTime: createDefaults.start ? toLocalInput(createDefaults.start.toISOString()) : '',
-        endTime: createDefaults.end ? toLocalInput(createDefaults.end.toISOString()) : '',
-        isAllDay: createDefaults.isAllDay,
+        ...toTimeFields({ startTime: createDefaults?.start?.toISOString(), endTime: createDefaults?.end?.toISOString(), isAllDay: createDefaults?.isAllDay ?? false }),
+        isAllDay: createDefaults?.isAllDay ?? false,
         dimensionValues: {},
         status: 'todo',
       })
     }
-  }, [taskModalOpen, editingTaskId, createDefaults, reset])
+  }, [taskModalOpen, editingTaskId, editingTask?.id, createDefaults, reset])
 
   const onSubmit = async (data: TaskFormValues) => {
     const requiredMissing = dimensions.filter((d) => d.isRequired && !data.dimensionValues[d.id])
@@ -118,27 +124,30 @@ export default function TaskModal() {
       return
     }
 
-    const input = {
-      ...data,
-      priority: 'medium',
-      startTime: data.startTime ? new Date(data.startTime).toISOString() : undefined,
-      endTime: data.endTime ? new Date(data.endTime).toISOString() : undefined,
-    } as CreateTaskInput
-    if (editingTask) {
-      const updated = await tasksApi.update(editingTask.id, input)
-      updateTask(editingTask.id, updated)
-    } else {
-      const created = await tasksApi.create(input)
-      addTask(created)
+    try {
+      const times = encodeTimes(data.startTime ?? '', data.endTime ?? '', data.isAllDay)
+      const input = { ...data, title: data.title.trim(), priority: editingTask?.priority ?? 'medium', isAllDay: !!times.startTime && data.isAllDay }
+      if (editingTask) {
+        const updated = await tasksApi.update(editingTask.id, { ...input, ...times })
+        updateTask(editingTask.id, updated)
+      } else {
+        const created = await tasksApi.create({ ...input, startTime: times.startTime ?? undefined, endTime: times.endTime ?? undefined })
+        addTask(created)
+      }
+      closeTaskModal()
+    } catch (e) {
+      setError('root', { message: e instanceof Error ? e.message : '保存失败，请重试' })
     }
-    closeTaskModal()
   }
 
   const handleDelete = async () => {
     if (!editingTask) return
-    await tasksApi.remove(editingTask.id)
-    removeTask(editingTask.id)
-    closeTaskModal()
+    if (!window.confirm(`删除「${editingTask.title}」？`)) return
+    try {
+      await tasksApi.remove(editingTask.id)
+      removeTask(editingTask.id)
+      closeTaskModal()
+    } catch (e) { setError('root', { message: e instanceof Error ? e.message : '删除失败' }) }
   }
 
   const handleDuplicate = async () => {
@@ -155,9 +164,11 @@ export default function TaskModal() {
       status: 'todo',
       priority: editingTask.priority,
     }
-    const created = await tasksApi.create(input)
-    addTask(created)
-    openEditModal(created.id)
+    try {
+      const created = await tasksApi.create(input)
+      addTask(created)
+      openEditModal(created.id)
+    } catch (e) { setError('root', { message: e instanceof Error ? e.message : '复制失败' }) }
   }
 
   const selectHashOption = (option: { id: string; name: string }) => {
@@ -210,14 +221,16 @@ export default function TaskModal() {
 
   if (!taskModalOpen || panelPos) return null
 
+  if (editingTaskId && !editingTask) return <div className={styles.overlay} onClick={closeTaskModal}><div className={styles.modal} onClick={e => e.stopPropagation()}><div className={styles.form}>{detailError || '正在加载任务…'}<button onClick={closeTaskModal}>关闭</button></div></div></div>
+
   const sortedDimensions = [...dimensions].sort((a, b) => a.sortOrder - b.sortOrder)
 
   return (
-    <div className={styles.overlay} onClick={closeTaskModal}>
+    <div className={styles.overlay} onClick={requestClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <h2>{editingTask ? '编辑任务' : '新建任务'}</h2>
-          <button className={styles.closeBtn} onClick={closeTaskModal}>✕</button>
+          <button className={styles.closeBtn} onClick={requestClose}>✕</button>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className={styles.form}>
@@ -282,15 +295,23 @@ export default function TaskModal() {
           {/* 时间 */}
           <div className={styles.timeRow}>
             <div className={styles.field}>
-              <label>开始时间</label>
-              <input type="datetime-local" {...register('startTime')} />
+              <label>开始{isAllDay ? '日期' : '时间'}</label>
+              <input aria-label="开始时间" type={isAllDay ? 'date' : 'datetime-local'} {...register('startTime')} />
             </div>
             <div className={styles.field}>
-              <label>结束时间</label>
-              <input type="datetime-local" {...register('endTime')} />
+              <label>结束{isAllDay ? '日期（含当天）' : '时间'}</label>
+              <input aria-label="结束时间" type={isAllDay ? 'date' : 'datetime-local'} {...register('endTime')} />
             </div>
           </div>
-          <div className={styles.inboxHint}>不填时间则任务进入 Inbox</div>
+          <label className={styles.allDayToggle}><input type="checkbox" checked={isAllDay} onChange={e => {
+            const allDay = e.target.checked
+            for (const key of ['startTime', 'endTime'] as const) {
+              const value = watch(key)
+              if (value) setValue(key, `${value.slice(0, 10)}${allDay ? '' : key === 'startTime' ? 'T09:00' : 'T10:00'}`, { shouldDirty: true })
+            }
+            setValue('isAllDay', allDay, { shouldDirty: true })
+          }} />全天任务</label>
+          <div className={styles.inboxHint}>不填时间可先保存为未排期任务</div>
 
           {/* 备注 */}
           <div className={styles.field}>
@@ -328,7 +349,7 @@ export default function TaskModal() {
               )}
             </div>
             <div className={styles.rightActions}>
-              <button type="button" className={styles.cancelBtn} onClick={closeTaskModal}>
+              <button type="button" className={styles.cancelBtn} onClick={requestClose}>
                 取消
               </button>
               <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>

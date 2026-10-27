@@ -15,8 +15,8 @@ export interface Task {
   userId: string
   title: string
   description?: string
-  startTime?: string     // ISO 8601，Inbox 任务为空
-  endTime?: string       // ISO 8601，Inbox 任务为空
+  startTime?: string | null     // ISO 8601，未排期任务为空
+  endTime?: string | null       // ISO 8601，未排期任务为空
   isAllDay: boolean
   dimensionValues: Record<string, string>  // dimensionId -> optionId
   status: TaskStatus
@@ -25,6 +25,13 @@ export interface Task {
   expectedOutput?: string
   createdAt: string
   updatedAt: string
+}
+
+export interface TaskListResult {
+  items: Task[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 export type DimensionType = 'single' | 'tree'

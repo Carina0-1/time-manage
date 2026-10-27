@@ -48,3 +48,16 @@ export function searchOptions(options: DimensionOption[], query: string): Dimens
   if (!q) return options
   return options.filter((o) => o.name.toLowerCase().includes(q))
 }
+
+export function getOptionPath(options: DimensionOption[], optionId: string): string {
+  const byId = new Map(options.map(o => [o.id, o]))
+  const names: string[] = []
+  const visited = new Set<string>()
+  let cursor = byId.get(optionId)
+  while (cursor && !visited.has(cursor.id)) {
+    visited.add(cursor.id)
+    names.unshift(cursor.name)
+    cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined
+  }
+  return names.join(' / ')
+}

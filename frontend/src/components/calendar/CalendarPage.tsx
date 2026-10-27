@@ -65,7 +65,9 @@ type ViewType = 'timeGridWeek' | 'timeGridDay' | 'dayGridMonth'
 
 export default function CalendarPage() {
   const calendarRef = useRef<FullCalendar>(null)
-  const { tasks, fetchTasks, updateTask } = useTaskStore()
+  const { tasks, fetchTasks, updateTask, revision } = useTaskStore()
+  const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null)
+  const [loadError, setLoadError] = useState('')
   const { dimensions, optionsByDimension, fetchDimensions, fetchOptions } = useDimensionStore()
   const { taskModalOpen, openCreateModal, openEditModal, activeDimensionFilters, setDimensionFilter } = useUiStore()
 
@@ -74,9 +76,10 @@ export default function CalendarPage() {
 
   const handleToggleDone = async (taskId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'done' ? 'todo' : 'done'
-    updateTask(taskId, { status: newStatus as 'todo' | 'done' })
+    updateTask(taskId, { status: newStatus as 'todo' | 'done' }, false)
     try {
-      await tasksApi.update(taskId, { status: newStatus as 'todo' | 'done' })
+      const saved = await tasksApi.update(taskId, { status: newStatus as 'todo' | 'done' })
+      updateTask(taskId, saved)
     } catch {
       updateTask(taskId, { status: currentStatus as 'todo' | 'done' })
     }
@@ -85,6 +88,12 @@ export default function CalendarPage() {
   useEffect(() => {
     fetchDimensions()
   }, [fetchDimensions])
+
+  useEffect(() => {
+    if (!dateRange) return
+    setLoadError('')
+    fetchTasks(dateRange.start, dateRange.end).catch(() => setLoadError('任务加载失败，请切换日期重试'))
+  }, [dateRange, revision, fetchTasks])
 
   useEffect(() => {
     dimensions.forEach((d) => fetchOptions(d.id))
@@ -145,8 +154,8 @@ export default function CalendarPage() {
       return {
         id: task.id,
         title: task.title,
-        start: task.startTime,
-        end: task.endTime,
+        start: task.startTime ?? undefined,
+        end: task.endTime ?? undefined,
         allDay: task.isAllDay,
         // 传递颜色信息给 eventContent
         backgroundColor: 'transparent',
@@ -156,7 +165,7 @@ export default function CalendarPage() {
     })
 
   const handleDatesSet = (info: DatesSetArg) => {
-    fetchTasks(info.startStr, info.endStr)
+    setDateRange(current => current?.start === info.startStr && current?.end === info.endStr ? current : { start: info.startStr, end: info.endStr })
     setDateTitle(info.view.title)
     setCurrentView(info.view.type as ViewType)
   }
@@ -183,13 +192,14 @@ export default function CalendarPage() {
       startTime: start.toISOString(),
       endTime: (end ?? start).toISOString(),
       isAllDay: allDay,
-    })
+    }, false)
     try {
-      await tasksApi.update(id, {
+      const saved = await tasksApi.update(id, {
         startTime: start.toISOString(),
         endTime: (end ?? start).toISOString(),
         isAllDay: allDay,
       })
+      updateTask(id, saved)
     } catch {
       info.revert()
       const original = info.oldEvent
@@ -204,12 +214,13 @@ export default function CalendarPage() {
   const handleEventResize = async (info: EventResizeDoneArg) => {
     const { id, start, end } = info.event
     if (!start || !end) return
-    updateTask(id, { startTime: start.toISOString(), endTime: end.toISOString() })
+    updateTask(id, { startTime: start.toISOString(), endTime: end.toISOString() }, false)
     try {
-      await tasksApi.update(id, {
+      const saved = await tasksApi.update(id, {
         startTime: start.toISOString(),
         endTime: end.toISOString(),
       })
+      updateTask(id, saved)
     } catch {
       info.revert()
       const original = info.oldEvent
@@ -222,6 +233,7 @@ export default function CalendarPage() {
 
   return (
     <div className={styles.page}>
+      {loadError && <div role="alert">{loadError}</div>}
       <CalendarTopBar
         calendarRef={calendarRef}
         currentView={currentView}

@@ -39,7 +39,7 @@ function useTitleHistory(tasks: { title: string; updatedAt: string }[]) {
 
 export default function QuickCreatePanel() {
   const { taskModalOpen, editingTaskId, createDefaults, panelPos, closeTaskModal, openEditModal } = useUiStore()
-  const { tasks, addTask, updateTask, removeTask } = useTaskStore()
+  const { tasks, taskCache, addTask, updateTask, removeTask } = useTaskStore()
   const { dimensions, optionsByDimension, fetchDimensions, fetchOptions } = useDimensionStore()
 
   useEffect(() => {
@@ -50,13 +50,14 @@ export default function QuickCreatePanel() {
     dimensions.forEach((d) => fetchOptions(d.id))
   }, [dimensions, fetchOptions])
 
-  const editingTask = editingTaskId ? tasks.find((t) => t.id === editingTaskId) : null
+  const editingTask = editingTaskId ? (taskCache[editingTaskId] ?? tasks.find((t) => t.id === editingTaskId)) : null
 
   const panelRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ left: -9999, top: -9999 })
   const getValuesRef = useRef<(() => PanelFormValues) | null>(null)
   const doSaveRef = useRef<(data: PanelFormValues) => Promise<void>>(async () => {})
   const isSavingRef = useRef(false)
+  const [saveError, setSaveError] = useState('')
 
   const { register, handleSubmit, reset, setValue, watch, getValues } = useForm<PanelFormValues>({
     resolver: zodResolver(PanelFormSchema),
@@ -70,6 +71,7 @@ export default function QuickCreatePanel() {
   useEffect(() => {
     if (!taskModalOpen) return
     isSavingRef.current = false
+    setSaveError('')
     setTitleOpen(false)
     if (editingTask) {
       reset({
@@ -129,8 +131,11 @@ export default function QuickCreatePanel() {
         const created = await tasksApi.create(input)
         addTask(created)
       }
-    } finally {
       closeTaskModal()
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : '保存失败，请重试')
+    } finally {
+      isSavingRef.current = false
     }
   }
 
@@ -258,6 +263,7 @@ export default function QuickCreatePanel() {
       </div>
 
       <form onSubmit={handleSubmit(doSave)} className={styles.form}>
+        {saveError && <p role="alert" style={{ color: '#bd5a50', fontSize: 12 }}>{saveError}</p>}
         <div className={styles.titleWrap} ref={titleWrapRef}>
           <input
             {...titleFieldReg}

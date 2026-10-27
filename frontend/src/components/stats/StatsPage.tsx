@@ -6,6 +6,7 @@ import {
 import dayjs from 'dayjs'
 import { statsApi } from '@/api/stats'
 import { useDimensionStore } from '@/stores/dimensionStore'
+import { useTaskStore } from '@/stores/taskStore'
 import type { StatsResult } from '@time-manage/shared'
 import styles from './StatsPage.module.css'
 
@@ -42,6 +43,7 @@ function fmtMinutes(min: number) {
 }
 
 export default function StatsPage() {
+  const revision = useTaskStore(s => s.revision)
   const { dimensions, fetchDimensions } = useDimensionStore()
   const [range, setRange] = useState<Range>('week')
   const [customStart, setCustomStart] = useState('')
@@ -57,7 +59,7 @@ export default function StatsPage() {
     statsApi.get(start, end)
       .then(setStats)
       .finally(() => setLoading(false))
-  }, [range, customStart, customEnd])
+  }, [range, customStart, customEnd, revision])
 
   const completionRate = stats
     ? stats.totalCount > 0 ? Math.round((stats.completedCount / stats.totalCount) * 100) : 0
@@ -109,7 +111,7 @@ export default function StatsPage() {
               <div className={styles.cardValue}>{fmtMinutes(stats.totalMinutes)}</div>
             </div>
             <div className={styles.card}>
-              <div className={styles.cardLabel}>任务数</div>
+              <div className={styles.cardLabel}>已排期任务数</div>
               <div className={styles.cardValue}>{stats.totalCount}</div>
             </div>
             <div className={styles.card}>

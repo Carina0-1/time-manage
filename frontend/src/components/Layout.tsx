@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import QuickCreatePanel from './task/QuickCreatePanel'
 import TaskModal from './task/TaskModal'
 import { useUiStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useDimensionStore } from '@/stores/dimensionStore'
+import { useTaskListStore } from '@/stores/taskListStore'
+import { useTaskStore } from '@/stores/taskStore'
 import { tasksApi } from '@/api/tasks'
 import { statsApi } from '@/api/stats'
 import DimensionNav from './dimension/DimensionNav'
@@ -17,6 +19,8 @@ export default function Layout() {
   const { user, logout } = useAuthStore()
 
   const handleLogout = () => {
+    const guard = useTaskListStore.getState().confirmLeave
+    if (guard && !guard()) return
     logout()
     navigate('/login', { replace: true })
   }
@@ -25,11 +29,16 @@ export default function Layout() {
     <div className={styles.shell}>
       <nav className={styles.sidebar}>
         <div className={styles.brandRow}>
-          <div className={styles.brand} onClick={() => navigate('/calendar')}>
+          <div className={styles.brand} onClick={() => { const guard = useTaskListStore.getState().confirmLeave; if (!guard || guard()) navigate('/calendar') }}>
             <span className={styles.brandDot} />
             <span className={styles.brandName}>TiGo</span>
           </div>
-          <button className={styles.settingsBtn} onClick={() => navigate('/settings')} title="设置">⚙</button>
+          <button className={styles.settingsBtn} onClick={() => { const guard = useTaskListStore.getState().confirmLeave; if (!guard || guard()) navigate('/settings') }} title="设置">⚙</button>
+        </div>
+        <div className={styles.mainNav}>
+          {([['/calendar', '▦', '日历'], ['/tasks', '☷', '任务'], ['/stats', '◷', '统计']] as const).map(([to, icon, label]) => (
+            <NavLink key={to} to={to} className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`} onClick={e => { const guard = useTaskListStore.getState().confirmLeave; if (guard && !guard()) e.preventDefault() }}><span aria-hidden="true">{icon}</span>{label}</NavLink>
+          ))}
         </div>
         <SidebarStats onClickStats={() => navigate('/stats')} />
         <ActivityHeatmap />
@@ -49,6 +58,7 @@ export default function Layout() {
 }
 
 function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
+  const revision = useTaskStore(s => s.revision)
   const { dimensions, optionsByDimension, fetchDimensions, fetchOptions } = useDimensionStore()
   const [totalTaskCount, setTotalTaskCount] = useState(0)
   const [activeDays, setActiveDays] = useState(0)
@@ -66,8 +76,8 @@ function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
   const primaryOptionCount = primaryDimension ? (optionsByDimension[primaryDimension.id]?.length ?? 0) : 0
 
   useEffect(() => {
-    tasksApi.listAll().then((tasks) => setTotalTaskCount(tasks.length)).catch(() => {})
-  }, [])
+    tasksApi.query({ pageSize: 1 }).then((result) => setTotalTaskCount(result.total)).catch(() => {})
+  }, [revision])
 
   useEffect(() => {
     const end = new Date()
@@ -77,10 +87,10 @@ function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
     statsApi.get(fmt(start), fmt(end))
       .then((result) => setActiveDays(result.dailyActivity.length))
       .catch(() => {})
-  }, [])
+  }, [revision])
 
   return (
-    <div className={styles.sidebarStats} onClick={onClickStats} title="查看统计">
+    <div className={styles.sidebarStats} onClick={() => { const guard = useTaskListStore.getState().confirmLeave; if (!guard || guard()) onClickStats() }} title="查看统计">
       <div className={styles.statItem}>
         <span className={styles.statNum}>{totalTaskCount}</span>
         <span className={styles.statLabel}>任务</span>
@@ -100,6 +110,7 @@ function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
 }
 
 function ActivityHeatmap() {
+  const revision = useTaskStore(s => s.revision)
   const [activityMap, setActivityMap] = useState<Map<string, number>>(new Map())
 
   useEffect(() => {
@@ -116,7 +127,7 @@ function ActivityHeatmap() {
         setActivityMap(map)
       })
       .catch(() => {})
-  }, [])
+  }, [revision])
 
   // Build 15-week grid ending today, starting from Monday
   const today = new Date()
