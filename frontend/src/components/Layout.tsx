@@ -5,7 +5,7 @@ import TaskModal from './task/TaskModal'
 import { useUiStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useDimensionStore } from '@/stores/dimensionStore'
-import { useTaskListStore } from '@/stores/taskListStore'
+import { canLeaveTaskEditor } from '@/stores/taskListStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { tasksApi } from '@/api/tasks'
 import { statsApi } from '@/api/stats'
@@ -18,9 +18,8 @@ export default function Layout() {
   const { taskModalOpen, panelPos } = useUiStore()
   const { user, logout } = useAuthStore()
 
-  const handleLogout = () => {
-    const guard = useTaskListStore.getState().confirmLeave
-    if (guard && !guard()) return
+  const handleLogout = async () => {
+    if (!await canLeaveTaskEditor()) return
     logout()
     navigate('/login', { replace: true })
   }
@@ -29,15 +28,15 @@ export default function Layout() {
     <div className={styles.shell}>
       <nav className={styles.sidebar}>
         <div className={styles.brandRow}>
-          <div className={styles.brand} onClick={() => { const guard = useTaskListStore.getState().confirmLeave; if (!guard || guard()) navigate('/calendar') }}>
+          <div className={styles.brand} onClick={async () => { if (await canLeaveTaskEditor()) navigate('/calendar') }}>
             <span className={styles.brandDot} />
             <span className={styles.brandName}>TiGo</span>
           </div>
-          <button className={styles.settingsBtn} onClick={() => { const guard = useTaskListStore.getState().confirmLeave; if (!guard || guard()) navigate('/settings') }} title="设置">⚙</button>
+          <button className={styles.settingsBtn} onClick={async () => { if (await canLeaveTaskEditor()) navigate('/settings') }} title="设置">⚙</button>
         </div>
         <div className={styles.mainNav}>
           {([['/calendar', '▦', '日历'], ['/tasks', '☷', '任务'], ['/stats', '◷', '统计']] as const).map(([to, icon, label]) => (
-            <NavLink key={to} to={to} className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`} onClick={e => { const guard = useTaskListStore.getState().confirmLeave; if (guard && !guard()) e.preventDefault() }}><span aria-hidden="true">{icon}</span>{label}</NavLink>
+            <NavLink key={to} to={to} className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`} onClick={async e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); if (await canLeaveTaskEditor()) navigate(to) }}><span aria-hidden="true">{icon}</span>{label}</NavLink>
           ))}
         </div>
         <SidebarStats onClickStats={() => navigate('/stats')} />
@@ -90,7 +89,7 @@ function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
   }, [revision])
 
   return (
-    <div className={styles.sidebarStats} onClick={() => { const guard = useTaskListStore.getState().confirmLeave; if (!guard || guard()) onClickStats() }} title="查看统计">
+    <div className={styles.sidebarStats} onClick={async () => { if (await canLeaveTaskEditor()) onClickStats() }} title="查看统计">
       <div className={styles.statItem}>
         <span className={styles.statNum}>{totalTaskCount}</span>
         <span className={styles.statLabel}>任务</span>

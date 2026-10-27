@@ -18,7 +18,7 @@ export const useTaskListStore = create<TaskListFilters & {
   setDimensionFilter: (id: string, value: string | null) => void
   clearFilters: () => void
   reset: () => void
-  confirmLeave: (() => boolean) | null
+  confirmLeave: (() => boolean | Promise<boolean>) | null
 }>((set) => ({
   ...initial,
   confirmLeave: null,
@@ -32,3 +32,8 @@ export const useTaskListStore = create<TaskListFilters & {
   clearFilters: () => set(s => ({ ...initial, sort: s.sort })),
   reset: () => set({ ...initial, dimensionFilters: {}, confirmLeave: null }),
 }))
+
+export async function canLeaveTaskEditor() {
+  const guard = useTaskListStore.getState().confirmLeave
+  return !guard || await guard()
+}

@@ -54,20 +54,20 @@ function DimensionSection({
   const activeOptionId = (inTaskList ? listFilters : activeDimensionFilters)[dimension.id] ?? null
   const tree = useMemo(() => buildOptionTree(options), [options])
 
-  const handleSelect = (optionId: string) => {
+  const handleSelect = async (optionId: string) => {
     if (inTaskList) {
       const guard = useTaskListStore.getState().confirmLeave
-      if (!guard || guard()) setListFilter(dimension.id, activeOptionId === optionId ? null : optionId)
+      if (!guard || await guard()) setListFilter(dimension.id, activeOptionId === optionId ? null : optionId)
       return
     }
     setDimensionFilter(dimension.id, activeOptionId === optionId ? null : optionId)
     if (location.pathname !== '/calendar') navigate('/calendar')
   }
 
-  const clearFilter = () => {
+  const clearFilter = async () => {
     if (inTaskList) {
       const guard = useTaskListStore.getState().confirmLeave
-      if (!guard || guard()) setListFilter(dimension.id, null)
+      if (!guard || await guard()) setListFilter(dimension.id, null)
     } else setDimensionFilter(dimension.id, null)
   }
 
