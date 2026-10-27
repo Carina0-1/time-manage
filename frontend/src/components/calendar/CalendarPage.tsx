@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTheme } from '@/hooks/useTheme'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -329,7 +328,6 @@ function CalendarTopBar({
   onClearFilter: (dimensionId: string) => void
 }) {
   const api = () => calendarRef.current?.getApi()
-  const { theme, toggle } = useTheme()
 
   const views: { key: ViewType; label: string }[] = [
     { key: 'dayGridMonth', label: '月' },
@@ -367,14 +365,6 @@ function CalendarTopBar({
         </button>
       ))}
       <div className={styles.rightGroup}>
-        <button
-          className={styles.iconBtn}
-          onClick={toggle}
-          aria-label="切换主题"
-          title={theme === 'dark' ? '切换到浅色' : '切换到深色'}
-        >
-          {theme === 'dark' ? '☀' : '☾'}
-        </button>
         <div className={styles.seg}>
           {views.map(({ key, label }) => (
             <button

@@ -22,6 +22,7 @@ import type { Dimension, DimensionOption } from '@time-manage/shared'
 import { useDimensionStore } from '@/stores/dimensionStore'
 import { dimensionsApi } from '@/api/dimensions'
 import { buildOptionTree, flattenOptionTree } from '@/utils/dimensionTree'
+import { useTheme } from '@/hooks/useTheme'
 import styles from './SettingsPage.module.css'
 import formStyles from '../Layout.module.css'
 
@@ -62,6 +63,7 @@ const OptionFormSchema = z.object({
 type OptionFormValues = z.infer<typeof OptionFormSchema>
 
 export default function SettingsPage() {
+  const { theme, toggle } = useTheme()
   const { dimensions, optionsByDimension, fetchDimensions, fetchOptions, addDimension, updateDimension, removeDimension, reorderDimensions } = useDimensionStore()
   const [selectedDimensionId, setSelectedDimensionId] = useState<string | null>(null)
   const [showDimensionForm, setShowDimensionForm] = useState(false)
@@ -155,6 +157,18 @@ export default function SettingsPage() {
   return (
     <div className={styles.page}>
       <h1 className={styles.title}>设置</h1>
+      <section className={styles.appearance} aria-labelledby="appearance-title">
+        <h2 id="appearance-title">外观</h2>
+        <div className={styles.appearanceRow}>
+          <div>
+            <h3>深色模式</h3>
+            <p>切换后自动保存，下次打开时继续使用。</p>
+          </div>
+          <button type="button" role="switch" aria-label="深色模式" aria-checked={theme === 'dark'} className={`${styles.themeSwitch} ${theme === 'dark' ? styles.themeSwitchActive : ''}`} onClick={toggle}>
+            <span />
+          </button>
+        </div>
+      </section>
       <div className={styles.layout}>
         <div className={styles.dimensionList}>
           <div className={styles.dimensionListHeader}>

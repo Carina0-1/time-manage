@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { create } from 'zustand'
 
 type Theme = 'light' | 'dark'
 
@@ -10,20 +10,7 @@ function getInitialTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
-export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme)
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem(STORAGE_KEY, theme)
-  }, [theme])
-
-  // 初始化时同步 html 属性（防止首次渲染闪烁）
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', getInitialTheme())
-  }, [])
-
-  const toggle = () => setTheme((t) => (t === 'light' ? 'dark' : 'light'))
-
-  return { theme, toggle }
-}
+export const useTheme = create<{ theme: Theme; toggle: () => void }>((set) => ({
+  theme: getInitialTheme(),
+  toggle: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
+}))

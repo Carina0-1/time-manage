@@ -7,7 +7,6 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useDimensionStore } from '@/stores/dimensionStore'
 import { useTaskListStore, type TaskListFilters } from '@/stores/taskListStore'
 import { useUiStore } from '@/stores/uiStore'
-import { useTheme } from '@/hooks/useTheme'
 import { getOptionPath } from '@/utils/dimensionTree'
 import DimensionFields from './DimensionFields'
 import TaskInlineEditor from './TaskInlineEditor'
@@ -32,7 +31,6 @@ export default function TaskListPage() {
   const { dimensions, optionsByDimension, fetchDimensions, fetchOptions } = useDimensionStore()
   const { revision, cacheTasks, updateTask, removeTask, taskCache } = useTaskStore()
   const openCreateModal = useUiStore(s => s.openCreateModal)
-  const { theme, toggle } = useTheme()
   const [result, setResult] = useState<TaskListResult>(EMPTY_RESULT)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -189,7 +187,7 @@ export default function TaskListPage() {
   return <div className={styles.page}>
     <header className={styles.header}>
       <div><div className={styles.eyebrow}>TASKS</div><h1>任务</h1><p className={styles.subtitle}>把想做的事，慢慢安排好。</p></div>
-      <div className={styles.headerActions}><button className={styles.themeButton} aria-label="切换主题" onClick={toggle}>{theme === 'dark' ? '☀' : '☾'}</button><button className={styles.primaryButton} onClick={() => { if (canLeaveEditor()) openCreateModal({ isAllDay: false }) }}>＋ 新建任务</button></div>
+      <div className={styles.headerActions}><button className={styles.primaryButton} onClick={() => { if (canLeaveEditor()) openCreateModal({ isAllDay: false }) }}>＋ 新建任务</button></div>
     </header>
     <section className={styles.toolbar} aria-label="搜索与筛选">
       <div className={styles.searchBox}><span aria-hidden="true">⌕</span><input aria-label="搜索任务" type="search" maxLength={200} placeholder="搜索任务标题、备注、预期产出…" value={filters.q} onChange={e => changeFilters({ q: e.target.value })} /></div>

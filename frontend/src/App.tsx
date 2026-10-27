@@ -7,6 +7,7 @@ import StatsPage from '@/components/stats/StatsPage'
 import SettingsPage from '@/components/settings/SettingsPage'
 import TaskListPage from '@/components/tasks/TaskListPage'
 import { useAuthStore } from '@/stores/authStore'
+import { useTheme } from '@/hooks/useTheme'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, initialized } = useAuthStore()
@@ -17,6 +18,12 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const initFromStorage = useAuthStore(s => s.initFromStorage)
+  const theme = useTheme(s => s.theme)
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('time-manage-theme', theme)
+  }, [theme])
 
   useEffect(() => {
     initFromStorage()
