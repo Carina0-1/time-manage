@@ -16889,7 +16889,6 @@ var tasks = pgTable("tasks", {
   status: text("status").default("todo").notNull(),
   priority: text("priority").default("medium").notNull(),
   recurrence: jsonb("recurrence"),
-  expectedOutput: text("expected_output"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at")
@@ -20987,9 +20986,9 @@ var CreateTaskSchema = external_exports.object({
   dimensionValues: external_exports.record(external_exports.string(), external_exports.string()).default({}),
   status: external_exports.enum(["todo", "done"]).default("todo"),
   priority: external_exports.enum(["low", "medium", "high"]).default("medium"),
-  recurrence: RecurrenceSchema.optional(),
-  expectedOutput: external_exports.string().optional()
+  recurrence: RecurrenceSchema.optional()
 });
+var CaptureTaskSchema = CreateTaskSchema.pick({ id: true, title: true }).strict();
 var UpdateTaskSchema = CreateTaskSchema.partial().omit({ id: true }).extend({
   startTime: external_exports.string().datetime().nullable().optional(),
   endTime: external_exports.string().datetime().nullable().optional()
@@ -21154,7 +21153,7 @@ tasksRouter.get("/list", zValidator("query", TaskListQuerySchema), async (c) => 
   if (query.id) conditions.push(eq(tasks.id, query.id));
   if (query.q) {
     const pattern = `%${query.q.replace(/[\\%_]/g, "\\$&")}%`;
-    conditions.push(sql`(${tasks.title} ilike ${pattern} or ${tasks.description} ilike ${pattern} or ${tasks.expectedOutput} ilike ${pattern})`);
+    conditions.push(sql`(${tasks.title} ilike ${pattern} or ${tasks.description} ilike ${pattern})`);
   }
   if (query.status === "unfinished") conditions.push(eq(tasks.status, "todo"));
   else if (query.status !== "all") conditions.push(eq(tasks.status, query.status));
@@ -21215,12 +21214,11 @@ async function validateDimensions(conn, userId, values) {
     if (!dims.some((d) => d.id === dimensionId) || !options.some((o) => o.id === optionId && o.dimensionId === dimensionId)) return badRequest("\u7EF4\u5EA6\u6216\u9009\u9879\u65E0\u6548\uFF0C\u8BF7\u91CD\u65B0\u9009\u62E9");
   }
 }
-tasksRouter.post("/", zValidator("json", CreateTaskSchema), async (c) => {
-  const userId = c.get("userId");
-  const { dimensionValues, ...body } = c.req.valid("json");
+async function createTask(userId, input, requireDimensions = true) {
+  const { dimensionValues, ...body } = input;
   const { startTime, endTime } = validateTimes(body.startTime ? new Date(body.startTime) : null, body.endTime ? new Date(body.endTime) : null, body.isAllDay);
   const result = await db.transaction(async (tx) => {
-    await validateDimensions(tx, userId, dimensionValues);
+    if (requireDimensions) await validateDimensions(tx, userId, dimensionValues);
     const now = /* @__PURE__ */ new Date();
     const [task] = await tx.insert(tasks).values({ ...body, userId, startTime, endTime, createdAt: now, updatedAt: now }).onConflictDoNothing({ target: tasks.id }).returning();
     if (!task) {
@@ -21233,7 +21231,14 @@ tasksRouter.post("/", zValidator("json", CreateTaskSchema), async (c) => {
     if (entries.length) await tx.insert(taskDimensionValues).values(entries.map(([dimensionId, optionId]) => ({ id: nanoid(), taskId: task.id, dimensionId, optionId })));
     return { ...task, dimensionValues };
   });
-  return c.json({ data: result }, 201);
+  return result;
+}
+tasksRouter.post("/capture", zValidator("json", CaptureTaskSchema), async (c) => {
+  const input = CreateTaskSchema.parse(c.req.valid("json"));
+  return c.json({ data: await createTask(c.get("userId"), input, false) }, 201);
+});
+tasksRouter.post("/", zValidator("json", CreateTaskSchema), async (c) => {
+  return c.json({ data: await createTask(c.get("userId"), c.req.valid("json")) }, 201);
 });
 tasksRouter.patch("/:id", zValidator("json", UpdateTaskSchema), async (c) => {
   const userId = c.get("userId");

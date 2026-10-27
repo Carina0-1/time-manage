@@ -1,4 +1,5 @@
 import { Client } from 'pg'
+import { readFile } from 'node:fs/promises'
 import { hashPassword } from '../src/lib/password.js'
 
 // 仅允许本地数据库；在独立 schema 中建表和写入验收数据，不触碰开发数据。
@@ -41,6 +42,7 @@ export async function createTaskFixtures() {
   }
   await client.query(`INSERT INTO task_dimension_values (id,task_id,dimension_id,option_id) VALUES ('tag-ui','ui-task','tag','product'),('context-ui','ui-task','context','home'),('tag-scheduled','scheduled','tag','research'),('tag-boundary','boundary','tag','personal-product')`)
   await client.query(`INSERT INTO tasks (id,user_id,title,deleted_at) VALUES ('foreign-task','other-user','别人的任务',null),('deleted-task','qa-user','已删除任务',now())`)
+  await client.query(await readFile(new URL('../src/db/migrations/0013_merge_expected_output_into_notes.sql', import.meta.url), 'utf8'))
   original.searchParams.set('options', `-c search_path=${schema},public`)
   return {
     url: original.toString(),

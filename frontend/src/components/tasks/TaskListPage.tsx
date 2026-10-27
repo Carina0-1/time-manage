@@ -6,7 +6,7 @@ import { ApiError } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
 import { useDimensionStore } from '@/stores/dimensionStore'
 import { useTaskListStore, type TaskListFilters } from '@/stores/taskListStore'
-import { useUiStore } from '@/stores/uiStore'
+import { nanoid } from 'nanoid'
 import { getOptionPath } from '@/utils/dimensionTree'
 import DimensionFields from './DimensionFields'
 import TaskItem, { type TaskSession } from './TaskItem'
@@ -30,7 +30,7 @@ export default function TaskListPage() {
   const { setFilters, clearFilters } = filters
   const { dimensions, optionsByDimension, fetchDimensions, fetchOptions } = useDimensionStore()
   const { revision, cacheTasks, removeTask, taskCache } = useTaskStore()
-  const openCreateModal = useUiStore(s => s.openCreateModal)
+  const [newTask, setNewTask] = useState<Task | null>(null)
   const [result, setResult] = useState<TaskListResult>(EMPTY_RESULT)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -110,8 +110,22 @@ export default function TaskListPage() {
   const canLeaveEditor = async () => {
     const guard = useTaskListStore.getState().confirmLeave
     if (guard && !await guard()) return false
+    if (newTask) {
+      if (useTaskStore.getState().taskCache[newTask.id]) setPinnedId(newTask.id)
+      setNewTask(null)
+    }
     setSession(null)
     return true
+  }
+  const createInline = async () => {
+    if (!await canLeaveEditor()) return
+    const now = new Date().toISOString()
+    const task: Task = { id: nanoid(), userId: '', title: '', description: '', startTime: null, endTime: null,
+      isAllDay: false, dimensionValues: {}, status: 'todo', priority: 'medium', createdAt: now, updatedAt: now }
+    setNewTask(task); setSelectedId(task.id); setSession({ id: task.id, mode: 'inline', field: 'title' })
+    setNotice(null)
+    // 新建行固定在列表上方，已有筛选和排序保持不变。
+    requestAnimationFrame(() => document.querySelector('[data-task-list-scroll]')?.scrollTo({ top: 0 }))
   }
   const changeFilters = async (patch: Partial<TaskListFilters>) => {
     if (!await canLeaveEditor()) return
@@ -140,7 +154,7 @@ export default function TaskListPage() {
   const busy = loading || filters.q.trim() !== queryText
   const pinnedTask = pinnedId ? taskCache[pinnedId] : undefined
   const renderTask = (task: Task) => <TaskItem key={task.id} task={taskCache[task.id] ?? task} dimensions={dims} optionsByDimension={optionsByDimension}
-    session={session?.id === task.id ? session : null} selected={selectedId === task.id}
+    isNew={newTask?.id === task.id} session={session?.id === task.id ? session : null} selected={selectedId === task.id}
     onSelect={async () => {
       if (session && session.id !== task.id && !await canLeaveEditor()) return
       setSelectedId(task.id)
@@ -153,10 +167,12 @@ export default function TaskListPage() {
   return <div className={styles.page}>
     <header className={styles.header}>
       <div><div className={styles.eyebrow}>TASKS</div><h1>任务</h1><p className={styles.subtitle}>把想做的事，慢慢安排好。</p></div>
-      <div className={styles.headerActions}><button className={styles.primaryButton} onClick={async () => { if (await canLeaveEditor()) openCreateModal({ isAllDay: false }) }}>＋ 新建任务</button></div>
+      <div className={styles.headerActions}>
+        <div className={styles.searchBox}><span aria-hidden="true">⌕</span><input aria-label="搜索任务" type="search" maxLength={200} placeholder="搜索任务名称、备注…" value={filters.q} onChange={e => changeFilters({ q: e.target.value })} /></div>
+        <button className={styles.primaryButton} onClick={() => void createInline()}>＋ 新建任务</button>
+      </div>
     </header>
     <section className={styles.toolbar} aria-label="搜索与筛选">
-      <div className={styles.searchBox}><span aria-hidden="true">⌕</span><input aria-label="搜索任务" type="search" maxLength={200} placeholder="搜索任务标题、备注、预期产出…" value={filters.q} onChange={e => changeFilters({ q: e.target.value })} /></div>
       <div className={styles.filterRow}>
         <label className={styles.filterField}><span>状态</span><select aria-label="筛选任务状态" value={filters.status} onChange={e => changeFilters({ status: e.target.value as TaskListFilters['status'] })}><option value="all">全部状态</option><option value="unfinished">待办</option><option value="done">已完成</option></select></label>
         <label className={styles.filterField}><span>排期</span><select aria-label="筛选排期" value={filters.schedule} onChange={e => {
@@ -173,11 +189,12 @@ export default function TaskListPage() {
     {notice && <div role="status" className={styles.notice}><span>{notice.message}</span>{notice.task && <button className={styles.textButton} onClick={async () => { if (await canLeaveEditor() && notice.task) { setPinnedId(notice.task.id); setSession({ id: notice.task.id, mode: 'detail' }); setNotice(null) } }}>查看任务</button>}<button aria-label="关闭提示" className={styles.dismiss} onClick={() => setNotice(null)}>×</button></div>}
     {invalidDates && <p role="alert" className={styles.error}>开始日期不能晚于结束日期</p>}
     <div className={styles.resultBar}><span>{busy ? '正在更新任务…' : `共 ${result.total} 条 · 当前显示 ${result.items.length} 条`}</span><div><span className={styles.editHint}>双击文字编辑 · ⓘ 查看完整信息</span><select aria-label="任务排序" value={filters.sort} onChange={e => changeFilters({ sort: e.target.value as TaskListFilters['sort'] })}><option value="created_desc">创建时间 · 最新</option><option value="created_asc">创建时间 · 最早</option><option value="start_asc">排期时间 · 从早到晚</option><option value="start_desc">排期时间 · 从晚到早</option></select></div></div>
-    <div className={styles.tableWrap} aria-busy={busy}>
-      {pinnedTask && !result.items.some(t => t.id === pinnedTask.id) && <><div className={styles.pinnedLabel}>刚刚保存的任务 · 不在当前筛选结果中<button className={styles.textButton} onClick={async () => { if (await canLeaveEditor()) setPinnedId(null) }}>收起</button></div><div role="list" aria-label="筛选外的任务">{renderTask(pinnedTask)}</div></>}
+    <div className={styles.tableWrap} aria-busy={busy} data-task-list-scroll>
+      {newTask && <div role="list" aria-label="新建任务" className={styles.taskList}>{renderTask(newTask)}</div>}
+      {pinnedTask && pinnedTask.id !== newTask?.id && !result.items.some(t => t.id === pinnedTask.id) && <><div className={styles.pinnedLabel}>刚刚编辑的任务 · 当前列表外<button className={styles.textButton} onClick={async () => { if (await canLeaveEditor()) setPinnedId(null) }}>收起</button></div><div role="list" aria-label="筛选外的任务">{renderTask(pinnedTask)}</div></>}
       {error ? <div className={styles.empty} role="alert"><strong>任务加载失败</strong><p>{error}</p><button className={styles.secondaryButton} onClick={() => setRetry(r => r + 1)}>重新加载</button></div>
-        : !invalidDates && (!loading || result.items.length > 0) && result.items.length === 0 ? <div className={styles.empty}><span className={styles.emptyIcon}>☷</span><h2>{activeChips.length ? '没有符合条件的任务' : '还没有任务'}</h2><p>{activeChips.length ? '试试其他关键词，或调整筛选条件。' : '先记下一件想做的事，不必马上安排时间。'}</p><button className={styles.secondaryButton} onClick={async () => { if (await canLeaveEditor()) { if (activeChips.length) clearFilters(); else openCreateModal({ isAllDay: false }) } }}>{activeChips.length ? '清空条件' : '新建任务'}</button></div>
-        : !invalidDates && <div role="list" aria-label="任务列表" className={styles.taskList} inert={busy}>{result.items.map(renderTask)}</div>}
+        : !newTask && !invalidDates && (!loading || result.items.length > 0) && result.items.length === 0 ? <div className={styles.empty}><span className={styles.emptyIcon}>☷</span><h2>{activeChips.length ? '没有符合条件的任务' : '还没有任务'}</h2><p>{activeChips.length ? '试试其他关键词，或调整筛选条件。' : '先记下一件想做的事，不必马上安排时间。'}</p><button className={styles.secondaryButton} onClick={async () => { if (await canLeaveEditor()) { if (activeChips.length) clearFilters(); else await createInline() } }}>{activeChips.length ? '清空条件' : '新建任务'}</button></div>
+        : !invalidDates && <div role="list" aria-label="任务列表" className={styles.taskList} inert={busy}>{result.items.filter(task => task.id !== newTask?.id).map(renderTask)}</div>}
       {busy && <div className={styles.loadingLine} role="status" aria-label="正在加载任务" />}
     </div>
     <footer className={styles.pagination}><span>每页 50 条</span><div><button className={styles.secondaryButton} disabled={busy || result.page <= 1} onClick={() => changeFilters({ page: result.page - 1 })}>上一页</button><span>第 {result.page} / {Math.max(1, Math.ceil(result.total / result.pageSize))} 页</span><button className={styles.secondaryButton} disabled={busy || result.page * result.pageSize >= result.total} onClick={() => changeFilters({ page: result.page + 1 })}>下一页</button></div></footer>

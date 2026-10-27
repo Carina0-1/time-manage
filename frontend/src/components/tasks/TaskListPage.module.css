@@ -3,7 +3,8 @@
 .eyebrow { color: var(--accent-ink); font-size: 10px; letter-spacing: .16em; font-weight: 650; margin-bottom: 7px; }
 .header h1 { font-size: 25px; font-weight: 650; letter-spacing: -.02em; }
 .subtitle { color: var(--ink-soft); font-size: 12px; margin-top: 7px; }
-.headerActions { display: flex; align-items: center; gap: 10px; }
+.headerActions { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.headerActions .searchBox { width: clamp(180px, 24vw, 340px); }
 .page button, .page input, .page select, .page textarea { font-family: var(--font); font-size: 12px; }
 .page button { cursor: pointer; transition: background .15s, border-color .15s; }
 .page button:disabled, .page input:disabled, .page select:disabled { opacity: .5; cursor: not-allowed; }
@@ -82,6 +83,6 @@
 @media (min-width: 1500px) { .page { padding: 32px 40px 22px; } }
 @media (max-width: 1150px) { .page { padding: 22px 20px 16px; } .editHint { display: none; } .dimensionFilter { margin-left: 0; } }
 @media (max-width: 800px) { .page { padding: 20px 14px 14px; gap: 16px; } .header h1 { font-size: 22px; } .subtitle { display: none; } .filterField { flex: 1; } .filterField select { flex: 1; max-width: none; } .dateRange { flex: 1; } .dateRange input { flex: 1; min-width: 0; width: 112px; } .pagination { gap: 8px; } .pagination > div { gap: 8px; } }
-@media (max-width: 520px) { .page { padding: 16px 10px 12px; } .toolbar { padding: 10px; } .primaryButton { padding: 9px 10px; } .dimensionGrid { grid-template-columns: 1fr; } .filterPopover { right: auto; left: 0; width: min(400px, 86vw); } .pagination > span { display: none; } .pagination > div { width: 100%; justify-content: space-between; } .taskList { padding: 3px; } }
+@media (max-width: 520px) { .header { flex-wrap: wrap; gap: 14px; } .headerActions { width: 100%; } .headerActions .searchBox { flex: 1; width: auto; min-width: 0; } .page { padding: 16px 10px 12px; } .toolbar { padding: 10px; } .primaryButton { padding: 9px 10px; } .dimensionGrid { grid-template-columns: 1fr; } .filterPopover { right: auto; left: 0; width: min(400px, 86vw); } .pagination > span { display: none; } .pagination > div { width: 100%; justify-content: space-between; } .taskList { padding: 3px; } }
 .tableWrap::-webkit-scrollbar { width: 6px; height: 6px; }
 .tableWrap::-webkit-scrollbar-thumb { border-radius: 6px; background: var(--line-strong); }

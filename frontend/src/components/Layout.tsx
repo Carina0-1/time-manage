@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import type { DailyActivity } from '@time-manage/shared'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import QuickCreatePanel from './task/QuickCreatePanel'
-import TaskModal from './task/TaskModal'
 import { useUiStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useDimensionStore } from '@/stores/dimensionStore'
@@ -53,7 +52,6 @@ export default function Layout() {
         <Outlet />
       </main>
       {taskModalOpen && panelPos && <QuickCreatePanel />}
-      {taskModalOpen && !panelPos && <TaskModal />}
     </div>
   )
 }

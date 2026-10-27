@@ -8,7 +8,7 @@ const options = { tag: [{ id: 'root' }, { id: 'child', parentId: 'root' }] as Di
 const result: TaskListResult = { items: [task], total: 1, page: 1, pageSize: 50 }
 
 test('文字修改不刷新统计，状态和维度不刷新活动，排期才更新活动', () => {
-  assert.deepEqual(taskChangeImpact(task, { ...task, title: '新名称', description: '备注', expectedOutput: '产出' }), { activity: false, stats: false })
+  assert.deepEqual(taskChangeImpact(task, { ...task, title: '新名称', description: '备注' }), { activity: false, stats: false })
   assert.deepEqual(taskChangeImpact(task, { ...task, status: 'done' }), { activity: false, stats: true })
   assert.deepEqual(taskChangeImpact(task, { ...task, dimensionValues: {} }), { activity: false, stats: true })
   assert.deepEqual(taskChangeImpact(task, { ...task, startTime: '2026-10-27T08:00:00Z', endTime: '2026-10-27T09:00:00Z' }), { activity: true, stats: true })

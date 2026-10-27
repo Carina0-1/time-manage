@@ -79,7 +79,6 @@ export const tasks = pgTable('tasks', {
   status: text('status').default('todo').notNull(),
   priority: text('priority').default('medium').notNull(),
   recurrence: jsonb('recurrence'),
-  expectedOutput: text('expected_output'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'),

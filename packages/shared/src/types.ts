@@ -22,7 +22,6 @@ export interface Task {
   status: TaskStatus
   priority: Priority
   recurrence?: Recurrence
-  expectedOutput?: string
   createdAt: string
   updatedAt: string
 }

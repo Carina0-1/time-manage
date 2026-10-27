@@ -5,7 +5,8 @@ import { eq, and, isNull, isNotNull, lt, gt, inArray, or, not, sql, asc, desc, c
 import { nanoid } from 'nanoid'
 import { db } from '../db/index.js'
 import { tasks, taskDimensionValues, dimensions, dimensionOptions } from '../db/schema.js'
-import { CreateTaskSchema, UpdateTaskSchema, TaskListQuerySchema, UpdateTaskDimensionSchema, UNSET_DIMENSION_VALUE } from '@time-manage/shared'
+import { CreateTaskSchema, CaptureTaskSchema, UpdateTaskSchema, TaskListQuerySchema, UpdateTaskDimensionSchema, UNSET_DIMENSION_VALUE } from '@time-manage/shared'
+import type { CreateTaskInput } from '@time-manage/shared'
 import type { AuthEnv } from '../middleware/auth.js'
 
 type TaskDb = Pick<typeof db, 'select' | 'insert' | 'update' | 'delete'>
@@ -83,7 +84,7 @@ tasksRouter.get('/list', zValidator('query', TaskListQuerySchema), async c => {
   if (query.id) conditions.push(eq(tasks.id, query.id))
   if (query.q) {
     const pattern = `%${query.q.replace(/[\\%_]/g, '\\$&')}%`
-    conditions.push(sql`(${tasks.title} ilike ${pattern} or ${tasks.description} ilike ${pattern} or ${tasks.expectedOutput} ilike ${pattern})`)
+    conditions.push(sql`(${tasks.title} ilike ${pattern} or ${tasks.description} ilike ${pattern})`)
   }
   if (query.status === 'unfinished') conditions.push(eq(tasks.status, 'todo'))
   else if (query.status !== 'all') conditions.push(eq(tasks.status, query.status))
@@ -154,12 +155,11 @@ async function validateDimensions(conn: TaskDb, userId: string, values: Record<s
   }
 }
 
-tasksRouter.post('/', zValidator('json', CreateTaskSchema), async c => {
-  const userId = c.get('userId')
-  const { dimensionValues, ...body } = c.req.valid('json')
+async function createTask(userId: string, input: CreateTaskInput, requireDimensions = true) {
+  const { dimensionValues, ...body } = input
   const { startTime, endTime } = validateTimes(body.startTime ? new Date(body.startTime) : null, body.endTime ? new Date(body.endTime) : null, body.isAllDay)
   const result = await db.transaction(async tx => {
-    await validateDimensions(tx, userId, dimensionValues)
+    if (requireDimensions) await validateDimensions(tx, userId, dimensionValues)
     const now = new Date()
     const [task] = await tx.insert(tasks).values({ ...body, userId, startTime, endTime, createdAt: now, updatedAt: now }).onConflictDoNothing({ target: tasks.id }).returning()
     if (!task) {
@@ -172,7 +172,16 @@ tasksRouter.post('/', zValidator('json', CreateTaskSchema), async c => {
     if (entries.length) await tx.insert(taskDimensionValues).values(entries.map(([dimensionId, optionId]) => ({ id: nanoid(), taskId: task.id, dimensionId, optionId })))
     return { ...task, dimensionValues }
   })
-  return c.json({ data: result }, 201)
+  return result
+}
+
+tasksRouter.post('/capture', zValidator('json', CaptureTaskSchema), async c => {
+  const input = CreateTaskSchema.parse(c.req.valid('json'))
+  return c.json({ data: await createTask(c.get('userId'), input, false) }, 201)
+})
+
+tasksRouter.post('/', zValidator('json', CreateTaskSchema), async c => {
+  return c.json({ data: await createTask(c.get('userId'), c.req.valid('json')) }, 201)
 })
 
 tasksRouter.patch('/:id', zValidator('json', UpdateTaskSchema), async c => {

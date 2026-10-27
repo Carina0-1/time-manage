@@ -19,8 +19,10 @@ export const CreateTaskSchema = z.object({
   status: z.enum(['todo', 'done']).default('todo'),
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
   recurrence: RecurrenceSchema.optional(),
-  expectedOutput: z.string().optional(),
 })
+
+// 列表快捷记录只需名称，其他信息后续补充。
+export const CaptureTaskSchema = CreateTaskSchema.pick({ id: true, title: true }).strict()
 
 export const UpdateTaskSchema = CreateTaskSchema.partial().omit({ id: true }).extend({
   startTime: z.string().datetime().nullable().optional(),

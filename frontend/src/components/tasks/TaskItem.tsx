@@ -10,9 +10,10 @@ import { useImmediateTask } from './useImmediateTask'
 import styles from './TaskItem.module.css'
 
 export type TaskEditMode = 'inline' | 'detail' | 'schedule' | 'tags'
-export interface TaskSession { id: string; mode: TaskEditMode; field?: 'title' | 'description' | 'expectedOutput' }
+export interface TaskSession { id: string; mode: TaskEditMode; field?: 'title' | 'description' }
 interface Props {
   task: Task
+  isNew?: boolean
   dimensions: Dimension[]
   optionsByDimension: Record<string, DimensionOption[]>
   session: TaskSession | null
@@ -23,20 +24,18 @@ interface Props {
   onDelete: () => Promise<void>
 }
 
-export default function TaskItem({ task, dimensions, optionsByDimension, session, selected, onSelect, onActivate, onClose, onDelete }: Props) {
-  const editor = useImmediateTask(task)
+export default function TaskItem({ task, isNew = false, dimensions, optionsByDimension, session, selected, onSelect, onActivate, onClose, onDelete }: Props) {
+  const editor = useImmediateTask(task, isNew)
   const { draft } = editor
   const mode = session?.mode
   const active = !!mode
   const [showNotes, setShowNotes] = useState(false)
-  const [showOutput, setShowOutput] = useState(false)
   const [allTags, setAllTags] = useState(false)
   const [quick, setQuick] = useState<'schedule' | 'tags' | null>(null)
   const row = useRef<HTMLDivElement>(null)
   const info = useRef<HTMLButtonElement>(null)
   const title = useRef<HTMLInputElement>(null)
   const description = useRef<HTMLTextAreaElement>(null)
-  const output = useRef<HTMLTextAreaElement>(null)
   const current = useRef(editor)
   current.current = editor
   const detail = mode === 'detail'
@@ -47,9 +46,8 @@ export default function TaskItem({ task, dimensions, optionsByDimension, session
     else setQuick(null)
     if (mode === 'inline') {
       if (session?.field === 'description') setShowNotes(true)
-      if (session?.field === 'expectedOutput') setShowOutput(true)
       const timer = setTimeout(() => {
-        const input = session?.field === 'description' ? description.current : session?.field === 'expectedOutput' ? output.current : title.current
+        const input = session?.field === 'description' ? description.current : title.current
         input?.focus(); input?.select()
       }, 0)
       return () => clearTimeout(timer)
@@ -72,19 +70,23 @@ export default function TaskItem({ task, dimensions, optionsByDimension, session
     return () => window.removeEventListener('beforeunload', guard)
   }, [])
 
-  const textKey = (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, field: 'title' | 'description' | 'expectedOutput') => {
+  const textKey = (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, field: 'title' | 'description') => {
     if (event.nativeEvent.isComposing) return
     if (event.key === 'Enter' && (field === 'title' || event.metaKey || event.ctrlKey)) {
-      event.preventDefault(); editor.saveText(field); event.currentTarget.blur()
+      event.preventDefault(); editor.saveText(field); event.currentTarget.blur(); if (isNew) void onClose()
     }
-    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); editor.restoreText(field); event.currentTarget.blur() }
+    if (event.key === 'Escape') {
+      event.preventDefault(); event.stopPropagation()
+      if (isNew && editor.saving) return
+      editor.restoreText(field); event.currentTarget.blur(); if (isNew) void onClose()
+    }
   }
-  const textInput = (field: 'title' | 'description' | 'expectedOutput', label: string) => {
+  const textInput = (field: 'title' | 'description', label: string) => {
     const props = { 'aria-label': label, value: draft[field], onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => editor.changeText(field, e.target.value, (e.nativeEvent as InputEvent).isComposing),
       onCompositionEnd: (e: React.CompositionEvent<HTMLInputElement | HTMLTextAreaElement>) => editor.changeText(field, e.currentTarget.value),
-      onBlur: () => editor.saveText(field), onKeyDown: (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => textKey(e, field) }
-    return field === 'title' ? <input {...props} ref={detail ? undefined : title} className={styles.titleInput} maxLength={200} />
-      : <textarea {...props} ref={detail ? undefined : field === 'description' ? description : output} rows={2} placeholder={label} />
+      onBlur: () => { editor.saveText(field); if (isNew && !editor.persisted && !draft.title.trim() && !editor.saving) void onClose() }, onKeyDown: (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => textKey(e, field) }
+    return field === 'title' ? <input {...props} ref={detail ? undefined : title} className={styles.titleInput} maxLength={200} placeholder={isNew ? '任务名称' : undefined} />
+      : <textarea {...props} ref={detail ? undefined : description} rows={2} placeholder={label} />
   }
   const schedule = <div className={styles.scheduleFields}>
     <label className={styles.field}><span>开始{draft.isAllDay ? '日期' : '时间'}</span><input aria-label="开始时间" type={draft.isAllDay ? 'date' : 'datetime-local'} value={draft.startTime} onChange={e => editor.changeSchedule({ startTime: e.target.value })} /></label>
@@ -108,29 +110,26 @@ export default function TaskItem({ task, dimensions, optionsByDimension, session
   })
 
   return <div ref={row} role="listitem" className={`${styles.row} ${selected || active ? styles.selected : ''} ${draft.status === 'done' ? styles.done : ''}`} onClick={onSelect} onDoubleClick={e => {
-    if (!(e.target as HTMLElement).closest('button,input,textarea,select,label,a')) onActivate('detail')
+    if (editor.persisted && !(e.target as HTMLElement).closest('button,input,textarea,select,label,a')) onActivate('detail')
   }}>
-    <label className={styles.completion} onDoubleClick={e => e.stopPropagation()}><input type="checkbox" checked={draft.status === 'done'} aria-label={`${draft.status === 'done' ? '标为待办' : '完成任务'}：${draft.title}`} disabled={editor.saving} onChange={e => editor.changeStatus(e.target.checked)} /><span aria-hidden="true">{draft.status === 'done' ? '✓' : ''}</span></label>
+    <label className={styles.completion} onDoubleClick={e => e.stopPropagation()}><input type="checkbox" checked={draft.status === 'done'} aria-label={`${draft.status === 'done' ? '标为待办' : '完成任务'}：${draft.title}`} disabled={editor.saving || !editor.persisted} onChange={e => editor.changeStatus(e.target.checked)} /><span aria-hidden="true">{draft.status === 'done' ? '✓' : ''}</span></label>
     <div className={styles.body}>
       {inline ? <div className={styles.inline} onDoubleClick={e => e.stopPropagation()}>
         {textInput('title', '编辑任务名称')}
         {(draft.description || showNotes) && <label className={styles.field}><span>备注</span>{textInput('description', '编辑备注')}</label>}
-        {(draft.expectedOutput || showOutput) && <label className={styles.field}><span>预期产出</span>{textInput('expectedOutput', '编辑预期产出')}</label>}
       </div> : <div className={styles.textBlock} onDoubleClick={e => { e.stopPropagation(); onActivate('inline', (e.target as HTMLElement).dataset.field as TaskSession['field'] ?? 'title') }}>
         <span className={styles.name} tabIndex={0} role="button" aria-label={`编辑任务名称：${draft.title}`} title="双击编辑文字" data-field="title" onKeyDown={e => { if (e.key === 'F2' || e.key === 'Enter') { e.preventDefault(); onActivate('inline', 'title') } }}>{draft.title}</span>
         {draft.description && <p className={styles.description} data-field="description">{draft.description}</p>}
-        {draft.expectedOutput && <p className={styles.description} data-field="expectedOutput">预期产出：{draft.expectedOutput}</p>}
       </div>}
       <div className={styles.metadata}>
         {(task.isAllDay || task.startTime || task.endTime) && <button title="修改排期" onClick={() => onActivate('schedule')}>{scheduleLabel(summaryTask)}</button>}
         {tagsList.slice(0, allTags ? undefined : 3).map(t => <button key={t.id} title={`${t.name}：${t.path}`} onClick={() => onActivate('tags')}>{t.path}</button>)}
         {!allTags && tagsList.length > 3 && <button onClick={() => setAllTags(true)}>+{tagsList.length - 3}</button>}
       </div>
-      {(inline || (selected && !detail)) && <div className={styles.quickBar} onDoubleClick={e => e.stopPropagation()}>
+      {editor.persisted && (inline || (selected && !detail)) && <div className={styles.quickBar} onDoubleClick={e => e.stopPropagation()}>
         <button title="修改排期" aria-expanded={quick === 'schedule'} onClick={() => { if (!inline) onActivate('schedule'); else setQuick(quick === 'schedule' ? null : 'schedule') }}>▦ <span>排期</span></button>
         <button title="为任务打标" aria-expanded={quick === 'tags'} onClick={() => { if (!inline) onActivate('tags'); else setQuick(quick === 'tags' ? null : 'tags') }}># <span>维度</span></button>
         <button onClick={() => { setShowNotes(true); onActivate('inline', 'description') }}>☰ <span>备注</span></button>
-        <button onClick={() => { setShowOutput(true); onActivate('inline', 'expectedOutput') }}>◎ <span>预期产出</span></button>
         {!inline && <button onClick={() => onActivate('inline', 'title')}>编辑文字</button>}
         {inline && <button className={styles.closeInline} onClick={() => void onClose()}>收起</button>}
       </div>}
@@ -140,18 +139,17 @@ export default function TaskItem({ task, dimensions, optionsByDimension, session
       </section>}
       {!detail && feedback}
     </div>
-    <button ref={info} className={styles.info} title="查看并编辑完整任务信息" aria-label={`任务详情：${draft.title}`} onClick={() => onActivate('detail')} onDoubleClick={e => e.stopPropagation()}>ⓘ</button>
+    {editor.persisted ? <button ref={info} className={styles.info} title="查看并编辑完整任务信息" aria-label={`任务详情：${draft.title}`} onClick={() => onActivate('detail')} onDoubleClick={e => e.stopPropagation()}>ⓘ</button> : <button className={styles.linkButton} onMouseDown={e => e.preventDefault()} onClick={() => void onClose()}>收起</button>}
     {detail && <Details anchor={row} onClose={onClose} returnFocus={() => info.current?.focus()}>
       <div className={styles.panelHeading}><strong>任务详情</strong><span>修改自动保存</span><button aria-label="关闭任务详情" onClick={() => void onClose()}>×</button></div>
       <div className={styles.detailContent}>
         <label className={styles.field}><span>任务名称</span>{textInput('title', '任务名称')}</label>
         <label className={styles.field}><span>备注</span>{textInput('description', '备注')}</label>
-        <label className={styles.field}><span>预期产出</span>{textInput('expectedOutput', '预期产出')}</label>
-        <section className={styles.section}><h3>状态</h3><label className={styles.checkLabel}><input type="checkbox" checked={draft.status === 'done'} disabled={editor.saving} onChange={e => editor.changeStatus(e.target.checked)} />已完成</label></section>
+        <section className={styles.section}><h3>状态</h3><label className={styles.checkLabel}><input type="checkbox" checked={draft.status === 'done'} disabled={editor.saving || !editor.persisted} onChange={e => editor.changeStatus(e.target.checked)} />已完成</label></section>
         <section className={styles.section}><h3>排期</h3>{schedule}{(task.startTime || task.isAllDay) && <p className={styles.duration}>时长：{durationLabel(task)}</p>}</section>
         <section className={styles.section}><h3>维度信息</h3>{tags}</section>
       </div>
-      <div className={styles.detailFooter}>{feedback || <span className={styles.savedHint}>所有修改即时生效</span>}<button className={styles.deleteButton} disabled={editor.saving} onClick={async () => { if (await editor.flush()) await onDelete() }}>删除任务</button></div>
+      <div className={styles.detailFooter}>{feedback || <span className={styles.savedHint}>所有修改即时生效</span>}<button className={styles.deleteButton} disabled={editor.saving || !editor.persisted} onClick={async () => { if (await editor.flush()) await onDelete() }}>删除任务</button></div>
     </Details>}
   </div>
 }

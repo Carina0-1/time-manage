@@ -16,7 +16,6 @@ const PanelFormSchema = z.object({
   id: z.string(),
   title: z.string().min(1).max(200),
   description: z.string().optional(),
-  expectedOutput: z.string().optional(),
   dimensionValues: z.record(z.string(), z.string()),
 })
 
@@ -78,7 +77,6 @@ export default function QuickCreatePanel() {
         id: editingTask.id,
         title: editingTask.title,
         description: editingTask.description ?? undefined,
-        expectedOutput: editingTask.expectedOutput ?? undefined,
         dimensionValues: editingTask.dimensionValues,
       })
     } else {
@@ -183,7 +181,6 @@ export default function QuickCreatePanel() {
       id: nanoid(),
       title: editingTask.title,
       description: editingTask.description ?? undefined,
-      expectedOutput: editingTask.expectedOutput ?? undefined,
       startTime: editingTask.startTime ?? undefined,
       endTime: editingTask.endTime ?? undefined,
       isAllDay: editingTask.isAllDay,
@@ -311,12 +308,6 @@ export default function QuickCreatePanel() {
           {...register('description')}
           placeholder="备注（可选）"
           rows={3}
-          className={styles.textarea}
-        />
-        <textarea
-          {...register('expectedOutput')}
-          placeholder="预期产出（可选）"
-          rows={2}
           className={styles.textarea}
         />
 

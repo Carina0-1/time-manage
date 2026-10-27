@@ -83,7 +83,7 @@ test('新建校验、维度归属与事务完整性', async () => {
 })
 
 test('行内编辑、排期清空与完整维度更新失败回滚', async () => {
-  const updated = await request('/created-task', 'PATCH', { title: '行内改名', description: '行内备注', expectedOutput: '验证产出', startTime: '2026-10-27T08:00:00.000Z', endTime: '2026-10-27T09:00:00.000Z' })
+  const updated = await request('/created-task', 'PATCH', { title: '行内改名', description: '行内备注', startTime: '2026-10-27T08:00:00.000Z', endTime: '2026-10-27T09:00:00.000Z' })
   assert.equal(updated.status, 200)
   const bad = await request('/created-task', 'PATCH', { title: '不应保存', dimensionValues: { project: 'foreign-option' } })
   assert.equal(bad.status, 400)
@@ -132,7 +132,7 @@ test('删除、状态过滤和最后一页回退', async () => {
 
 test('按字段修改内容、排期和状态，其他字段保持不变', async () => {
   const before = (await request('/scheduled')).body.data
-  const contents = { title: '只修改文字内容', description: '新的备注', expectedOutput: '新的预期产出' }
+  const contents = { title: '只修改文字内容', description: '新的备注' }
   const contentResult = await request('/scheduled', 'PATCH', contents)
   assert.equal(contentResult.status, 200)
   for (const key of ['startTime', 'endTime', 'isAllDay', 'status', 'priority', 'dimensionValues']) {
@@ -246,4 +246,25 @@ test('查询超时后丢弃连接，后续请求可以正常获取新连接', as
     await assert.rejects(limited.query('SELECT pg_sleep(0.2)'), /Query read timeout/)
     assert.equal((await limited.query('SELECT 1 AS ok')).rows[0].ok, 1)
   } finally { await limited.end() }
+})
+
+
+test('行内快捷新建只填名称，支持补充维度、状态与相同 ID 重试', async () => {
+  const before = (await request('/count')).body.data
+  assert.equal((await request('/capture', 'POST', { id: 'blank-capture', title: '   ' })).status, 400)
+  assert.equal((await request('/capture', 'POST', { id: 'bad-capture', title: '不接受额外信息', dimensionValues: { project: 'foreign-option' } })).status, 400)
+  const input = { id: 'captured-task', title: '  先记下一件事  ' }
+  const created = await request('/capture', 'POST', input)
+  assert.equal(created.status, 201)
+  assert.equal(created.body.data.title, '先记下一件事')
+  assert.deepEqual(created.body.data.dimensionValues, {})
+  assert.equal(created.body.data.startTime, null)
+  assert(!('expectedOutput' in created.body.data))
+  assert.equal((await request('/count')).body.data, before + 1)
+  assert.equal((await request('/capture', 'POST', input)).body.data.id, 'captured-task')
+  assert.equal((await request('/count')).body.data, before + 1)
+  assert.equal((await request('/captured-task/dimensions/project', 'PATCH', { optionId: 'project-a' })).status, 200)
+  assert.equal((await request('/captured-task', 'PATCH', { status: 'done', description: '之后补充备注' })).status, 200)
+  assert.equal((await query({ id: 'captured-task', status: 'done' })).body.data.total, 1)
+  for (const id of ['foreign-task', 'deleted-task']) assert.equal((await request('/capture', 'POST', { ...input, id })).status, 409)
 })

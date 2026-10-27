@@ -5,31 +5,42 @@ import { useTaskStore } from '@/stores/taskStore'
 import { encodeTimes, toTimeFields } from './taskForm'
 import { TaskSaveQueue } from './taskSaveQueue'
 
-type TextField = 'title' | 'description' | 'expectedOutput'
+type TextField = 'title' | 'description'
 export type TaskDraft = ReturnType<typeof makeDraft>
 type Change = { input: UpdateTaskInput } | { dimensionId: string; optionId: string | null }
 function makeDraft(task: Task) {
-  return { title: task.title, description: task.description ?? '', expectedOutput: task.expectedOutput ?? '',
+  return { title: task.title, description: task.description ?? '',
     ...toTimeFields(task), isAllDay: task.isAllDay, status: task.status, dimensionValues: { ...task.dimensionValues } }
 }
 
-export function useImmediateTask(task: Task) {
+export function useImmediateTask(task: Task, isNew = false) {
   const [draft, setDraft] = useState(() => makeDraft(task))
   const current = useRef(draft)
   const confirmed = useRef(task)
+  const persisted = useRef(!isNew)
+  const published = useRef(!isNew)
   const mounted = useRef(true)
   const [, rerender] = useReducer(n => n + 1, 0)
   const [validation, setValidation] = useState({ title: '', schedule: '' })
   const timers = useRef(new Map<TextField, ReturnType<typeof setTimeout>>())
   const saver = useRef<TaskSaveQueue<Change, Task> | null>(null)
   if (!saver.current) saver.current = new TaskSaveQueue(
-    ({ value }) => 'input' in value ? tasksApi.update(task.id, value.input) : tasksApi.updateDimension(task.id, value.dimensionId, value.optionId),
+    async ({ value }) => {
+      if (!persisted.current) {
+        const created = await tasksApi.capture(task.id, 'input' in value ? value.input.title ?? current.current.title : current.current.title)
+        persisted.current = true
+        return created
+      }
+      return 'input' in value ? tasksApi.update(task.id, value.input) : tasksApi.updateDimension(task.id, value.dimensionId, value.optionId)
+    },
     (updated, job) => {
       if ('input' in job.value && job.value.input.status !== undefined && !saver.current!.hasQueuedKey('status')) {
         current.current = { ...current.current, status: updated.status }
         if (mounted.current) setDraft(current.current)
       }
-      confirmed.current = updated; useTaskStore.getState().updateTask(task.id, updated)
+      confirmed.current = updated
+      if (!published.current) { published.current = true; useTaskStore.getState().addTask(updated) }
+      else useTaskStore.getState().updateTask(task.id, updated)
     },
     () => { if (mounted.current) rerender() },
     job => {
@@ -44,7 +55,7 @@ export function useImmediateTask(task: Task) {
   const replace = (next: TaskDraft) => { current.current = next; setDraft(next) }
   const dirty = () => {
     const saved = makeDraft(confirmed.current), value = current.current
-    return value.title.trim() !== saved.title || value.description !== saved.description || value.expectedOutput !== saved.expectedOutput
+    return value.title.trim() !== saved.title || value.description !== saved.description
       || value.startTime !== saved.startTime || value.endTime !== saved.endTime || value.isAllDay !== saved.isAllDay || value.status !== saved.status
       || Object.keys({ ...value.dimensionValues, ...saved.dimensionValues }).some(id => value.dimensionValues[id] !== saved.dimensionValues[id])
   }
@@ -72,6 +83,7 @@ export function useImmediateTask(task: Task) {
     clearTimeout(timers.current.get(field)); timers.current.delete(field)
     const value = field === 'title' ? current.current.title.trim() : current.current[field]
     if (field === 'title') {
+      if (!value && !persisted.current && !queue.hasPending) { setValidation(s => ({ ...s, title: '' })); return true }
       setValidation(s => ({ ...s, title: value ? '' : '请填写任务名称' }))
       if (!value) return false
     }
@@ -123,7 +135,7 @@ export function useImmediateTask(task: Task) {
   }
   const flush = async () => {
     let valid = true
-    for (const field of ['title', 'description', 'expectedOutput'] as const) if (!saveText(field)) valid = false
+    for (const field of ['title', 'description'] as const) if (!saveText(field)) valid = false
     if (!saveSchedule()) valid = false
     const saved = await queue.flush()
     return valid && saved && !dirty()
@@ -134,6 +146,6 @@ export function useImmediateTask(task: Task) {
     replace({ ...current.current, [field]: confirmed.current[field] ?? '' })
     if (queue.hasKey(field)) saveText(field)
   }
-  return { draft, changeText, saveText, changeSchedule, changeDimension, changeStatus, flush, discard, restoreText,
+  return { draft, persisted: persisted.current, changeText, saveText, changeSchedule, changeDimension, changeStatus, flush, discard, restoreText,
     saving: queue.saving || (queue.hasPending && !queue.error), error: validation.title || validation.schedule || queue.error, hasUnsaved: dirty() || queue.hasPending }
 }

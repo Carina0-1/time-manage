@@ -5,7 +5,7 @@ import { getTaskEndTime } from './taskForm'
 type Query = Partial<TaskListQuery> & { dimensionFilters?: Record<string, string> }
 export interface TaskMutation { type: 'create' | 'update' | 'delete'; id: string; task?: Task; previous?: Task }
 export function matchesTask(task: Task, query: Query, options: Record<string, DimensionOption[]>) {
-  if (query.q && ![task.title, task.description, task.expectedOutput].some(v => v?.toLowerCase().includes(query.q!.toLowerCase()))) return false
+  if (query.q && ![task.title, task.description].some(v => v?.toLowerCase().includes(query.q!.toLowerCase()))) return false
   if (query.status === 'unfinished' && task.status !== 'todo' || query.status === 'done' && task.status !== 'done') return false
   const scheduled = task.isAllDay || !!(task.startTime && task.endTime && new Date(task.endTime) > new Date(task.startTime))
   if (query.schedule === 'scheduled' && !scheduled || query.schedule === 'unscheduled' && scheduled) return false
