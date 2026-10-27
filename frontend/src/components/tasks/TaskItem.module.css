@@ -2,9 +2,9 @@
 .row:last-child { border-bottom-color: transparent; }
 .row:hover { background: var(--panel-2); }
 .row.selected { background: var(--today-wash); }
-.completion { position: relative; display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; cursor: pointer; margin-top: -3px; }
+.completion { position: relative; display: grid; place-items: center; width: 24px; height: 28px; flex: 0 0 24px; cursor: pointer; margin-top: -3px; }
 .completion input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
-.completion span { display: grid; place-items: center; width: 19px; height: 19px; border: 1.5px solid var(--ink-faint); border-radius: 4px; font-size: 12px; font-weight: 650; color: white; }
+.completion span { display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid var(--ink-faint); border-radius: 3px; font-size: 10px; font-weight: 600; line-height: 1; color: white; }
 .completion input:checked + span { background: var(--accent-ink); border-color: var(--accent-ink); }
 .completion input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
 .completion input:disabled { cursor: wait; }
