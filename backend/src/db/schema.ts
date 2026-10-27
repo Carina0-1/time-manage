@@ -1,4 +1,5 @@
-import { pgTable, text, boolean, timestamp, jsonb, integer, foreignKey, uniqueIndex, date } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { pgTable, text, boolean, timestamp, jsonb, integer, foreignKey, uniqueIndex, date, check } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -22,7 +23,9 @@ export const dimensions = pgTable('dimensions', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'),
-})
+}, (t) => [
+  check('dimensions_type_check', sql`${t.type} IN ('single', 'tree')`),
+])
 
 export const dimensionOptions = pgTable('dimension_options', {
   id: text('id').primaryKey(),
@@ -41,6 +44,7 @@ export const dimensionOptions = pgTable('dimension_options', {
     .onDelete('cascade'),
 ])
 
+// 保留已下线的状态表及历史数据，不再提供读写接口。
 export const dimensionStates = pgTable('dimension_states', {
   id: text('id').primaryKey(),
   dimensionId: text('dimension_id').references(() => dimensions.id, { onDelete: 'cascade' }).notNull(),

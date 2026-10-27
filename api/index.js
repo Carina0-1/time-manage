@@ -1344,7 +1344,7 @@ var require_cert_signatures = __commonJS({
 var require_sasl = __commonJS({
   "node_modules/.pnpm/pg@8.21.0/node_modules/pg/lib/crypto/sasl.js"(exports2, module2) {
     "use strict";
-    var crypto3 = require_utils2();
+    var crypto4 = require_utils2();
     var { signatureAlgorithmHashFromCertificate } = require_cert_signatures();
     function saslprep(password) {
       const nonAsciiSpace = /[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]/g;
@@ -1362,7 +1362,7 @@ var require_sasl = __commonJS({
       if (mechanism === "SCRAM-SHA-256-PLUS" && typeof stream.getPeerCertificate !== "function") {
         throw new Error("SASL: Mechanism SCRAM-SHA-256-PLUS requires a certificate");
       }
-      const clientNonce = crypto3.randomBytes(18).toString("base64");
+      const clientNonce = crypto4.randomBytes(18).toString("base64");
       const gs2Header = mechanism === "SCRAM-SHA-256-PLUS" ? "p=tls-server-end-point" : stream ? "y" : "n";
       return {
         mechanism,
@@ -1404,20 +1404,20 @@ var require_sasl = __commonJS({
         const peerCert = stream.getPeerCertificate().raw;
         let hashName = signatureAlgorithmHashFromCertificate(peerCert);
         if (hashName === "MD5" || hashName === "SHA-1") hashName = "SHA-256";
-        const certHash = await crypto3.hashByName(hashName, peerCert);
+        const certHash = await crypto4.hashByName(hashName, peerCert);
         const bindingData = Buffer.concat([Buffer.from("p=tls-server-end-point,,"), Buffer.from(certHash)]);
         channelBinding = bindingData.toString("base64");
       }
       const clientFinalMessageWithoutProof = "c=" + channelBinding + ",r=" + sv.nonce;
       const authMessage = clientFirstMessageBare + "," + serverFirstMessage + "," + clientFinalMessageWithoutProof;
       const saltBytes = Buffer.from(sv.salt, "base64");
-      const saltedPassword = await crypto3.deriveKey(saslprep(password), saltBytes, sv.iteration);
-      const clientKey = await crypto3.hmacSha256(saltedPassword, "Client Key");
-      const storedKey = await crypto3.sha256(clientKey);
-      const clientSignature = await crypto3.hmacSha256(storedKey, authMessage);
+      const saltedPassword = await crypto4.deriveKey(saslprep(password), saltBytes, sv.iteration);
+      const clientKey = await crypto4.hmacSha256(saltedPassword, "Client Key");
+      const storedKey = await crypto4.sha256(clientKey);
+      const clientSignature = await crypto4.hmacSha256(storedKey, authMessage);
       const clientProof = xorBuffers(Buffer.from(clientKey), Buffer.from(clientSignature)).toString("base64");
-      const serverKey = await crypto3.hmacSha256(saltedPassword, "Server Key");
-      const serverSignatureBytes = await crypto3.hmacSha256(serverKey, authMessage);
+      const serverKey = await crypto4.hmacSha256(saltedPassword, "Server Key");
+      const serverSignatureBytes = await crypto4.hmacSha256(serverKey, authMessage);
       session.message = "SASLResponse";
       session.serverSignature = Buffer.from(serverSignatureBytes).toString("base64");
       session.response = clientFinalMessageWithoutProof + ",p=" + clientProof;
@@ -3590,7 +3590,7 @@ var require_client = __commonJS({
     var Query2 = require_query();
     var defaults2 = require_defaults();
     var Connection2 = require_connection();
-    var crypto3 = require_utils2();
+    var crypto4 = require_utils2();
     var activeQueryDeprecationNotice = nodeUtils.deprecate(
       () => {
       },
@@ -3837,7 +3837,7 @@ var require_client = __commonJS({
       _handleAuthMD5Password(msg) {
         this._getPassword(async () => {
           try {
-            const hashedPassword = await crypto3.postgresMd5PasswordHash(this.user, this.password, msg.salt);
+            const hashedPassword = await crypto4.postgresMd5PasswordHash(this.user, this.password, msg.salt);
             this.connection.password(hashedPassword);
           } catch (e) {
             this.emit("error", e);
@@ -4260,15 +4260,15 @@ var require_pg_pool = __commonJS({
       });
       return { callback: cb, result };
     }
-    function makeIdleListener(pool2, client) {
+    function makeIdleListener(pool3, client) {
       return function idleListener(err) {
         err.client = client;
         client.removeListener("error", idleListener);
         client.on("error", () => {
-          pool2.log("additional client error after disconnection due to error", err);
+          pool3.log("additional client error after disconnection due to error", err);
         });
-        pool2._remove(client);
-        pool2.emit("error", err, client);
+        pool3._remove(client);
+        pool3.emit("error", err, client);
       };
     }
     var Pool3 = class extends EventEmitter {
@@ -9030,6 +9030,17 @@ var ForeignKey = class {
     return name ?? `${chunks.join("_")}_fk`;
   }
 };
+function foreignKey(config) {
+  function mappedConfig() {
+    const { name, columns, foreignColumns } = config;
+    return {
+      name,
+      columns,
+      foreignColumns
+    };
+  }
+  return new ForeignKeyBuilder(mappedConfig);
+}
 
 // node_modules/.pnpm/drizzle-orm@0.36.4_@types+pg@8.20.0_@types+react@19.2.15_pg@8.21.0_react@19.2.6/node_modules/drizzle-orm/tracing-utils.js
 function iife(fn, ...args) {
@@ -11637,12 +11648,6 @@ var pgTable = (name, columns, extraConfig) => {
 };
 
 // node_modules/.pnpm/drizzle-orm@0.36.4_@types+pg@8.20.0_@types+react@19.2.15_pg@8.21.0_react@19.2.6/node_modules/drizzle-orm/pg-core/primary-keys.js
-function primaryKey(...config) {
-  if (config[0].columns) {
-    return new PrimaryKeyBuilder(config[0].columns, config[0].name);
-  }
-  return new PrimaryKeyBuilder(config);
-}
 var PrimaryKeyBuilder = class {
   static [entityKind] = "PgPrimaryKeyBuilder";
   /** @internal */
@@ -11799,19 +11804,19 @@ function extractTablesRelationalConfig(schema, configHelpers) {
       const relations2 = value.config(
         configHelpers(value.table)
       );
-      let primaryKey2;
+      let primaryKey;
       for (const [relationName, relation] of Object.entries(relations2)) {
         if (tableName) {
           const tableConfig = tablesConfig[tableName];
           tableConfig.relations[relationName] = relation;
-          if (primaryKey2) {
-            tableConfig.primaryKey.push(...primaryKey2);
+          if (primaryKey) {
+            tableConfig.primaryKey.push(...primaryKey);
           }
         } else {
           if (!(dbName in relationsBuffer)) {
             relationsBuffer[dbName] = {
               relations: {},
-              primaryKey: primaryKey2
+              primaryKey
             };
           }
           relationsBuffer[dbName].relations[relationName] = relation;
@@ -14979,6 +14984,142 @@ var PgDatabase = class {
   }
 };
 
+// node_modules/.pnpm/drizzle-orm@0.36.4_@types+pg@8.20.0_@types+react@19.2.15_pg@8.21.0_react@19.2.6/node_modules/drizzle-orm/pg-core/checks.js
+var CheckBuilder = class {
+  constructor(name, value) {
+    this.name = name;
+    this.value = value;
+  }
+  static [entityKind] = "PgCheckBuilder";
+  brand;
+  /** @internal */
+  build(table) {
+    return new Check(table, this);
+  }
+};
+var Check = class {
+  constructor(table, builder) {
+    this.table = table;
+    this.name = builder.name;
+    this.value = builder.value;
+  }
+  static [entityKind] = "PgCheck";
+  name;
+  value;
+};
+function check(name, value) {
+  return new CheckBuilder(name, value);
+}
+
+// node_modules/.pnpm/drizzle-orm@0.36.4_@types+pg@8.20.0_@types+react@19.2.15_pg@8.21.0_react@19.2.6/node_modules/drizzle-orm/pg-core/indexes.js
+var IndexBuilderOn = class {
+  constructor(unique, name) {
+    this.unique = unique;
+    this.name = name;
+  }
+  static [entityKind] = "PgIndexBuilderOn";
+  on(...columns) {
+    return new IndexBuilder(
+      columns.map((it) => {
+        if (is(it, SQL)) {
+          return it;
+        }
+        it = it;
+        const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType, it.indexConfig);
+        it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+        return clonedIndexedColumn;
+      }),
+      this.unique,
+      false,
+      this.name
+    );
+  }
+  onOnly(...columns) {
+    return new IndexBuilder(
+      columns.map((it) => {
+        if (is(it, SQL)) {
+          return it;
+        }
+        it = it;
+        const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType, it.indexConfig);
+        it.indexConfig = it.defaultConfig;
+        return clonedIndexedColumn;
+      }),
+      this.unique,
+      true,
+      this.name
+    );
+  }
+  /**
+   * Specify what index method to use. Choices are `btree`, `hash`, `gist`, `spgist`, `gin`, `brin`, or user-installed access methods like `bloom`. The default method is `btree.
+   *
+   * If you have the `pg_vector` extension installed in your database, you can use the `hnsw` and `ivfflat` options, which are predefined types.
+   *
+   * **You can always specify any string you want in the method, in case Drizzle doesn't have it natively in its types**
+   *
+   * @param method The name of the index method to be used
+   * @param columns
+   * @returns
+   */
+  using(method, ...columns) {
+    return new IndexBuilder(
+      columns.map((it) => {
+        if (is(it, SQL)) {
+          return it;
+        }
+        it = it;
+        const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType, it.indexConfig);
+        it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+        return clonedIndexedColumn;
+      }),
+      this.unique,
+      true,
+      this.name,
+      method
+    );
+  }
+};
+var IndexBuilder = class {
+  static [entityKind] = "PgIndexBuilder";
+  /** @internal */
+  config;
+  constructor(columns, unique, only, name, method = "btree") {
+    this.config = {
+      name,
+      columns,
+      unique,
+      only,
+      method
+    };
+  }
+  concurrently() {
+    this.config.concurrently = true;
+    return this;
+  }
+  with(obj) {
+    this.config.with = obj;
+    return this;
+  }
+  where(condition) {
+    this.config.where = condition;
+    return this;
+  }
+  /** @internal */
+  build(table) {
+    return new Index(this.config, table);
+  }
+};
+var Index = class {
+  static [entityKind] = "PgIndex";
+  config;
+  constructor(config, table) {
+    this.config = { ...config, table };
+  }
+};
+function uniqueIndex(name) {
+  return new IndexBuilderOn(true, name);
+}
+
 // node_modules/.pnpm/drizzle-orm@0.36.4_@types+pg@8.20.0_@types+react@19.2.15_pg@8.21.0_react@19.2.6/node_modules/drizzle-orm/pg-core/session.js
 var PgPreparedQuery = class {
   constructor(query) {
@@ -15308,8 +15449,11 @@ function drizzle(...params) {
 // backend/src/db/schema.ts
 var schema_exports = {};
 __export(schema_exports, {
-  tags: () => tags,
-  taskTags: () => taskTags,
+  dimensionOptionStates: () => dimensionOptionStates,
+  dimensionOptions: () => dimensionOptions,
+  dimensionStates: () => dimensionStates,
+  dimensions: () => dimensions,
+  taskDimensionValues: () => taskDimensionValues,
   tasks: () => tasks,
   users: () => users
 });
@@ -15321,9 +15465,28 @@ var users = pgTable("users", {
   passwordHash: text("password_hash"),
   createdAt: timestamp("created_at").defaultNow().notNull()
 });
-var tags = pgTable("tags", {
+var dimensions = pgTable("dimensions", {
   id: text("id").primaryKey(),
   userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  // 'single' | 'tree'
+  icon: text("icon"),
+  isRequired: boolean("is_required").default(false).notNull(),
+  isColorSource: boolean("is_color_source").default(false).notNull(),
+  showInSidebar: boolean("show_in_sidebar").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at")
+}, (t) => [
+  check("dimensions_type_check", sql`${t.type} IN ('single', 'tree')`)
+]);
+var dimensionOptions = pgTable("dimension_options", {
+  id: text("id").primaryKey(),
+  dimensionId: text("dimension_id").references(() => dimensions.id, { onDelete: "cascade" }).notNull(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  parentId: text("parent_id"),
   name: text("name").notNull(),
   color: text("color").notNull(),
   icon: text("icon"),
@@ -15331,27 +15494,54 @@ var tags = pgTable("tags", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at")
+}, (t) => [
+  foreignKey({ columns: [t.parentId], foreignColumns: [t.id], name: "dimension_options_parent_id_fk" }).onDelete("cascade")
+]);
+var dimensionStates = pgTable("dimension_states", {
+  id: text("id").primaryKey(),
+  dimensionId: text("dimension_id").references(() => dimensions.id, { onDelete: "cascade" }).notNull(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  color: text("color"),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at")
+});
+var dimensionOptionStates = pgTable("dimension_option_states", {
+  id: text("id").primaryKey(),
+  optionId: text("option_id").references(() => dimensionOptions.id, { onDelete: "cascade" }).notNull(),
+  stateId: text("state_id").references(() => dimensionStates.id, { onDelete: "cascade" }).notNull(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
 });
 var tasks = pgTable("tasks", {
   id: text("id").primaryKey(),
   userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   title: text("title").notNull(),
   description: text("description"),
-  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
-  endTime: timestamp("end_time", { withTimezone: true }).notNull(),
+  startTime: timestamp("start_time", { withTimezone: true }),
+  endTime: timestamp("end_time", { withTimezone: true }),
   isAllDay: boolean("is_all_day").default(false).notNull(),
   status: text("status").default("todo").notNull(),
   priority: text("priority").default("medium").notNull(),
   recurrence: jsonb("recurrence"),
-  color: text("color"),
+  expectedOutput: text("expected_output"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at")
 });
-var taskTags = pgTable("task_tags", {
+var taskDimensionValues = pgTable("task_dimension_values", {
+  id: text("id").primaryKey(),
   taskId: text("task_id").references(() => tasks.id, { onDelete: "cascade" }).notNull(),
-  tagId: text("tag_id").references(() => tags.id, { onDelete: "cascade" }).notNull()
-}, (t) => [primaryKey({ columns: [t.taskId, t.tagId] })]);
+  dimensionId: text("dimension_id").references(() => dimensions.id, { onDelete: "cascade" }).notNull(),
+  optionId: text("option_id").references(() => dimensionOptions.id, { onDelete: "cascade" }).notNull()
+}, (t) => [
+  uniqueIndex("task_dimension_values_task_dimension_uq").on(t.taskId, t.dimensionId)
+]);
 
 // backend/src/db/index.ts
 var pool = new Pool({
@@ -16147,7 +16337,7 @@ var ZodType = class {
     const result = await (isAsync(maybeAsyncResult) ? maybeAsyncResult : Promise.resolve(maybeAsyncResult));
     return handleResult(ctx, result);
   }
-  refine(check, message) {
+  refine(check2, message) {
     const getIssueProperties = (val) => {
       if (typeof message === "string" || typeof message === "undefined") {
         return { message };
@@ -16158,7 +16348,7 @@ var ZodType = class {
       }
     };
     return this._refinement((val, ctx) => {
-      const result = check(val);
+      const result = check2(val);
       const setError = () => ctx.addIssue({
         code: ZodIssueCode.custom,
         ...getIssueProperties(val)
@@ -16181,9 +16371,9 @@ var ZodType = class {
       }
     });
   }
-  refinement(check, refinementData) {
+  refinement(check2, refinementData) {
     return this._refinement((val, ctx) => {
-      if (!check(val)) {
+      if (!check2(val)) {
         ctx.addIssue(typeof refinementData === "function" ? refinementData(val, ctx) : refinementData);
         return false;
       } else {
@@ -16405,70 +16595,70 @@ var ZodString = class _ZodString extends ZodType {
     }
     const status = new ParseStatus();
     let ctx = void 0;
-    for (const check of this._def.checks) {
-      if (check.kind === "min") {
-        if (input.data.length < check.value) {
+    for (const check2 of this._def.checks) {
+      if (check2.kind === "min") {
+        if (input.data.length < check2.value) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_small,
-            minimum: check.value,
+            minimum: check2.value,
             type: "string",
             inclusive: true,
             exact: false,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "max") {
-        if (input.data.length > check.value) {
+      } else if (check2.kind === "max") {
+        if (input.data.length > check2.value) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_big,
-            maximum: check.value,
+            maximum: check2.value,
             type: "string",
             inclusive: true,
             exact: false,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "length") {
-        const tooBig = input.data.length > check.value;
-        const tooSmall = input.data.length < check.value;
+      } else if (check2.kind === "length") {
+        const tooBig = input.data.length > check2.value;
+        const tooSmall = input.data.length < check2.value;
         if (tooBig || tooSmall) {
           ctx = this._getOrReturnCtx(input, ctx);
           if (tooBig) {
             addIssueToContext(ctx, {
               code: ZodIssueCode.too_big,
-              maximum: check.value,
+              maximum: check2.value,
               type: "string",
               inclusive: true,
               exact: true,
-              message: check.message
+              message: check2.message
             });
           } else if (tooSmall) {
             addIssueToContext(ctx, {
               code: ZodIssueCode.too_small,
-              minimum: check.value,
+              minimum: check2.value,
               type: "string",
               inclusive: true,
               exact: true,
-              message: check.message
+              message: check2.message
             });
           }
           status.dirty();
         }
-      } else if (check.kind === "email") {
+      } else if (check2.kind === "email") {
         if (!emailRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "email",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "emoji") {
+      } else if (check2.kind === "emoji") {
         if (!emojiRegex) {
           emojiRegex = new RegExp(_emojiRegex, "u");
         }
@@ -16477,61 +16667,61 @@ var ZodString = class _ZodString extends ZodType {
           addIssueToContext(ctx, {
             validation: "emoji",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "uuid") {
+      } else if (check2.kind === "uuid") {
         if (!uuidRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "uuid",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "nanoid") {
+      } else if (check2.kind === "nanoid") {
         if (!nanoidRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "nanoid",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "cuid") {
+      } else if (check2.kind === "cuid") {
         if (!cuidRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "cuid",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "cuid2") {
+      } else if (check2.kind === "cuid2") {
         if (!cuid2Regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "cuid2",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "ulid") {
+      } else if (check2.kind === "ulid") {
         if (!ulidRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "ulid",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "url") {
+      } else if (check2.kind === "url") {
         try {
           new URL(input.data);
         } catch {
@@ -16539,153 +16729,153 @@ var ZodString = class _ZodString extends ZodType {
           addIssueToContext(ctx, {
             validation: "url",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "regex") {
-        check.regex.lastIndex = 0;
-        const testResult = check.regex.test(input.data);
+      } else if (check2.kind === "regex") {
+        check2.regex.lastIndex = 0;
+        const testResult = check2.regex.test(input.data);
         if (!testResult) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "regex",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "trim") {
+      } else if (check2.kind === "trim") {
         input.data = input.data.trim();
-      } else if (check.kind === "includes") {
-        if (!input.data.includes(check.value, check.position)) {
+      } else if (check2.kind === "includes") {
+        if (!input.data.includes(check2.value, check2.position)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_string,
-            validation: { includes: check.value, position: check.position },
-            message: check.message
+            validation: { includes: check2.value, position: check2.position },
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "toLowerCase") {
+      } else if (check2.kind === "toLowerCase") {
         input.data = input.data.toLowerCase();
-      } else if (check.kind === "toUpperCase") {
+      } else if (check2.kind === "toUpperCase") {
         input.data = input.data.toUpperCase();
-      } else if (check.kind === "startsWith") {
-        if (!input.data.startsWith(check.value)) {
+      } else if (check2.kind === "startsWith") {
+        if (!input.data.startsWith(check2.value)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_string,
-            validation: { startsWith: check.value },
-            message: check.message
+            validation: { startsWith: check2.value },
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "endsWith") {
-        if (!input.data.endsWith(check.value)) {
+      } else if (check2.kind === "endsWith") {
+        if (!input.data.endsWith(check2.value)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_string,
-            validation: { endsWith: check.value },
-            message: check.message
+            validation: { endsWith: check2.value },
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "datetime") {
-        const regex = datetimeRegex(check);
+      } else if (check2.kind === "datetime") {
+        const regex = datetimeRegex(check2);
         if (!regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_string,
             validation: "datetime",
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "date") {
+      } else if (check2.kind === "date") {
         const regex = dateRegex;
         if (!regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_string,
             validation: "date",
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "time") {
-        const regex = timeRegex(check);
+      } else if (check2.kind === "time") {
+        const regex = timeRegex(check2);
         if (!regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_string,
             validation: "time",
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "duration") {
+      } else if (check2.kind === "duration") {
         if (!durationRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "duration",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "ip") {
-        if (!isValidIP(input.data, check.version)) {
+      } else if (check2.kind === "ip") {
+        if (!isValidIP(input.data, check2.version)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "ip",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "jwt") {
-        if (!isValidJWT(input.data, check.alg)) {
+      } else if (check2.kind === "jwt") {
+        if (!isValidJWT(input.data, check2.alg)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "jwt",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "cidr") {
-        if (!isValidCidr(input.data, check.version)) {
+      } else if (check2.kind === "cidr") {
+        if (!isValidCidr(input.data, check2.version)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "cidr",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "base64") {
+      } else if (check2.kind === "base64") {
         if (!base64Regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "base64",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "base64url") {
+      } else if (check2.kind === "base64url") {
         if (!base64urlRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "base64url",
             code: ZodIssueCode.invalid_string,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
       } else {
-        util.assertNever(check);
+        util.assertNever(check2);
       }
     }
     return { status: status.value, value: input.data };
@@ -16697,10 +16887,10 @@ var ZodString = class _ZodString extends ZodType {
       ...errorUtil.errToObj(message)
     });
   }
-  _addCheck(check) {
+  _addCheck(check2) {
     return new _ZodString({
       ...this._def,
-      checks: [...this._def.checks, check]
+      checks: [...this._def.checks, check2]
     });
   }
   email(message) {
@@ -16965,67 +17155,67 @@ var ZodNumber = class _ZodNumber extends ZodType {
     }
     let ctx = void 0;
     const status = new ParseStatus();
-    for (const check of this._def.checks) {
-      if (check.kind === "int") {
+    for (const check2 of this._def.checks) {
+      if (check2.kind === "int") {
         if (!util.isInteger(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_type,
             expected: "integer",
             received: "float",
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "min") {
-        const tooSmall = check.inclusive ? input.data < check.value : input.data <= check.value;
+      } else if (check2.kind === "min") {
+        const tooSmall = check2.inclusive ? input.data < check2.value : input.data <= check2.value;
         if (tooSmall) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_small,
-            minimum: check.value,
+            minimum: check2.value,
             type: "number",
-            inclusive: check.inclusive,
+            inclusive: check2.inclusive,
             exact: false,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "max") {
-        const tooBig = check.inclusive ? input.data > check.value : input.data >= check.value;
+      } else if (check2.kind === "max") {
+        const tooBig = check2.inclusive ? input.data > check2.value : input.data >= check2.value;
         if (tooBig) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_big,
-            maximum: check.value,
+            maximum: check2.value,
             type: "number",
-            inclusive: check.inclusive,
+            inclusive: check2.inclusive,
             exact: false,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "multipleOf") {
-        if (floatSafeRemainder(input.data, check.value) !== 0) {
+      } else if (check2.kind === "multipleOf") {
+        if (floatSafeRemainder(input.data, check2.value) !== 0) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.not_multiple_of,
-            multipleOf: check.value,
-            message: check.message
+            multipleOf: check2.value,
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "finite") {
+      } else if (check2.kind === "finite") {
         if (!Number.isFinite(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.not_finite,
-            message: check.message
+            message: check2.message
           });
           status.dirty();
         }
       } else {
-        util.assertNever(check);
+        util.assertNever(check2);
       }
     }
     return { status: status.value, value: input.data };
@@ -17056,10 +17246,10 @@ var ZodNumber = class _ZodNumber extends ZodType {
       ]
     });
   }
-  _addCheck(check) {
+  _addCheck(check2) {
     return new _ZodNumber({
       ...this._def,
-      checks: [...this._def.checks, check]
+      checks: [...this._def.checks, check2]
     });
   }
   int(message) {
@@ -17194,45 +17384,45 @@ var ZodBigInt = class _ZodBigInt extends ZodType {
     }
     let ctx = void 0;
     const status = new ParseStatus();
-    for (const check of this._def.checks) {
-      if (check.kind === "min") {
-        const tooSmall = check.inclusive ? input.data < check.value : input.data <= check.value;
+    for (const check2 of this._def.checks) {
+      if (check2.kind === "min") {
+        const tooSmall = check2.inclusive ? input.data < check2.value : input.data <= check2.value;
         if (tooSmall) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_small,
             type: "bigint",
-            minimum: check.value,
-            inclusive: check.inclusive,
-            message: check.message
+            minimum: check2.value,
+            inclusive: check2.inclusive,
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "max") {
-        const tooBig = check.inclusive ? input.data > check.value : input.data >= check.value;
+      } else if (check2.kind === "max") {
+        const tooBig = check2.inclusive ? input.data > check2.value : input.data >= check2.value;
         if (tooBig) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_big,
             type: "bigint",
-            maximum: check.value,
-            inclusive: check.inclusive,
-            message: check.message
+            maximum: check2.value,
+            inclusive: check2.inclusive,
+            message: check2.message
           });
           status.dirty();
         }
-      } else if (check.kind === "multipleOf") {
-        if (input.data % check.value !== BigInt(0)) {
+      } else if (check2.kind === "multipleOf") {
+        if (input.data % check2.value !== BigInt(0)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.not_multiple_of,
-            multipleOf: check.value,
-            message: check.message
+            multipleOf: check2.value,
+            message: check2.message
           });
           status.dirty();
         }
       } else {
-        util.assertNever(check);
+        util.assertNever(check2);
       }
     }
     return { status: status.value, value: input.data };
@@ -17272,10 +17462,10 @@ var ZodBigInt = class _ZodBigInt extends ZodType {
       ]
     });
   }
-  _addCheck(check) {
+  _addCheck(check2) {
     return new _ZodBigInt({
       ...this._def,
-      checks: [...this._def.checks, check]
+      checks: [...this._def.checks, check2]
     });
   }
   positive(message) {
@@ -17395,35 +17585,35 @@ var ZodDate = class _ZodDate extends ZodType {
     }
     const status = new ParseStatus();
     let ctx = void 0;
-    for (const check of this._def.checks) {
-      if (check.kind === "min") {
-        if (input.data.getTime() < check.value) {
+    for (const check2 of this._def.checks) {
+      if (check2.kind === "min") {
+        if (input.data.getTime() < check2.value) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_small,
-            message: check.message,
+            message: check2.message,
             inclusive: true,
             exact: false,
-            minimum: check.value,
+            minimum: check2.value,
             type: "date"
           });
           status.dirty();
         }
-      } else if (check.kind === "max") {
-        if (input.data.getTime() > check.value) {
+      } else if (check2.kind === "max") {
+        if (input.data.getTime() > check2.value) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_big,
-            message: check.message,
+            message: check2.message,
             inclusive: true,
             exact: false,
-            maximum: check.value,
+            maximum: check2.value,
             type: "date"
           });
           status.dirty();
         }
       } else {
-        util.assertNever(check);
+        util.assertNever(check2);
       }
     }
     return {
@@ -17431,10 +17621,10 @@ var ZodDate = class _ZodDate extends ZodType {
       value: new Date(input.data.getTime())
     };
   }
-  _addCheck(check) {
+  _addCheck(check2) {
     return new _ZodDate({
       ...this._def,
-      checks: [...this._def.checks, check]
+      checks: [...this._def.checks, check2]
     });
   }
   min(minDate, message) {
@@ -19295,10 +19485,10 @@ function cleanParams(params, data) {
   const p2 = typeof p === "string" ? { message: p } : p;
   return p2;
 }
-function custom(check, _params = {}, fatal) {
-  if (check)
+function custom(check2, _params = {}, fatal) {
+  if (check2)
     return ZodAny.create().superRefine((data, ctx) => {
-      const r = check(data);
+      const r = check2(data);
       if (r instanceof Promise) {
         return r.then((r2) => {
           if (!r2) {
@@ -19423,37 +19613,39 @@ var CreateTaskSchema = external_exports.object({
   id: external_exports.string(),
   title: external_exports.string().min(1).max(200),
   description: external_exports.string().optional(),
-  startTime: external_exports.string().datetime(),
-  endTime: external_exports.string().datetime(),
+  startTime: external_exports.string().datetime().optional(),
+  endTime: external_exports.string().datetime().optional(),
   isAllDay: external_exports.boolean().default(false),
-  tagIds: external_exports.array(external_exports.string()).default([]),
+  dimensionValues: external_exports.record(external_exports.string(), external_exports.string()).default({}),
   status: external_exports.enum(["todo", "in_progress", "done", "cancelled"]).default("todo"),
   priority: external_exports.enum(["low", "medium", "high"]).default("medium"),
   recurrence: RecurrenceSchema.optional(),
-  color: external_exports.string().regex(/^#[0-9a-fA-F]{6}$/).optional()
+  expectedOutput: external_exports.string().optional()
 });
 var UpdateTaskSchema = CreateTaskSchema.partial().omit({ id: true });
-var CreateTagSchema = external_exports.object({
+var CreateDimensionSchema = external_exports.object({
   id: external_exports.string(),
   name: external_exports.string().min(1).max(50),
+  type: external_exports.enum(["single", "tree"]),
+  icon: external_exports.string().optional(),
+  isRequired: external_exports.boolean().default(false),
+  showInSidebar: external_exports.boolean().default(true),
+  sortOrder: external_exports.number().int().default(0)
+});
+var UpdateDimensionSchema = CreateDimensionSchema.partial().omit({ id: true, type: true });
+var CreateDimensionOptionSchema = external_exports.object({
+  id: external_exports.string(),
+  dimensionId: external_exports.string(),
+  parentId: external_exports.string().optional(),
+  name: external_exports.string().min(1).max(100),
   color: external_exports.string().regex(/^#[0-9a-fA-F]{6}$/),
   icon: external_exports.string().optional(),
   sortOrder: external_exports.number().int().default(0)
 });
-var UpdateTagSchema = CreateTagSchema.partial().omit({ id: true });
+var UpdateDimensionOptionSchema = CreateDimensionOptionSchema.partial().omit({ id: true, dimensionId: true });
 var StatsQuerySchema = external_exports.object({
   start: external_exports.string().datetime(),
   end: external_exports.string().datetime()
-});
-var SyncUploadSchema = external_exports.object({
-  tasks: external_exports.array(CreateTaskSchema.extend({
-    updatedAt: external_exports.string().datetime(),
-    deletedAt: external_exports.string().datetime().optional()
-  })),
-  tags: external_exports.array(CreateTagSchema.extend({
-    updatedAt: external_exports.string().datetime(),
-    deletedAt: external_exports.string().datetime().optional()
-  }))
 });
 var LoginSchema = external_exports.object({
   username: external_exports.string().min(1),
@@ -19478,67 +19670,152 @@ authRouter.post("/login", zValidator("json", LoginSchema), async (c) => {
   });
 });
 
+// node_modules/.pnpm/nanoid@5.1.11/node_modules/nanoid/index.js
+var import_node_crypto = require("node:crypto");
+
+// node_modules/.pnpm/nanoid@5.1.11/node_modules/nanoid/url-alphabet/index.js
+var urlAlphabet = "useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";
+
+// node_modules/.pnpm/nanoid@5.1.11/node_modules/nanoid/index.js
+var POOL_SIZE_MULTIPLIER = 128;
+var pool2;
+var poolOffset;
+function fillPool(bytes) {
+  if (bytes < 0 || bytes > 1024) throw new RangeError("Wrong ID size");
+  if (!pool2 || pool2.length < bytes) {
+    pool2 = Buffer.allocUnsafe(bytes * POOL_SIZE_MULTIPLIER);
+    import_node_crypto.webcrypto.getRandomValues(pool2);
+    poolOffset = 0;
+  } else if (poolOffset + bytes > pool2.length) {
+    import_node_crypto.webcrypto.getRandomValues(pool2);
+    poolOffset = 0;
+  }
+  poolOffset += bytes;
+}
+function nanoid(size = 21) {
+  fillPool(size |= 0);
+  let id = "";
+  for (let i = poolOffset - size; i < poolOffset; i++) {
+    id += urlAlphabet[pool2[i] & 63];
+  }
+  return id;
+}
+
 // backend/src/routes/tasks.ts
 var tasksRouter = new Hono2();
 var QuerySchema = external_exports.object({
   start: external_exports.string().optional(),
-  end: external_exports.string().optional()
+  end: external_exports.string().optional(),
+  inbox: external_exports.string().optional(),
+  // "true" 表示只返回无排期任务
+  all: external_exports.string().optional()
+  // "true" 表示返回所有任务（含有排期和无排期）
 });
-tasksRouter.get("/", zValidator("query", QuerySchema), async (c) => {
+async function expandOptionIds(dimensionId, optionId, userId) {
+  const [dim] = await db.select().from(dimensions).where(eq(dimensions.id, dimensionId));
+  if (!dim || dim.type !== "tree") return [optionId];
+  const allOptions = await db.select().from(dimensionOptions).where(and(eq(dimensionOptions.dimensionId, dimensionId), eq(dimensionOptions.userId, userId)));
+  const childrenMap = /* @__PURE__ */ new Map();
+  for (const o of allOptions) {
+    if (!o.parentId) continue;
+    const list = childrenMap.get(o.parentId) ?? [];
+    list.push(o.id);
+    childrenMap.set(o.parentId, list);
+  }
+  const result = [];
+  const queue = [optionId];
+  while (queue.length > 0) {
+    const id = queue.shift();
+    result.push(id);
+    queue.push(...childrenMap.get(id) ?? []);
+  }
+  return result;
+}
+tasksRouter.get("/", async (c) => {
   const userId = c.get("userId");
-  const { start, end } = c.req.valid("query");
+  const rawQuery = c.req.query();
+  const parsed = QuerySchema.safeParse(rawQuery);
+  if (!parsed.success) return c.json({ error: "Invalid query" }, 400);
+  const { start, end, inbox, all } = parsed.data;
+  const dimensionFilters = [];
+  for (const [key, value] of Object.entries(rawQuery)) {
+    const m = key.match(/^filter\[(.+)\]$/);
+    if (m) dimensionFilters.push({ dimensionId: m[1], optionId: value });
+  }
   const conditions = [eq(tasks.userId, userId), isNull(tasks.deletedAt)];
-  if (end) conditions.push(lte(tasks.startTime, new Date(end)));
-  if (start) conditions.push(gte(tasks.endTime, new Date(start)));
+  if (all === "true") {
+  } else if (inbox === "true") {
+    conditions.push(isNull(tasks.startTime));
+  } else {
+    if (end) conditions.push(lte(tasks.startTime, new Date(end)));
+    if (start) conditions.push(gte(tasks.endTime, new Date(start)));
+  }
+  let filteredTaskIds = null;
+  for (const f of dimensionFilters) {
+    const optionIds = await expandOptionIds(f.dimensionId, f.optionId, userId);
+    const rows2 = await db.select({ taskId: taskDimensionValues.taskId }).from(taskDimensionValues).where(and(eq(taskDimensionValues.dimensionId, f.dimensionId), inArray(taskDimensionValues.optionId, optionIds)));
+    const idSet = new Set(rows2.map((r) => r.taskId));
+    filteredTaskIds = filteredTaskIds === null ? [...idSet] : filteredTaskIds.filter((id) => idSet.has(id));
+  }
+  if (filteredTaskIds !== null) {
+    if (filteredTaskIds.length === 0) return c.json({ data: [] });
+    conditions.push(inArray(tasks.id, filteredTaskIds));
+  }
   const rows = await db.select().from(tasks).where(and(...conditions));
   if (rows.length === 0) return c.json({ data: [] });
   const taskIds = rows.map((t) => t.id);
-  const tagRelations = await db.select().from(taskTags).where(inArray(taskTags.taskId, taskIds));
-  const tagIdsByTask = /* @__PURE__ */ new Map();
-  for (const rel of tagRelations) {
-    const list = tagIdsByTask.get(rel.taskId) ?? [];
-    list.push(rel.tagId);
-    tagIdsByTask.set(rel.taskId, list);
+  const dimValueRows = await db.select().from(taskDimensionValues).where(inArray(taskDimensionValues.taskId, taskIds));
+  const dimValuesByTask = /* @__PURE__ */ new Map();
+  for (const rel of dimValueRows) {
+    const map = dimValuesByTask.get(rel.taskId) ?? {};
+    map[rel.dimensionId] = rel.optionId;
+    dimValuesByTask.set(rel.taskId, map);
   }
-  const result = rows.map((t) => ({ ...t, tagIds: tagIdsByTask.get(t.id) ?? [] }));
+  const result = rows.map((t) => ({ ...t, dimensionValues: dimValuesByTask.get(t.id) ?? {} }));
   return c.json({ data: result });
 });
 tasksRouter.post("/", zValidator("json", CreateTaskSchema), async (c) => {
   const userId = c.get("userId");
-  const { tagIds, ...body } = c.req.valid("json");
+  const { dimensionValues, ...body } = c.req.valid("json");
   const now = /* @__PURE__ */ new Date();
   const [task] = await db.insert(tasks).values({
     ...body,
     userId,
-    startTime: new Date(body.startTime),
-    endTime: new Date(body.endTime),
+    startTime: body.startTime ? new Date(body.startTime) : null,
+    endTime: body.endTime ? new Date(body.endTime) : null,
     createdAt: now,
     updatedAt: now
   }).returning();
-  if (tagIds.length > 0) {
-    await db.insert(taskTags).values(tagIds.map((tagId) => ({ taskId: task.id, tagId })));
+  const entries = Object.entries(dimensionValues ?? {});
+  if (entries.length > 0) {
+    await db.insert(taskDimensionValues).values(
+      entries.map(([dimensionId, optionId]) => ({ id: nanoid(), taskId: task.id, dimensionId, optionId }))
+    );
   }
-  return c.json({ data: { ...task, tagIds } }, 201);
+  return c.json({ data: { ...task, dimensionValues: dimensionValues ?? {} } }, 201);
 });
 tasksRouter.patch("/:id", zValidator("json", UpdateTaskSchema), async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
-  const { tagIds, ...body } = c.req.valid("json");
+  const { dimensionValues, ...body } = c.req.valid("json");
   const updateData = { ...body, updatedAt: /* @__PURE__ */ new Date() };
-  if (body.startTime) updateData.startTime = new Date(body.startTime);
-  if (body.endTime) updateData.endTime = new Date(body.endTime);
+  if (body.startTime !== void 0) updateData.startTime = body.startTime ? new Date(body.startTime) : null;
+  if (body.endTime !== void 0) updateData.endTime = body.endTime ? new Date(body.endTime) : null;
   const [task] = await db.update(tasks).set(updateData).where(and(eq(tasks.id, id), eq(tasks.userId, userId))).returning();
   if (!task) return c.json({ error: "Not found" }, 404);
-  if (tagIds !== void 0) {
-    await db.delete(taskTags).where(eq(taskTags.taskId, id));
-    const singleTag = tagIds.slice(0, 1);
-    if (singleTag.length > 0) {
-      await db.insert(taskTags).values([{ taskId: id, tagId: singleTag[0] }]);
+  if (dimensionValues !== void 0) {
+    await db.delete(taskDimensionValues).where(eq(taskDimensionValues.taskId, id));
+    const entries = Object.entries(dimensionValues);
+    if (entries.length > 0) {
+      await db.insert(taskDimensionValues).values(
+        entries.map(([dimensionId, optionId]) => ({ id: nanoid(), taskId: id, dimensionId, optionId }))
+      );
     }
   }
-  const tagRelations = await db.select().from(taskTags).where(eq(taskTags.taskId, id));
-  const finalTagIds = tagRelations.map((r) => r.tagId);
-  return c.json({ data: { ...task, tagIds: finalTagIds } });
+  const dimValueRows = await db.select().from(taskDimensionValues).where(eq(taskDimensionValues.taskId, id));
+  const finalDimensionValues = {};
+  for (const rel of dimValueRows) finalDimensionValues[rel.dimensionId] = rel.optionId;
+  return c.json({ data: { ...task, dimensionValues: finalDimensionValues } });
 });
 tasksRouter.delete("/:id", async (c) => {
   const userId = c.get("userId");
@@ -19548,129 +19825,319 @@ tasksRouter.delete("/:id", async (c) => {
   return c.json({ data: null }, 200);
 });
 
-// backend/src/routes/tags.ts
-var tagsRouter = new Hono2();
-tagsRouter.get("/", async (c) => {
-  const userId = c.get("userId");
-  const rows = await db.select().from(tags).where(and(eq(tags.userId, userId), isNull(tags.deletedAt)));
-  return c.json({ data: rows });
-});
-tagsRouter.post("/", zValidator("json", CreateTagSchema), async (c) => {
-  const userId = c.get("userId");
-  const body = c.req.valid("json");
-  const now = /* @__PURE__ */ new Date();
-  const [tag] = await db.insert(tags).values({
-    ...body,
-    userId,
-    createdAt: now,
-    updatedAt: now
-  }).returning();
-  return c.json({ data: tag }, 201);
-});
-tagsRouter.patch("/:id", zValidator("json", UpdateTagSchema), async (c) => {
-  const userId = c.get("userId");
-  const id = c.req.param("id");
-  const body = c.req.valid("json");
-  const [tag] = await db.update(tags).set({ ...body, updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(tags.id, id), eq(tags.userId, userId))).returning();
-  if (!tag) return c.json({ error: "Not found" }, 404);
-  return c.json({ data: tag });
-});
-var ReorderSchema = external_exports.object({
-  orders: external_exports.array(external_exports.object({ id: external_exports.string(), sortOrder: external_exports.number().int() }))
-});
-tagsRouter.post("/reorder", zValidator("json", ReorderSchema), async (c) => {
-  const userId = c.get("userId");
-  const { orders } = c.req.valid("json");
-  await Promise.all(
-    orders.map(
-      ({ id, sortOrder }) => db.update(tags).set({ sortOrder, updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(tags.id, id), eq(tags.userId, userId)))
-    )
-  );
-  return c.json({ data: null });
-});
-tagsRouter.delete("/:id", async (c) => {
-  const userId = c.get("userId");
-  const id = c.req.param("id");
-  const [tag] = await db.update(tags).set({ deletedAt: /* @__PURE__ */ new Date() }).where(and(eq(tags.id, id), eq(tags.userId, userId))).returning();
-  if (!tag) return c.json({ error: "Not found" }, 404);
-  return c.json({ data: null }, 200);
-});
-tagsRouter.delete("/:id/with-tasks", async (c) => {
-  const userId = c.get("userId");
-  const id = c.req.param("id");
-  const [tag] = await db.update(tags).set({ deletedAt: /* @__PURE__ */ new Date() }).where(and(eq(tags.id, id), eq(tags.userId, userId))).returning();
-  if (!tag) return c.json({ error: "Not found" }, 404);
-  const relations = await db.select().from(taskTags).where(eq(taskTags.tagId, id));
-  if (relations.length > 0) {
-    const taskIds = relations.map((r) => r.taskId);
-    await db.update(tasks).set({ deletedAt: /* @__PURE__ */ new Date() }).where(and(inArray(tasks.id, taskIds), eq(tasks.userId, userId)));
-  }
-  return c.json({ data: null }, 200);
-});
-
 // backend/src/routes/stats.ts
 var statsRouter = new Hono2();
 var StatsQuerySchema2 = external_exports.object({
   start: external_exports.string(),
   end: external_exports.string()
 });
+function findRootOption(optionId, optionsById) {
+  let cur = optionsById.get(optionId);
+  if (!cur) return null;
+  const visited = /* @__PURE__ */ new Set();
+  while (cur.parentId && !visited.has(cur.id)) {
+    visited.add(cur.id);
+    const parent = optionsById.get(cur.parentId);
+    if (!parent) break;
+    cur = parent;
+  }
+  return cur;
+}
 statsRouter.get("/", zValidator("query", StatsQuerySchema2), async (c) => {
   const userId = c.get("userId");
   const { start, end } = c.req.valid("query");
-  const startDate = new Date(start);
-  const endDate = new Date(end);
+  const startDate = /* @__PURE__ */ new Date(start + "T00:00:00.000Z");
+  const endDate = /* @__PURE__ */ new Date(end + "T23:59:59.999Z");
   const taskRows = await db.select().from(tasks).where(and(
     eq(tasks.userId, userId),
     isNull(tasks.deletedAt),
+    isNotNull(tasks.startTime),
+    isNotNull(tasks.endTime),
     gte(tasks.startTime, startDate),
     lte(tasks.endTime, endDate)
   ));
-  if (taskRows.length === 0) {
-    return c.json({
-      data: { tags: [], totalMinutes: 0, completedCount: 0, totalCount: 0, dailyActivity: [] }
-    });
+  const allDates = [];
+  const cur = new Date(startDate);
+  const endDay = new Date(endDate);
+  endDay.setUTCHours(0, 0, 0, 0);
+  while (cur <= endDay) {
+    allDates.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
   }
+  const emptyResult = {
+    totalMinutes: 0,
+    completedCount: 0,
+    totalCount: 0,
+    dailyActivity: [],
+    dailyMinutes: allDates.map((date2) => ({ date: date2, totalMinutes: 0 })),
+    dimensionStats: {},
+    dailyDimensionMinutes: {}
+  };
+  if (taskRows.length === 0) return c.json({ data: emptyResult });
   const taskIds = taskRows.map((t) => t.id);
   const totalCount = taskRows.length;
   const completedCount = taskRows.filter((t) => t.status === "done").length;
   const minutesByTaskId = /* @__PURE__ */ new Map();
   for (const task of taskRows) {
-    const minutes = Math.round((task.endTime.getTime() - task.startTime.getTime()) / 6e4);
-    minutesByTaskId.set(task.id, minutes);
+    if (!task.startTime || !task.endTime) continue;
+    minutesByTaskId.set(task.id, Math.round((task.endTime.getTime() - task.startTime.getTime()) / 6e4));
   }
   const totalMinutes = Array.from(minutesByTaskId.values()).reduce((a, b) => a + b, 0);
-  const relations = taskIds.length > 0 ? await db.select({ taskId: taskTags.taskId, tagId: taskTags.tagId }).from(taskTags).where(inArray(taskTags.taskId, taskIds)) : [];
-  const tagIds = [...new Set(relations.map((r) => r.tagId))];
-  const tagRows = tagIds.length > 0 ? await db.select().from(tags).where(inArray(tags.id, tagIds)) : [];
-  const tagMap = new Map(tagRows.map((t) => [t.id, t]));
-  const minutesByTag = /* @__PURE__ */ new Map();
-  const countByTag = /* @__PURE__ */ new Map();
-  for (const rel of relations) {
-    const taskMinutes = minutesByTaskId.get(rel.taskId) ?? 0;
-    minutesByTag.set(rel.tagId, (minutesByTag.get(rel.tagId) ?? 0) + taskMinutes);
-    countByTag.set(rel.tagId, (countByTag.get(rel.tagId) ?? 0) + 1);
-  }
-  const tagStats = tagIds.map((tagId) => {
-    const tag = tagMap.get(tagId);
-    const tagMinutes = minutesByTag.get(tagId) ?? 0;
-    return {
-      tagId,
-      tagName: tag.name,
-      color: tag.color,
-      totalMinutes: tagMinutes,
-      taskCount: countByTag.get(tagId) ?? 0,
-      percentage: totalMinutes > 0 ? Math.round(tagMinutes / totalMinutes * 100) : 0
-    };
-  }).sort((a, b) => b.totalMinutes - a.totalMinutes);
   const activityMap = /* @__PURE__ */ new Map();
   for (const task of taskRows) {
+    if (!task.startTime) continue;
     const dateKey = task.startTime.toISOString().slice(0, 10);
     activityMap.set(dateKey, (activityMap.get(dateKey) ?? 0) + 1);
   }
   const dailyActivity = Array.from(activityMap.entries()).map(([date2, taskCount]) => ({ date: date2, taskCount })).sort((a, b) => a.date.localeCompare(b.date));
+  const dailyMinutesMap = new Map(allDates.map((d) => [d, 0]));
+  for (const task of taskRows) {
+    if (!task.startTime) continue;
+    const dateKey = task.startTime.toISOString().slice(0, 10);
+    dailyMinutesMap.set(dateKey, (dailyMinutesMap.get(dateKey) ?? 0) + (minutesByTaskId.get(task.id) ?? 0));
+  }
+  const dailyMinutes = allDates.map((date2) => ({ date: date2, totalMinutes: dailyMinutesMap.get(date2) ?? 0 }));
+  const taskDateMap = /* @__PURE__ */ new Map();
+  for (const task of taskRows) {
+    if (!task.startTime) continue;
+    taskDateMap.set(task.id, task.startTime.toISOString().slice(0, 10));
+  }
+  const dimRows = await db.select().from(dimensions).where(and(eq(dimensions.userId, userId), isNull(dimensions.deletedAt), eq(dimensions.showInSidebar, true)));
+  const dimensionStats = {};
+  const dailyDimensionMinutes = {};
+  for (const dim of dimRows) {
+    const dimValueRows = await db.select().from(taskDimensionValues).where(and(eq(taskDimensionValues.dimensionId, dim.id), inArray(taskDimensionValues.taskId, taskIds)));
+    if (dimValueRows.length === 0) continue;
+    const optionIds = [...new Set(dimValueRows.map((r) => r.optionId))];
+    const optionRows = await db.select().from(dimensionOptions).where(inArray(dimensionOptions.id, optionIds));
+    const optionMap = new Map(optionRows.map((o) => [o.id, o]));
+    const minutesByOption = /* @__PURE__ */ new Map();
+    const countByOption = /* @__PURE__ */ new Map();
+    for (const rel of dimValueRows) {
+      const m = minutesByTaskId.get(rel.taskId) ?? 0;
+      minutesByOption.set(rel.optionId, (minutesByOption.get(rel.optionId) ?? 0) + m);
+      countByOption.set(rel.optionId, (countByOption.get(rel.optionId) ?? 0) + 1);
+    }
+    dimensionStats[dim.id] = optionIds.map((optionId) => {
+      const option = optionMap.get(optionId);
+      const mins = minutesByOption.get(optionId) ?? 0;
+      return {
+        dimensionId: dim.id,
+        optionId,
+        optionName: option.name,
+        color: option.color,
+        totalMinutes: mins,
+        taskCount: countByOption.get(optionId) ?? 0,
+        percentage: totalMinutes > 0 ? Math.round(mins / totalMinutes * 100) : 0
+      };
+    }).sort((a, b) => b.totalMinutes - a.totalMinutes);
+    if (dim.type === "tree") {
+      const allOptionsInDim = await db.select().from(dimensionOptions).where(eq(dimensionOptions.dimensionId, dim.id));
+      const optionsById = new Map(allOptionsInDim.map((o) => [o.id, o]));
+      const dailyRootMap = /* @__PURE__ */ new Map();
+      for (const rel of dimValueRows) {
+        const date2 = taskDateMap.get(rel.taskId);
+        if (!date2) continue;
+        const root = findRootOption(rel.optionId, optionsById);
+        if (!root) continue;
+        const key = `${date2}|${root.id}`;
+        const m = minutesByTaskId.get(rel.taskId) ?? 0;
+        const prev = dailyRootMap.get(key);
+        dailyRootMap.set(key, { minutes: (prev?.minutes ?? 0) + m, color: root.color, name: root.name });
+      }
+      const rootMeta = /* @__PURE__ */ new Map();
+      for (const [key, val] of dailyRootMap.entries()) {
+        const rootId = key.split("|")[1];
+        if (!rootMeta.has(rootId)) rootMeta.set(rootId, { color: val.color, name: val.name });
+      }
+      dailyDimensionMinutes[dim.id] = allDates.flatMap(
+        (date2) => Array.from(rootMeta.entries()).map(([rootId, meta]) => ({
+          date: date2,
+          dimensionId: dim.id,
+          optionName: meta.name,
+          color: meta.color,
+          minutes: dailyRootMap.get(`${date2}|${rootId}`)?.minutes ?? 0
+        }))
+      ).sort((a, b) => a.date.localeCompare(b.date) || a.optionName.localeCompare(b.optionName));
+    } else {
+      const dailyMap = /* @__PURE__ */ new Map();
+      for (const rel of dimValueRows) {
+        const date2 = taskDateMap.get(rel.taskId);
+        if (!date2) continue;
+        const key = `${date2}|${rel.optionId}`;
+        dailyMap.set(key, (dailyMap.get(key) ?? 0) + (minutesByTaskId.get(rel.taskId) ?? 0));
+      }
+      dailyDimensionMinutes[dim.id] = allDates.flatMap(
+        (date2) => optionIds.map((optionId) => {
+          const option = optionMap.get(optionId);
+          return {
+            date: date2,
+            dimensionId: dim.id,
+            optionName: option.name,
+            color: option.color,
+            minutes: dailyMap.get(`${date2}|${optionId}`) ?? 0
+          };
+        })
+      ).sort((a, b) => a.date.localeCompare(b.date) || a.optionName.localeCompare(b.optionName));
+    }
+  }
   return c.json({
-    data: { tags: tagStats, totalMinutes, completedCount, totalCount, dailyActivity }
+    data: { totalMinutes, completedCount, totalCount, dailyActivity, dailyMinutes, dimensionStats, dailyDimensionMinutes }
   });
+});
+
+// backend/src/routes/dimensions.ts
+var dimensionsRouter = new Hono2();
+dimensionsRouter.get("/", async (c) => {
+  const userId = c.get("userId");
+  const rows = await db.select().from(dimensions).where(and(eq(dimensions.userId, userId), isNull(dimensions.deletedAt))).orderBy(dimensions.sortOrder);
+  return c.json({ data: rows });
+});
+dimensionsRouter.post("/", zValidator("json", CreateDimensionSchema), async (c) => {
+  const userId = c.get("userId");
+  const body = c.req.valid("json");
+  const now = /* @__PURE__ */ new Date();
+  const [dimension] = await db.insert(dimensions).values({
+    ...body,
+    userId,
+    createdAt: now,
+    updatedAt: now
+  }).returning();
+  return c.json({ data: dimension }, 201);
+});
+var ReorderSchema = external_exports.object({
+  orders: external_exports.array(external_exports.object({ id: external_exports.string(), sortOrder: external_exports.number().int() }))
+});
+dimensionsRouter.patch("/reorder", zValidator("json", ReorderSchema), async (c) => {
+  const userId = c.get("userId");
+  const { orders } = c.req.valid("json");
+  await Promise.all(
+    orders.map(
+      ({ id, sortOrder }) => db.update(dimensions).set({ sortOrder, updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(dimensions.id, id), eq(dimensions.userId, userId)))
+    )
+  );
+  return c.json({ data: null });
+});
+dimensionsRouter.patch("/:id", zValidator("json", UpdateDimensionSchema), async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const body = c.req.valid("json");
+  const [dimension] = await db.update(dimensions).set({ ...body, updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(dimensions.id, id), eq(dimensions.userId, userId))).returning();
+  if (!dimension) return c.json({ error: "Not found" }, 404);
+  return c.json({ data: dimension });
+});
+dimensionsRouter.patch("/:id/set-color-source", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const [target] = await db.select().from(dimensions).where(and(eq(dimensions.id, id), eq(dimensions.userId, userId)));
+  if (!target) return c.json({ error: "Not found" }, 404);
+  await db.update(dimensions).set({ isColorSource: false, updatedAt: /* @__PURE__ */ new Date() }).where(eq(dimensions.userId, userId));
+  await db.update(dimensions).set({ isColorSource: true, updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(dimensions.id, id), eq(dimensions.userId, userId)));
+  return c.json({ data: null });
+});
+dimensionsRouter.delete("/:id", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const now = /* @__PURE__ */ new Date();
+  const [dimension] = await db.update(dimensions).set({ deletedAt: now }).where(and(eq(dimensions.id, id), eq(dimensions.userId, userId))).returning();
+  if (!dimension) return c.json({ error: "Not found" }, 404);
+  const options = await db.select({ id: dimensionOptions.id }).from(dimensionOptions).where(and(eq(dimensionOptions.dimensionId, id), eq(dimensionOptions.userId, userId)));
+  const optionIds = options.map((o) => o.id);
+  if (optionIds.length > 0) {
+    await db.update(dimensionOptions).set({ deletedAt: now }).where(inArray(dimensionOptions.id, optionIds));
+    await db.delete(taskDimensionValues).where(inArray(taskDimensionValues.optionId, optionIds));
+  }
+  return c.json({ data: null }, 200);
+});
+
+// backend/src/routes/dimensionOptions.ts
+var dimensionOptionsRouter = new Hono2();
+var ListQuerySchema = external_exports.object({ dimensionId: external_exports.string() });
+dimensionOptionsRouter.get("/", zValidator("query", ListQuerySchema), async (c) => {
+  const userId = c.get("userId");
+  const { dimensionId } = c.req.valid("query");
+  const rows = await db.select().from(dimensionOptions).where(and(
+    eq(dimensionOptions.dimensionId, dimensionId),
+    eq(dimensionOptions.userId, userId),
+    isNull(dimensionOptions.deletedAt)
+  )).orderBy(dimensionOptions.sortOrder);
+  return c.json({ data: rows });
+});
+dimensionOptionsRouter.post("/", zValidator("json", CreateDimensionOptionSchema), async (c) => {
+  const userId = c.get("userId");
+  const body = c.req.valid("json");
+  const now = /* @__PURE__ */ new Date();
+  const [option] = await db.insert(dimensionOptions).values({
+    ...body,
+    userId,
+    createdAt: now,
+    updatedAt: now
+  }).returning();
+  return c.json({ data: option }, 201);
+});
+var ReorderSchema2 = external_exports.object({
+  orders: external_exports.array(external_exports.object({ id: external_exports.string(), sortOrder: external_exports.number().int() }))
+});
+dimensionOptionsRouter.patch("/reorder", zValidator("json", ReorderSchema2), async (c) => {
+  const userId = c.get("userId");
+  const { orders } = c.req.valid("json");
+  await Promise.all(
+    orders.map(
+      ({ id, sortOrder }) => db.update(dimensionOptions).set({ sortOrder, updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(dimensionOptions.id, id), eq(dimensionOptions.userId, userId)))
+    )
+  );
+  return c.json({ data: null });
+});
+async function wouldCreateCycle(optionId, newParentId, userId) {
+  let cursor = newParentId;
+  const visited = /* @__PURE__ */ new Set();
+  while (cursor) {
+    if (cursor === optionId) return true;
+    if (visited.has(cursor)) break;
+    visited.add(cursor);
+    const [row] = await db.select({ parentId: dimensionOptions.parentId }).from(dimensionOptions).where(and(eq(dimensionOptions.id, cursor), eq(dimensionOptions.userId, userId)));
+    cursor = row?.parentId ?? null;
+  }
+  return false;
+}
+dimensionOptionsRouter.patch("/:id", zValidator("json", UpdateDimensionOptionSchema), async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const body = c.req.valid("json");
+  if (body.parentId) {
+    const [existing] = await db.select({ dimensionId: dimensionOptions.dimensionId }).from(dimensionOptions).where(and(eq(dimensionOptions.id, id), eq(dimensionOptions.userId, userId)));
+    if (!existing) return c.json({ error: "Not found" }, 404);
+    const cycle = await wouldCreateCycle(id, body.parentId, userId);
+    if (cycle) return c.json({ error: "\u4E0D\u80FD\u5C06\u8282\u70B9\u79FB\u52A8\u5230\u81EA\u5DF1\u7684\u5B50\u5B59\u8282\u70B9\u4E0B" }, 400);
+  }
+  const [option] = await db.update(dimensionOptions).set({ ...body, updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(dimensionOptions.id, id), eq(dimensionOptions.userId, userId))).returning();
+  if (!option) return c.json({ error: "Not found" }, 404);
+  return c.json({ data: option });
+});
+dimensionOptionsRouter.delete("/:id", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const [start] = await db.select().from(dimensionOptions).where(and(eq(dimensionOptions.id, id), eq(dimensionOptions.userId, userId), isNull(dimensionOptions.deletedAt)));
+  if (!start) return c.json({ error: "Not found" }, 404);
+  const allInDimension = await db.select().from(dimensionOptions).where(and(eq(dimensionOptions.dimensionId, start.dimensionId), eq(dimensionOptions.userId, userId)));
+  const childrenMap = /* @__PURE__ */ new Map();
+  for (const o of allInDimension) {
+    if (!o.parentId) continue;
+    const list = childrenMap.get(o.parentId) ?? [];
+    list.push(o.id);
+    childrenMap.set(o.parentId, list);
+  }
+  const idsToDelete = [];
+  const queue = [id];
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    idsToDelete.push(cur);
+    queue.push(...childrenMap.get(cur) ?? []);
+  }
+  const now = /* @__PURE__ */ new Date();
+  await db.update(dimensionOptions).set({ deletedAt: now }).where(inArray(dimensionOptions.id, idsToDelete));
+  await db.delete(taskDimensionValues).where(inArray(taskDimensionValues.optionId, idsToDelete));
+  return c.json({ data: null }, 200);
 });
 
 // backend/src/index.ts
@@ -19684,8 +20151,9 @@ app.get("/health", (c) => c.json({ status: "ok" }));
 app.route("/auth", authRouter);
 app.use("/api/*", authMiddleware);
 app.route("/api/tasks", tasksRouter);
-app.route("/api/tags", tagsRouter);
 app.route("/api/stats", statsRouter);
+app.route("/api/dimensions", dimensionsRouter);
+app.route("/api/dimension-options", dimensionOptionsRouter);
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
     return c.json({ error: err.message }, err.status);
