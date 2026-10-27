@@ -16,7 +16,7 @@ export const CreateTaskSchema = z.object({
   endTime: z.string().datetime().optional(),
   isAllDay: z.boolean().default(false),
   dimensionValues: z.record(z.string(), z.string()).default({}),
-  status: z.enum(['todo', 'in_progress', 'done', 'cancelled']).default('todo'),
+  status: z.enum(['todo', 'in_progress', 'done']).default('todo'),
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
   recurrence: RecurrenceSchema.optional(),
   expectedOutput: z.string().optional(),
@@ -31,7 +31,7 @@ export const UNSET_DIMENSION_VALUE = '__unset__'
 
 export const TaskListQuerySchema = z.object({
   q: z.string().trim().max(200).default(''),
-  status: z.enum(['all', 'unfinished', 'done', 'cancelled']).default('all'),
+  status: z.enum(['all', 'unfinished', 'done']).default('all'),
   schedule: z.enum(['all', 'scheduled', 'unscheduled']).default('all'),
   start: z.string().datetime().optional(),
   end: z.string().datetime().optional(),

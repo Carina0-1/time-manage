@@ -76,7 +76,6 @@
 .statusSelect { border: none !important; padding: 5px 3px !important; background: transparent !important; font-size: 11px !important; width: 75px; }
 .status_done { color: var(--accent-ink) !important; }
 .status_in_progress { color: #b68d37 !important; }
-.status_cancelled { color: var(--ink-faint) !important; }
 .scheduleCell { color: var(--ink-soft); font-size: 11px !important; line-height: 1.6; overflow-wrap: anywhere; }
 .durationCell { white-space: nowrap; font-size: 11px !important; color: var(--ink-soft); }
 .tagList { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
@@ -120,3 +119,9 @@
 .table th { position: sticky; top: 0; z-index: 1; }
 .tableWrap::-webkit-scrollbar { width: 6px; height: 6px; }
 .tableWrap::-webkit-scrollbar-thumb { border-radius: 6px; background: var(--line-strong); }
+
+.inlineTitleInput { width: 100%; font-size: 13px !important; font-weight: 550; }
+.cellButton { border: none; background: transparent; padding: 3px 0; color: inherit; font-size: inherit !important; text-align: left; line-height: inherit; width: 100%; }
+.cellButton:hover { color: var(--accent-ink); }
+.unsetTag { border: 1px dashed var(--line-strong); background: transparent; padding: 3px 7px; border-radius: 5px; color: var(--ink-faint); font-size: 11px !important; }
+.unsetTag:hover { color: var(--accent-ink); border-color: var(--accent); }

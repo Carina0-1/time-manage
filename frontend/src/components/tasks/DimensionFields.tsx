@@ -17,14 +17,14 @@ interface Props {
 export default function DimensionFields({ dimensions, optionsByDimension, values, onChange, mode = 'tag', disabled = false }: Props) {
   const [query, setQuery] = useState('')
   return <div className={styles.dimensionFields}>
-    <input type="search" aria-label={mode === 'filter' ? '搜索筛选选项' : '搜索打标选项'} placeholder="搜索维度或选项…" value={query} onChange={e => setQuery(e.target.value)} disabled={disabled} />
+    {mode === 'filter' && <input type="search" aria-label="搜索筛选选项" placeholder="搜索维度或选项…" value={query} onChange={e => setQuery(e.target.value)} disabled={disabled} />}
     {!dimensions.length && <p className={styles.hint}>暂无维度，<Link to="/settings">前往设置</Link>添加。</p>}
     <div className={styles.dimensionGrid}>
       {dimensions.map(dim => {
         const options = [...(optionsByDimension[dim.id] ?? [])].sort((a, b) => a.sortOrder - b.sortOrder)
         const paths = options.map(option => ({ option, path: getOptionPath(options, option.id) }))
-        const matching = paths.filter(({ option, path }) => option.id === values[dim.id] || `${dim.name} ${path}`.toLowerCase().includes(query.trim().toLowerCase()))
-        if (query && !matching.length && !dim.name.toLowerCase().includes(query.toLowerCase())) return null
+        const matching = mode === 'tag' ? paths : paths.filter(({ option, path }) => option.id === values[dim.id] || `${dim.name} ${path}`.toLowerCase().includes(query.trim().toLowerCase()))
+        if (mode === 'filter' && query && !matching.length && !dim.name.toLowerCase().includes(query.toLowerCase())) return null
         return <label key={dim.id} className={styles.field}>
           <span>{dim.icon} {dim.name}{mode === 'tag' && dim.isRequired && <b className={styles.required}> *</b>}</span>
           <select aria-label={`${mode === 'filter' ? '筛选' : '设置'}${dim.name}`} value={values[dim.id] ?? ''} disabled={disabled || (mode === 'tag' && !options.length)} onChange={e => onChange(dim.id, e.target.value || null)}>

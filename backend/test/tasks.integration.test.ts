@@ -53,7 +53,7 @@ test('维度父节点、未设置、跨维度交集和排期日期边界', async
   const date = await query({ start: '2026-10-26T16:00:00.000Z', end: '2026-10-27T16:00:00.000Z' })
   assert.deepEqual(new Set(date.body.data.items.map((t: any) => t.id)), new Set(['scheduled', 'all-day']))
   assert.equal((await query({ schedule: 'unscheduled' })).body.data.total, 69)
-  assert.equal((await query({ status: 'unfinished' })).body.data.total, 70)
+  assert.equal((await query({ status: 'unfinished' })).body.data.total, 71)
   assert.equal((await query({ 'filter[foreign]': 'foreign-option' })).status, 400)
   assert.equal((await query({ 'filter[tag]': 'nonexistent' })).status, 400)
   assert.equal((await query({ schedule: 'unscheduled', start: '2026-10-27T00:00:00.000Z' })).status, 400)
@@ -127,4 +127,35 @@ test('删除、状态过滤和最后一页回退', async () => {
   assert.equal((await query({ id: 'created-task' })).body.data.total, 0)
   assert.equal((await query({ page: '9999' })).body.data.page, 2)
   assert.equal((await query({ schedule: 'scheduled', sort: 'start_asc' })).body.data.items[0].id, 'boundary')
+})
+
+
+test('按字段修改内容、排期和状态，其他字段保持不变', async () => {
+  const before = (await request('/scheduled')).body.data
+  const contents = { title: '只修改文字内容', description: '新的备注', expectedOutput: '新的预期产出' }
+  const contentResult = await request('/scheduled', 'PATCH', contents)
+  assert.equal(contentResult.status, 200)
+  for (const key of ['startTime', 'endTime', 'isAllDay', 'status', 'priority', 'dimensionValues']) {
+    assert.deepEqual(contentResult.body.data[key], before[key], key)
+  }
+  const schedule = { startTime: '2026-10-28T08:00:00.000Z', endTime: '2026-10-28T09:30:00.000Z', isAllDay: false }
+  const scheduled = await request('/scheduled', 'PATCH', schedule)
+  assert.equal(scheduled.status, 200)
+  for (const [key, value] of Object.entries(contents)) assert.equal(scheduled.body.data[key], value)
+  assert.deepEqual(scheduled.body.data.dimensionValues, before.dimensionValues)
+  assert.equal(scheduled.body.data.status, before.status)
+  const statusResult = await request('/scheduled', 'PATCH', { status: 'done' })
+  for (const [key, value] of Object.entries(schedule)) assert.equal(statusResult.body.data[key], value)
+  for (const [key, value] of Object.entries(contents)) assert.equal(statusResult.body.data[key], value)
+  // 历史缺少必填维度的任务也可以仅修改文字，不需要补齐不相关字段。
+  assert.equal((await request('/legacy', 'PATCH', { description: '仅补充历史任务备注' })).status, 200)
+})
+
+test('取消状态不进入新增、编辑或筛选接口', async () => {
+  const before = (await query({})).body.data.total
+  assert.equal((await request('', 'POST', { id: 'cancelled-input', title: '不支持取消', status: 'cancelled', dimensionValues: { project: 'project-a' } })).status, 400)
+  assert.equal((await request('/ui-task', 'PATCH', { status: 'cancelled' })).status, 400)
+  assert.equal((await query({ status: 'cancelled' })).status, 400)
+  assert.equal((await request('/ui-task')).body.data.status, 'todo')
+  assert.equal((await query({})).body.data.total, before)
 })

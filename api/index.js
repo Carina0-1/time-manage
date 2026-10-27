@@ -19622,7 +19622,7 @@ var CreateTaskSchema = external_exports.object({
   endTime: external_exports.string().datetime().optional(),
   isAllDay: external_exports.boolean().default(false),
   dimensionValues: external_exports.record(external_exports.string(), external_exports.string()).default({}),
-  status: external_exports.enum(["todo", "in_progress", "done", "cancelled"]).default("todo"),
+  status: external_exports.enum(["todo", "in_progress", "done"]).default("todo"),
   priority: external_exports.enum(["low", "medium", "high"]).default("medium"),
   recurrence: RecurrenceSchema.optional(),
   expectedOutput: external_exports.string().optional()
@@ -19634,7 +19634,7 @@ var UpdateTaskSchema = CreateTaskSchema.partial().omit({ id: true }).extend({
 var UNSET_DIMENSION_VALUE = "__unset__";
 var TaskListQuerySchema = external_exports.object({
   q: external_exports.string().trim().max(200).default(""),
-  status: external_exports.enum(["all", "unfinished", "done", "cancelled"]).default("all"),
+  status: external_exports.enum(["all", "unfinished", "done"]).default("all"),
   schedule: external_exports.enum(["all", "scheduled", "unscheduled"]).default("all"),
   start: external_exports.string().datetime().optional(),
   end: external_exports.string().datetime().optional(),

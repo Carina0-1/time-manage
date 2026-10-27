@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Dimension, Task, TaskListResult, TaskStatus } from '@time-manage/shared'
 import { UNSET_DIMENSION_VALUE } from '@time-manage/shared'
 import { tasksApi } from '@/api/tasks'
@@ -11,6 +11,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { getOptionPath } from '@/utils/dimensionTree'
 import DimensionFields from './DimensionFields'
 import TaskInlineEditor from './TaskInlineEditor'
+import TaskScheduleEditor from './TaskScheduleEditor'
 import { durationLabel, scheduleLabel, STATUS_LABELS } from './taskForm'
 import styles from './TaskListPage.module.css'
 
@@ -39,6 +40,7 @@ export default function TaskListPage() {
   const [queryText, setQueryText] = useState(filters.q)
   const [retry, setRetry] = useState(0)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [scheduleId, setScheduleId] = useState<string | null>(null)
   const [taggingId, setTaggingId] = useState<string | null>(null)
   const [pinnedId, setPinnedId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ message: string; task?: Task } | null>(null)
@@ -63,7 +65,7 @@ export default function TaskListPage() {
   }
   useEffect(() => { void refreshDimensions() }, [])
   useEffect(() => { const timer = setTimeout(() => setQueryText(filters.q.trim()), 300); return () => clearTimeout(timer) }, [filters.q])
-  useEffect(() => { setEditingId(null); setTaggingId(null); setPinnedId(null) }, [filters.q, filters.status, filters.schedule, filters.startDate, filters.endDate, filters.sort, filters.page, filters.dimensionFilters])
+  useEffect(() => { setEditingId(null); setScheduleId(null); setTaggingId(null); setPinnedId(null) }, [filters.q, filters.status, filters.schedule, filters.startDate, filters.endDate, filters.sort, filters.page, filters.dimensionFilters])
 
   const invalidDates = !!(filters.startDate && filters.endDate && filters.startDate > filters.endDate)
   const query = useMemo(() => queryFrom(filters, queryText), [queryText, filters.status, filters.schedule, filters.sort, filters.page, filters.startDate, filters.endDate, filters.dimensionFilters])
@@ -101,6 +103,7 @@ export default function TaskListPage() {
     const guard = useTaskListStore.getState().confirmLeave
     if (guard && !guard()) return false
     setEditingId(null)
+    setScheduleId(null)
     return true
   }
   const changeFilters = (patch: Partial<TaskListFilters>) => {
@@ -110,6 +113,10 @@ export default function TaskListPage() {
   const beginEdit = (id: string) => {
     if (id === editingId || !canLeaveEditor()) return
     setTaggingId(null); setEditingId(id)
+  }
+  const beginScheduleEdit = (id: string) => {
+    if (id === scheduleId || !canLeaveEditor()) return
+    setTaggingId(null); setScheduleId(id)
   }
   const handleDelete = async (task: Task) => {
     if (!window.confirm(`删除「${task.title}」？\n删除后将从任务列表、日历和统计中移除。`)) return
@@ -130,7 +137,7 @@ export default function TaskListPage() {
   }
   const activeChips: { key: string; label: string; clear: () => void }[] = []
   if (filters.q) activeChips.push({ key: 'q', label: `搜索：${filters.q}`, clear: () => changeFilters({ q: '' }) })
-  if (filters.status !== 'all') activeChips.push({ key: 'status', label: `状态：${{ unfinished: '未完成', done: '已完成', cancelled: '已取消' }[filters.status]}`, clear: () => changeFilters({ status: 'all' }) })
+  if (filters.status !== 'all') activeChips.push({ key: 'status', label: `状态：${{ unfinished: '未完成', done: '已完成' }[filters.status]}`, clear: () => changeFilters({ status: 'all' }) })
   if (filters.schedule !== 'all') activeChips.push({ key: 'schedule', label: filters.schedule === 'scheduled' ? '已排期' : '未排期', clear: () => changeFilters({ schedule: 'all' }) })
   if (filters.startDate || filters.endDate) activeChips.push({ key: 'date', label: `${filters.startDate || '不限'} 至 ${filters.endDate || '不限'}`, clear: () => changeFilters({ startDate: '', endDate: '' }) })
   for (const [id, value] of Object.entries(filters.dimensionFilters)) {
@@ -141,10 +148,6 @@ export default function TaskListPage() {
   const busy = loading || filters.q.trim() !== queryText
   const pinnedTask = pinnedId ? taskCache[pinnedId] : undefined
   const renderTask = (task: Task) => {
-    if (editingId === task.id) return <TaskInlineEditor key={task.id} task={task} dimensions={dims} optionsByDimension={optionsByDimension} onCancel={() => setEditingId(null)} onSave={async input => {
-      const updated = await tasksApi.update(task.id, input)
-      cacheTasks([updated]); updateTask(task.id, updated); setEditingId(null)
-    }} />
     const allTags = dims.flatMap(dim => {
       const value = task.dimensionValues[dim.id]
       const option = optionsByDimension[dim.id]?.find(o => o.id === value)
@@ -153,25 +156,33 @@ export default function TaskListPage() {
     const visibleTags = allTags.filter(t => t.dim.showInSidebar).slice(0, 2)
     const hiddenCount = allTags.length - visibleTags.length
     const pendingRequired = dims.some(d => d.isRequired && !task.dimensionValues[d.id])
-    return <Fragment key={task.id}>
-      <tr className={task.status === 'done' ? styles.doneRow : ''}>
+    const renderRow = (titleEditor?: ReactNode) => <tr className={task.status === 'done' ? styles.doneRow : ''}>
         <td className={styles.titleCell}>
-          <button className={styles.taskTitle} title="双击任务名称编辑；也可按 Enter 或 F2" onDoubleClick={() => beginEdit(task.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); beginEdit(task.id) } }}>{task.title}</button>
-          {task.description && <div className={styles.taskDescription} title={task.description}>{task.description}</div>}
+          {titleEditor ?? <button className={styles.taskTitle} title="双击任务名称编辑；仅编辑名称、备注与预期产出；也可按 Enter 或 F2" onDoubleClick={() => beginEdit(task.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); beginEdit(task.id) } }}>{task.title}</button>}
+          {!titleEditor && task.description && <div className={styles.taskDescription} title={task.description}>{task.description}</div>}
           {pendingRequired && <span className={styles.missingBadge}>必填维度待补齐</span>}
         </td>
         <td><select className={`${styles.statusSelect} ${styles[`status_${task.status}`] ?? ''}`} aria-label={`修改${task.title}的状态`} value={task.status} disabled={statusBusy === task.id} onChange={e => void handleStatus(task, e.target.value as TaskStatus)}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td>
-        <td className={styles.scheduleCell}>{scheduleLabel(task)}</td>
-        <td className={styles.durationCell}>{durationLabel(task)}</td>
+        <td className={styles.scheduleCell}><button className={styles.cellButton} aria-label={`修改${task.title}的排期`} title="点击修改排期" onClick={() => beginScheduleEdit(task.id)}>{scheduleLabel(task)}</button></td>
+        <td className={styles.durationCell}><button className={styles.cellButton} aria-label={`通过排期修改${task.title}的时长`} title="时长由排期计算，点击修改排期" onClick={() => beginScheduleEdit(task.id)}>{durationLabel(task)}</button></td>
         <td className={styles.tagsCell}>
           <div className={styles.tagList}>
             {visibleTags.map(({ dim, option, path }) => <button key={dim.id} className={styles.tag} style={{ color: option.color, borderColor: `${option.color}50`, background: `${option.color}12` }} title={`${dim.name}：${path} · 点击打标`} onClick={() => { if (canLeaveEditor()) setTaggingId(taggingId === task.id ? null : task.id) }}>{option.icon} {option.name}</button>)}
             {hiddenCount > 0 && <button className={styles.moreTags} title={allTags.map(t => `${t.dim.name}：${t.path}`).join('\n')} onClick={() => { if (canLeaveEditor()) setTaggingId(taggingId === task.id ? null : task.id) }}>+{hiddenCount}</button>}
-            {!allTags.length && <span className={styles.hint}>未打标</span>}
+            {!allTags.length && <button className={styles.unsetTag} onClick={() => { if (canLeaveEditor()) setTaggingId(task.id) }}>未打标</button>}
           </div>
         </td>
         <td className={styles.rowActions}><button className={styles.textButton} onClick={() => { if (canLeaveEditor()) setTaggingId(taggingId === task.id ? null : task.id) }}>打标</button><button className={styles.mobileEdit} onClick={() => beginEdit(task.id)}>编辑</button><button className={styles.deleteButton} disabled={deleting === task.id} onClick={() => void handleDelete(task)}>{deleting === task.id ? '删除中…' : '删除'}</button></td>
       </tr>
+    return <Fragment key={task.id}>
+      {editingId === task.id ? <TaskInlineEditor task={task} renderRow={renderRow} onCancel={() => setEditingId(null)} onSave={async input => {
+        const updated = await tasksApi.update(task.id, input)
+        cacheTasks([updated]); updateTask(task.id, updated); setEditingId(null)
+      }} /> : renderRow()}
+      {scheduleId === task.id && <TaskScheduleEditor task={task} onCancel={() => setScheduleId(null)} onSave={async input => {
+        const updated = await tasksApi.update(task.id, input)
+        cacheTasks([updated]); updateTask(task.id, updated); setScheduleId(null)
+      }} />}
       {taggingId === task.id && <TaskTagRow task={task} dimensions={dims} optionsByDimension={optionsByDimension} onClose={() => setTaggingId(null)} onSaved={updated => { cacheTasks([updated]); updateTask(updated.id, updated) }} />}
     </Fragment>
   }
@@ -183,7 +194,7 @@ export default function TaskListPage() {
     <section className={styles.toolbar} aria-label="搜索与筛选">
       <div className={styles.searchBox}><span aria-hidden="true">⌕</span><input aria-label="搜索任务" type="search" maxLength={200} placeholder="搜索任务标题、备注、预期产出…" value={filters.q} onChange={e => changeFilters({ q: e.target.value })} /></div>
       <div className={styles.filterRow}>
-        <label className={styles.filterField}><span>状态</span><select aria-label="筛选任务状态" value={filters.status} onChange={e => changeFilters({ status: e.target.value as TaskListFilters['status'] })}><option value="all">全部状态</option><option value="unfinished">未完成</option><option value="done">已完成</option><option value="cancelled">已取消</option></select></label>
+        <label className={styles.filterField}><span>状态</span><select aria-label="筛选任务状态" value={filters.status} onChange={e => changeFilters({ status: e.target.value as TaskListFilters['status'] })}><option value="all">全部状态</option><option value="unfinished">未完成</option><option value="done">已完成</option></select></label>
         <label className={styles.filterField}><span>排期</span><select aria-label="筛选排期" value={filters.schedule} onChange={e => {
           const schedule = e.target.value as TaskListFilters['schedule']
           changeFilters({ schedule, ...(schedule === 'unscheduled' ? { startDate: '', endDate: '' } : {}) })

@@ -22,7 +22,7 @@ const TaskFormSchema = z.object({
   endTime: z.string().optional(),
   isAllDay: z.boolean(),
   dimensionValues: z.record(z.string(), z.string()),
-  status: z.enum(['todo', 'in_progress', 'done', 'cancelled']),
+  status: z.enum(['todo', 'in_progress', 'done']),
 })
 
 type TaskFormValues = z.infer<typeof TaskFormSchema>

@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import type { Task, TaskStatus } from '@time-manage/shared'
 
-export const STATUS_LABELS: Record<TaskStatus, string> = { todo: '待办', in_progress: '进行中', done: '已完成', cancelled: '已取消' }
+export const STATUS_LABELS: Record<TaskStatus, string> = { todo: '待办', in_progress: '进行中', done: '已完成' }
 
 export function toTimeFields(task: Pick<Task, 'startTime' | 'endTime' | 'isAllDay'>) {
   const format = task.isAllDay ? 'YYYY-MM-DD' : 'YYYY-MM-DDTHH:mm'
