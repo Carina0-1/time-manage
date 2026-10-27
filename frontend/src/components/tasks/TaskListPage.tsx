@@ -10,6 +10,8 @@ import { useUiStore } from '@/stores/uiStore'
 import { getOptionPath } from '@/utils/dimensionTree'
 import DimensionFields from './DimensionFields'
 import TaskItem, { type TaskSession } from './TaskItem'
+import { matchesTask, projectTaskList } from './taskListProjection'
+import { taskChangeImpact } from '@/stores/taskImpact'
 import styles from './TaskListPage.module.css'
 
 const EMPTY_RESULT: TaskListResult = { items: [], total: 0, page: 1, pageSize: 50 }
@@ -38,16 +40,18 @@ export default function TaskListPage() {
   const [session, setSession] = useState<TaskSession | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [listRevision, setListRevision] = useState(revision)
+  const [refreshNeeded, setRefreshNeeded] = useState(revision)
+  const loadedQuery = useRef('')
   const [pinnedId, setPinnedId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ message: string; task?: Task } | null>(null)
   const handledRevision = useRef(revision)
   const dims = useMemo(() => [...dimensions].sort((a, b) => a.sortOrder - b.sortOrder), [dimensions])
 
-  const refreshDimensions = async () => {
+  const refreshDimensions = async (force = false) => {
     try {
       setDimensionError('')
-      await fetchDimensions()
-      await Promise.all(useDimensionStore.getState().dimensions.map(d => fetchOptions(d.id)))
+      await fetchDimensions(force)
+      await Promise.all(useDimensionStore.getState().dimensions.map(d => fetchOptions(d.id, force)))
       const state = useDimensionStore.getState()
       const values = useTaskListStore.getState().dimensionFilters
       const next = Object.fromEntries(Object.entries(values).filter(([id, value]) => state.dimensions.some(d => d.id === id) && (value === UNSET_DIMENSION_VALUE || state.optionsByDimension[id]?.some(o => o.id === value))))
@@ -59,39 +63,48 @@ export default function TaskListPage() {
   }
   useEffect(() => { void refreshDimensions() }, [])
   useEffect(() => { const timer = setTimeout(() => setQueryText(filters.q.trim()), 300); return () => clearTimeout(timer) }, [filters.q])
-  useEffect(() => { if (!session) setListRevision(revision) }, [revision, session])
+  useEffect(() => { if (!session) setListRevision(refreshNeeded) }, [refreshNeeded, session])
   useEffect(() => { setSession(null); setSelectedId(null); setPinnedId(null) }, [filters.q, filters.status, filters.schedule, filters.startDate, filters.endDate, filters.sort, filters.page, filters.dimensionFilters])
 
   const invalidDates = !!(filters.startDate && filters.endDate && filters.startDate > filters.endDate)
   const query = useMemo(() => queryFrom(filters, queryText), [queryText, filters.status, filters.schedule, filters.sort, filters.page, filters.startDate, filters.endDate, filters.dimensionFilters])
   useEffect(() => {
+    if (revision <= handledRevision.current) return
+    handledRevision.current = revision
+    const mutation = useTaskStore.getState().lastMutation
+    if (!mutation) { setRefreshNeeded(revision); return }
+    setResult(previous => projectTaskList(previous, mutation, query, optionsByDimension, session?.id))
+    const matches = mutation.task && matchesTask(mutation.task, query, optionsByDimension)
+    if (mutation.type !== 'delete' && mutation.task && (mutation.type === 'create' || !matches)) {
+      setNotice({ message: `${mutation.type === 'create' ? '已创建任务' : '已保存'}${matches ? '' : '，任务不符合当前筛选'}`, task: !matches ? mutation.task : undefined })
+    }
+    const textOnly = mutation.type === 'update' && mutation.task && mutation.previous && !taskChangeImpact(mutation.previous, mutation.task).stats
+    if (!textOnly || query.q) setRefreshNeeded(revision)
+  }, [revision])
+  useEffect(() => {
     const controller = new AbortController()
     let active = true
+    const key = JSON.stringify(query)
+    const foreground = loadedQuery.current !== key
+    const snapshotRevision = useTaskStore.getState().revision
     setError('')
     if (invalidDates) { setLoading(false); return }
-    setLoading(true)
-    const mutation = useTaskStore.getState().lastMutation
-    const mutationRevision = useTaskStore.getState().revision
-    void tasksApi.query(query, controller.signal).then(async data => {
-      if (!active) return
-      setResult(data)
-      cacheTasks(data.items)
-      if (data.page !== query.page) setFilters({ page: data.page })
-      if (mutation && mutationRevision > handledRevision.current) {
-        handledRevision.current = mutationRevision
-        if (mutation.type !== 'delete' && mutation.task) {
-          const matches = data.items.some(t => t.id === mutation.id) || (await tasksApi.query({ ...query, id: mutation.id, page: 1, pageSize: 1 }, controller.signal)).total > 0
-          if (!active) return
-          if (!matches || mutation.type === 'create') setNotice({ message: `${mutation.type === 'create' ? '已创建任务' : '已保存'}${matches ? '' : '，任务不符合当前筛选'}`, task: !matches ? mutation.task : undefined })
+    if (foreground) setLoading(true)
+    const timer = setTimeout(() => {
+      void tasksApi.query(query, controller.signal).then(data => {
+        if (!active) return
+        if (useTaskStore.getState().revision !== snapshotRevision) { setRefreshNeeded(useTaskStore.getState().revision); return }
+        setResult(data); cacheTasks(data.items); loadedQuery.current = key
+        if (data.page !== query.page) setFilters({ page: data.page })
+      }).catch(e => {
+        if (active && !controller.signal.aborted) {
+          if (foreground) setError(errorMessage(e))
+          else setNotice({ message: '修改已保存，列表校验暂未完成，请稍后刷新' })
+          if (e instanceof ApiError && e.status === 400 && e.message.includes('失效')) void refreshDimensions(true)
         }
-      }
-    }).catch(e => {
-      if (active && !controller.signal.aborted) {
-        setError(errorMessage(e))
-        if (e instanceof ApiError && e.status === 400 && e.message.includes('失效')) void refreshDimensions()
-      }
-    }).finally(() => { if (active) setLoading(false) })
-    return () => { active = false; controller.abort() }
+      }).finally(() => { if (active) setLoading(false) })
+    }, foreground ? 0 : 250)
+    return () => { active = false; clearTimeout(timer); controller.abort() }
   }, [query, listRevision, retry, invalidDates, cacheTasks, setFilters])
 
   const canLeaveEditor = async () => {
@@ -156,7 +169,7 @@ export default function TaskListPage() {
       </div>
       {activeChips.length > 0 && <div className={styles.activeFilters}>{activeChips.map(chip => <button className={styles.filterChip} key={chip.key} onClick={chip.clear}>{chip.label}<span>×</span></button>)}<button className={styles.textButton} onClick={async () => { if (await canLeaveEditor()) { clearFilters(); setPinnedId(null) } }}>清空条件</button></div>}
     </section>
-    {dimensionError && <div role="alert" className={styles.notice}>维度加载失败：{dimensionError}<button className={styles.textButton} onClick={() => void refreshDimensions()}>重试</button></div>}
+    {dimensionError && <div role="alert" className={styles.notice}>维度加载失败：{dimensionError}<button className={styles.textButton} onClick={() => void refreshDimensions(true)}>重试</button></div>}
     {notice && <div role="status" className={styles.notice}><span>{notice.message}</span>{notice.task && <button className={styles.textButton} onClick={async () => { if (await canLeaveEditor() && notice.task) { setPinnedId(notice.task.id); setSession({ id: notice.task.id, mode: 'detail' }); setNotice(null) } }}>查看任务</button>}<button aria-label="关闭提示" className={styles.dismiss} onClick={() => setNotice(null)}>×</button></div>}
     {invalidDates && <p role="alert" className={styles.error}>开始日期不能晚于结束日期</p>}
     <div className={styles.resultBar}><span>{busy ? '正在更新任务…' : `共 ${result.total} 条 · 当前显示 ${result.items.length} 条`}</span><div><span className={styles.editHint}>双击文字编辑 · ⓘ 查看完整信息</span><select aria-label="任务排序" value={filters.sort} onChange={e => changeFilters({ sort: e.target.value as TaskListFilters['sort'] })}><option value="created_desc">创建时间 · 最新</option><option value="created_asc">创建时间 · 最早</option><option value="start_asc">排期时间 · 从早到晚</option><option value="start_desc">排期时间 · 从晚到早</option></select></div></div>

@@ -35,7 +35,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     useTaskStore.getState().reset()
     useUiStore.getState().clearAllDimensionFilters()
     useUiStore.getState().closeTaskModal()
-    useDimensionStore.setState({ dimensions: [], optionsByDimension: {}, loading: false })
+    useDimensionStore.getState().reset()
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     set({ token: null, user: null, isAuthenticated: false })

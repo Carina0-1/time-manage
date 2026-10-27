@@ -71,6 +71,11 @@ const effectiveEndTime = sql<Date>`case
   else ${tasks.endTime} end`
 
 // 独立分页接口，保留旧的日历 /tasks 数组响应。
+tasksRouter.get('/count', async c => {
+  const [{ total }] = await db.select({ total: count() }).from(tasks).where(and(eq(tasks.userId, c.get('userId')), isNull(tasks.deletedAt)))
+  return c.json({ data: total })
+})
+
 tasksRouter.get('/list', zValidator('query', TaskListQuerySchema), async c => {
   const userId = c.get('userId')
   const query = c.req.valid('query')
@@ -156,7 +161,13 @@ tasksRouter.post('/', zValidator('json', CreateTaskSchema), async c => {
   const result = await db.transaction(async tx => {
     await validateDimensions(tx, userId, dimensionValues)
     const now = new Date()
-    const [task] = await tx.insert(tasks).values({ ...body, userId, startTime, endTime, createdAt: now, updatedAt: now }).returning()
+    const [task] = await tx.insert(tasks).values({ ...body, userId, startTime, endTime, createdAt: now, updatedAt: now }).onConflictDoNothing({ target: tasks.id }).returning()
+    if (!task) {
+      const [existing] = await tx.select().from(tasks).where(and(eq(tasks.id, body.id), eq(tasks.userId, userId), isNull(tasks.deletedAt)))
+      if (!existing) throw new HTTPException(409, { message: '任务编号已存在，请重新创建' })
+      const [saved] = await attachDimensions([existing], tx)
+      return saved
+    }
     const entries = Object.entries(dimensionValues)
     if (entries.length) await tx.insert(taskDimensionValues).values(entries.map(([dimensionId, optionId]) => ({ id: nanoid(), taskId: task.id, dimensionId, optionId })))
     return { ...task, dimensionValues }

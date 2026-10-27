@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
+import { timingMiddleware } from './lib/requestTiming.js'
 import { HTTPException } from 'hono/http-exception'
 import { authMiddleware } from './middleware/auth.js'
 import { authRouter } from './routes/auth.js'
@@ -12,6 +13,7 @@ import { dimensionOptionsRouter } from './routes/dimensionOptions.js'
 
 export const app = new Hono()
 
+app.use('*', timingMiddleware)
 app.use('*', logger())
 app.use('*', cors({
   origin: process.env.FRONTEND_URL ?? 'http://localhost:5173',

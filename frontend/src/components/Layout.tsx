@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { DailyActivity } from '@time-manage/shared'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import QuickCreatePanel from './task/QuickCreatePanel'
 import TaskModal from './task/TaskModal'
@@ -17,6 +18,7 @@ export default function Layout() {
   const navigate = useNavigate()
   const { taskModalOpen, panelPos } = useUiStore()
   const { user, logout } = useAuthStore()
+  const activity = useSidebarActivity()
 
   const handleLogout = async () => {
     if (!await canLeaveTaskEditor()) return
@@ -39,8 +41,8 @@ export default function Layout() {
             <NavLink key={to} to={to} className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`} onClick={async e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); if (await canLeaveTaskEditor()) navigate(to) }}><span aria-hidden="true">{icon}</span>{label}</NavLink>
           ))}
         </div>
-        <SidebarStats onClickStats={() => navigate('/stats')} />
-        <ActivityHeatmap />
+        <SidebarStats activity={activity} onClickStats={() => navigate('/stats')} />
+        <ActivityHeatmap activity={activity} />
         <DimensionNav />
         <div className={styles.sidebarFooter}>
           <span className={styles.sidebarUsername}>{user?.username}</span>
@@ -56,11 +58,12 @@ export default function Layout() {
   )
 }
 
-function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
-  const revision = useTaskStore(s => s.revision)
+function SidebarStats({ onClickStats, activity }: { onClickStats: () => void; activity: DailyActivity[] }) {
+  const revision = useTaskStore(s => s.countRevision)
   const { dimensions, optionsByDimension, fetchDimensions, fetchOptions } = useDimensionStore()
   const [totalTaskCount, setTotalTaskCount] = useState(0)
-  const [activeDays, setActiveDays] = useState(0)
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90)
+  const activeDays = activity.filter(item => item.date >= cutoff.toISOString().slice(0, 10)).length
 
   useEffect(() => {
     fetchDimensions()
@@ -75,17 +78,9 @@ function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
   const primaryOptionCount = primaryDimension ? (optionsByDimension[primaryDimension.id]?.length ?? 0) : 0
 
   useEffect(() => {
-    tasksApi.query({ pageSize: 1 }).then((result) => setTotalTaskCount(result.total)).catch(() => {})
-  }, [revision])
-
-  useEffect(() => {
-    const end = new Date()
-    const start = new Date(end)
-    start.setDate(start.getDate() - 90)
-    const fmt = (d: Date) => d.toISOString().slice(0, 10)
-    statsApi.get(fmt(start), fmt(end))
-      .then((result) => setActiveDays(result.dailyActivity.length))
-      .catch(() => {})
+    const controller = new AbortController()
+    const timer = setTimeout(() => { void tasksApi.count(controller.signal).then(setTotalTaskCount).catch(() => {}) }, 250)
+    return () => { clearTimeout(timer); controller.abort() }
   }, [revision])
 
   return (
@@ -108,35 +103,29 @@ function SidebarStats({ onClickStats }: { onClickStats: () => void }) {
   )
 }
 
-function ActivityHeatmap() {
-  const revision = useTaskStore(s => s.revision)
-  const [activityMap, setActivityMap] = useState<Map<string, number>>(new Map())
-
+function useSidebarActivity() {
+  const revision = useTaskStore(s => s.activityRevision)
+  const [activity, setActivity] = useState<DailyActivity[]>([])
   useEffect(() => {
-    const end = new Date()
-    const start = new Date(end)
-    start.setDate(start.getDate() - 104) // ~15 weeks
-    const fmt = (d: Date) => d.toISOString().slice(0, 10)
-    statsApi.get(fmt(start), fmt(end))
-      .then((result) => {
-        const map = new Map<string, number>()
-        for (const { date, taskCount } of result.dailyActivity) {
-          map.set(date, taskCount)
-        }
-        setActivityMap(map)
-      })
-      .catch(() => {})
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      const end = new Date(), start = new Date(end)
+      start.setDate(start.getDate() - 104)
+      void statsApi.activity(start.toISOString().slice(0, 10), end.toISOString().slice(0, 10), controller.signal).then(setActivity).catch(() => {})
+    }, 250)
+    return () => { clearTimeout(timer); controller.abort() }
   }, [revision])
+  return activity
+}
 
-  // Build 15-week grid ending today, starting from Monday
+function ActivityHeatmap({ activity }: { activity: DailyActivity[] }) {
+  const activityMap = new Map(activity.map(item => [item.date, item.taskCount]))
   const today = new Date()
-  const dayOfWeek = (today.getDay() + 6) % 7 // Mon=0 … Sun=6
+  const dayOfWeek = (today.getDay() + 6) % 7
   const gridEnd = new Date(today)
-  // Advance to end of current week (Sunday)
-  gridEnd.setDate(gridEnd.getDate() + (6 - dayOfWeek))
+  gridEnd.setDate(today.getDate() + (6 - dayOfWeek))
   const gridStart = new Date(gridEnd)
-  gridStart.setDate(gridStart.getDate() - 15 * 7 + 1)
-
+  gridStart.setDate(gridStart.getDate() - 104)
   const cells: { date: string; count: number }[] = []
   const cur = new Date(gridStart)
   while (cur <= gridEnd) {
@@ -144,18 +133,8 @@ function ActivityHeatmap() {
     cells.push({ date: key, count: activityMap.get(key) ?? 0 })
     cur.setDate(cur.getDate() + 1)
   }
-
-  const heatColor = (count: number) => {
-    if (count === 0) return 'var(--heat-0)'
-    if (count <= 1) return 'var(--heat-1)'
-    if (count <= 3) return 'var(--heat-2)'
-    if (count <= 5) return 'var(--heat-3)'
-    return 'var(--heat-4)'
-  }
-
-  // Rearrange: rows = Mon~Sun (7 rows), columns = weeks
-  // cells are already in chronological order (Mon to Sun week by week)
-  const numWeeks = Math.ceil(cells.length / 7)
+  const heatColor = (count: number) => count === 0 ? 'var(--heat-0)' : count <= 1 ? 'var(--heat-1)' : count <= 3 ? 'var(--heat-2)' : count <= 5 ? 'var(--heat-3)' : 'var(--heat-4)'
+  const numWeeks = cells.length / 7
   // Build row-major order: row 0 = all Mondays, row 1 = all Tuesdays, etc.
   const rows: typeof cells[] = Array.from({ length: 7 }, () => [])
   cells.forEach((cell, i) => {

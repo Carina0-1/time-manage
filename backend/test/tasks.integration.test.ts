@@ -14,7 +14,7 @@ after(async () => { await pool.end(); await fixtures.cleanup() })
 
 async function request(path: string, method = 'GET', body?: unknown) {
   const res = await app.request(`/api/tasks${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
-  return { status: res.status, body: await res.json() as any }
+  return { status: res.status, timing: res.headers.get('server-timing'), body: await res.json() as any }
 }
 const query = (params: Record<string, string>) => request(`/list?${new URLSearchParams(params)}`)
 
@@ -194,4 +194,56 @@ test('全天记录属于已排期，兼容相同起止时间和缺少结束时�
   const unplanned = await request('/canonical-all-day', 'PATCH', { isAllDay: false, startTime: null, endTime: null })
   assert.equal(unplanned.status, 200)
   assert.equal((await query({ id: 'canonical-all-day', schedule: 'unscheduled' })).body.data.total, 1)
+})
+
+
+test('重复或并发重试新建使用相同 ID，只产生一个任务且不泄露其他账号', async () => {
+  const before = (await query({})).body.data.total
+  const input = { id: 'retry-create', title: '重试创建验收', dimensionValues: { project: 'project-a' } }
+  const [first, retried] = await Promise.all([request('', 'POST', input), request('', 'POST', input)])
+  assert.equal(first.status, 201); assert.equal(retried.status, 201)
+  assert.equal((await query({})).body.data.total, before + 1)
+  assert.equal(first.body.data.id, retried.body.data.id)
+  assert.equal((await request('', 'POST', { ...input, id: 'foreign-task' })).status, 409)
+  assert.equal((await request('', 'POST', { ...input, id: 'deleted-task' })).status, 409)
+})
+
+test('轻量计数和活动接口保持统计口径及账号隔离，每次只查询一次数据库', async () => {
+  const total = await request('/count')
+  assert.equal(total.status, 200)
+  assert.equal(total.body.data, (await query({})).body.data.total)
+  assert.match(total.timing!, /queries;desc="1"/)
+  const headers = { Authorization: `Bearer ${token}` }
+  const full = await app.request('/api/stats?start=2026-01-01&end=2026-12-31', { headers })
+  const fullData = (await full.json() as any).data
+  const activity = await app.request('/api/stats/activity?start=2026-01-01&end=2026-12-31', { headers })
+  assert.equal(activity.status, 200)
+  assert.deepEqual((await activity.json() as any).data, fullData.dailyActivity)
+  assert.match(activity.headers.get('server-timing')!, /queries;desc="1"/)
+  assert.equal((await app.request('/api/stats/activity?start=invalid&end=2026-12-31', { headers })).status, 400)
+})
+
+test('连接池可并发且能单独记录等待时间，请求计时互不混入', async () => {
+  const held = await Promise.all(Array.from({ length: pool.options.max! }, () => pool.connect()))
+  const pending = request('/count')
+  setTimeout(() => held.forEach(client => client.release()), 30)
+  const result = await pending
+  assert.equal(result.status, 200)
+  const wait = Number(result.timing!.match(/pool;dur=([\d.]+)/)![1])
+  assert(wait >= 10, result.timing!)
+  assert.match(result.timing!, /queries;desc="1"/)
+  const reads = await Promise.all([request('/count'), request('/count')])
+  for (const item of reads) assert.match(item.timing!, /queries;desc="1"/)
+})
+
+
+test('查询超时后丢弃连接，后续请求可以正常获取新连接', async () => {
+  const { Pool } = await import('pg')
+  const { observePool } = await import('../src/db/observePool.js')
+  const limited = new Pool({ connectionString: fixtures.url, max: 1, query_timeout: 30, connectionTimeoutMillis: 1000 })
+  observePool(limited)
+  try {
+    await assert.rejects(limited.query('SELECT pg_sleep(0.2)'), /Query read timeout/)
+    assert.equal((await limited.query('SELECT 1 AS ok')).rows[0].ok, 1)
+  } finally { await limited.end() }
 })

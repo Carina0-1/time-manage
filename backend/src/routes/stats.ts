@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { eq, and, isNull, isNotNull, gte, lte, inArray } from 'drizzle-orm'
+import { eq, and, isNull, isNotNull, gte, lte, inArray, sql, count } from 'drizzle-orm'
 import { db } from '../db/index.js'
 import { tasks, taskDimensionValues, dimensions, dimensionOptions } from '../db/schema.js'
 import { z } from 'zod'
@@ -12,6 +12,19 @@ export const statsRouter = new Hono<AuthEnv>()
 const StatsQuerySchema = z.object({
   start: z.string(),
   end: z.string(),
+})
+
+// 侧边栏只读取每日活跃任务数，避免为热力图计算全部维度统计。
+statsRouter.get('/activity', zValidator('query', z.object({
+  start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+}).refine(v => Number.isFinite(Date.parse(v.start)) && Number.isFinite(Date.parse(v.end)) && v.start <= v.end, '日期范围无效')), async c => {
+  const { start, end } = c.req.valid('query')
+  const date = sql<string>`to_char(${tasks.startTime} at time zone 'UTC', 'YYYY-MM-DD')`
+  const rows = await db.select({ date, taskCount: count() }).from(tasks).where(and(
+    eq(tasks.userId, c.get('userId')), isNull(tasks.deletedAt), isNotNull(tasks.startTime), isNotNull(tasks.endTime),
+    gte(tasks.startTime, new Date(start + 'T00:00:00.000Z')), lte(tasks.endTime, new Date(end + 'T23:59:59.999Z')),
+  )).groupBy(date).orderBy(date)
+  return c.json({ data: rows })
 })
 
 // 沿 parentId 链向上找根节点（无 parentId 的祖先）

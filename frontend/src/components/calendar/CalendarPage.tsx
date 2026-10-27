@@ -65,7 +65,7 @@ type ViewType = 'timeGridWeek' | 'timeGridDay' | 'dayGridMonth'
 
 export default function CalendarPage() {
   const calendarRef = useRef<FullCalendar>(null)
-  const { tasks, fetchTasks, updateTask, revision } = useTaskStore()
+  const { tasks, fetchTasks, updateTask } = useTaskStore()
   const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null)
   const [loadError, setLoadError] = useState('')
   const { dimensions, optionsByDimension, fetchDimensions, fetchOptions } = useDimensionStore()
@@ -93,7 +93,7 @@ export default function CalendarPage() {
     if (!dateRange) return
     setLoadError('')
     fetchTasks(dateRange.start, dateRange.end).catch(() => setLoadError('任务加载失败，请切换日期重试'))
-  }, [dateRange, revision, fetchTasks])
+  }, [dateRange, fetchTasks])
 
   useEffect(() => {
     dimensions.forEach((d) => fetchOptions(d.id))

@@ -43,7 +43,7 @@ function fmtMinutes(min: number) {
 }
 
 export default function StatsPage() {
-  const revision = useTaskStore(s => s.revision)
+  const revision = useTaskStore(s => s.statsRevision)
   const { dimensions, fetchDimensions } = useDimensionStore()
   const [range, setRange] = useState<Range>('week')
   const [customStart, setCustomStart] = useState('')

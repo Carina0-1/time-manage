@@ -1,14 +1,16 @@
 import { create } from 'zustand'
 import type { Dimension, DimensionOption } from '@time-manage/shared'
 import { dimensionsApi } from '@/api/dimensions'
+import { RequestCache } from './requestCache'
 import { getDescendantIds, buildOptionTree } from '@/utils/dimensionTree'
 
 interface DimensionStore {
   dimensions: Dimension[]
   optionsByDimension: Record<string, DimensionOption[]>
   loading: boolean
-  fetchDimensions: () => Promise<void>
-  fetchOptions: (dimensionId: string) => Promise<void>
+  fetchDimensions: (force?: boolean) => Promise<void>
+  fetchOptions: (dimensionId: string, force?: boolean) => Promise<void>
+  reset: () => void
   addDimension: (d: Dimension) => void
   updateDimension: (id: string, data: Partial<Dimension>) => void
   removeDimension: (id: string) => void
@@ -19,25 +21,27 @@ interface DimensionStore {
   reorderOptions: (dimensionId: string, ordered: DimensionOption[]) => void
 }
 
+const requests = new RequestCache()
+
 export const useDimensionStore = create<DimensionStore>((set, get) => ({
   dimensions: [],
   optionsByDimension: {},
   loading: false,
 
-  fetchDimensions: async () => {
+  fetchDimensions: (force = false) => requests.run('dimensions', async isCurrent => {
     set({ loading: true })
     try {
       const dimensions = await dimensionsApi.list()
-      set({ dimensions })
-    } finally {
-      set({ loading: false })
-    }
-  },
+      if (isCurrent()) set({ dimensions })
+    } finally { if (isCurrent()) set({ loading: false }) }
+  }, force),
 
-  fetchOptions: async (dimensionId) => {
+  fetchOptions: (dimensionId, force = false) => requests.run(`options:${dimensionId}`, async isCurrent => {
     const options = await dimensionsApi.listOptions(dimensionId)
-    set((s) => ({ optionsByDimension: { ...s.optionsByDimension, [dimensionId]: options } }))
-  },
+    if (isCurrent() && get().dimensions.some(d => d.id === dimensionId)) set(s => ({ optionsByDimension: { ...s.optionsByDimension, [dimensionId]: options } }))
+  }, force),
+
+  reset: () => { requests.reset(); set({ dimensions: [], optionsByDimension: {}, loading: false }) },
 
   addDimension: (d) => set((s) => ({ dimensions: [...s.dimensions, d] })),
 

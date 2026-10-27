@@ -1,7 +1,8 @@
 import type { Task, CreateTaskInput, UpdateTaskInput, TaskListQuery, TaskListResult } from '@time-manage/shared'
-import { api } from './client'
+import { api, ApiError } from './client'
 
 export const tasksApi = {
+  count: (signal?: AbortSignal) => api.get<number>('/tasks/count', signal),
   get: (id: string) => api.get<Task>(`/tasks/${encodeURIComponent(id)}`),
   query: (query: Partial<TaskListQuery> & { dimensionFilters?: Record<string, string> }, signal?: AbortSignal) => {
     const params = new URLSearchParams()
@@ -22,7 +23,29 @@ export const tasksApi = {
     return api.get<Task[]>(`/tasks${qs ? `?${qs}` : ''}`)
   },
   listAll: () => api.get<Task[]>('/tasks?all=true'),
-  create: (data: CreateTaskInput) => api.post<Task>('/tasks', data),
+  create: async (data: CreateTaskInput) => {
+    let saved: Task
+    try { saved = await api.post<Task>('/tasks', data) }
+    catch (error) {
+      if (error instanceof ApiError && error.status < 500 && error.status !== 409) throw error
+      // 网络超时可能发生在事务提交之后；用客户端生成的同一个 ID 核实结果。
+      try { saved = await api.get<Task>(`/tasks/${encodeURIComponent(data.id)}`) }
+      catch { throw error }
+    }
+    // 重试期间用户也可能修正了输入，只提交与已创建任务不同的明确字段。
+    const patch: UpdateTaskInput = {}
+    for (const key of ['title', 'description', 'expectedOutput', 'startTime', 'endTime', 'isAllDay', 'status', 'priority', 'recurrence', 'dimensionValues'] as const) {
+      if (data[key] === undefined) continue
+      const left = data[key], right = saved[key]
+      const same = key === 'dimensionValues'
+        ? Object.keys({ ...(left as Record<string, string>), ...(right as Record<string, string>) }).every(id => (left as Record<string, string>)[id] === (right as Record<string, string>)[id])
+        : key === 'description' || key === 'expectedOutput' ? (left ?? '') === (right ?? '')
+        : key === 'title' ? String(left).trim() === right
+        : JSON.stringify(left) === JSON.stringify(right)
+      if (!same) Object.assign(patch, { [key]: left })
+    }
+    return Object.keys(patch).length ? api.patch<Task>(`/tasks/${encodeURIComponent(data.id)}`, patch) : saved
+  },
   update: (id: string, data: UpdateTaskInput) => api.patch<Task>(`/tasks/${id}`, data),
   remove: (id: string) => api.delete<null>(`/tasks/${id}`),
 }

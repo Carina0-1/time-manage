@@ -25,7 +25,7 @@ export function useImmediateTask(task: Task) {
   if (!saver.current) saver.current = new TaskSaveQueue(
     ({ value }) => 'input' in value ? tasksApi.update(task.id, value.input) : tasksApi.updateDimension(task.id, value.dimensionId, value.optionId),
     (updated, job) => {
-      if (job.key === 'status' && !saver.current!.hasQueuedKey('status')) {
+      if ('input' in job.value && job.value.input.status !== undefined && !saver.current!.hasQueuedKey('status')) {
         current.current = { ...current.current, status: updated.status }
         if (mounted.current) setDraft(current.current)
       }
@@ -33,11 +33,12 @@ export function useImmediateTask(task: Task) {
     },
     () => { if (mounted.current) rerender() },
     job => {
-      if (job.key === 'status') {
+      if ('input' in job.value && job.value.input.status !== undefined) {
         current.current = { ...current.current, status: confirmed.current.status }
         if (mounted.current) setDraft(current.current)
       }
     },
+    { merge: (left, right) => 'input' in left && 'input' in right ? { input: { ...left.input, ...right.input } } : null },
   )
   const queue = saver.current
   const replace = (next: TaskDraft) => { current.current = next; setDraft(next) }
@@ -64,7 +65,7 @@ export function useImmediateTask(task: Task) {
     }
   }, [])
   useEffect(() => {
-    if (!queue.hasPending && !dirty()) { confirmed.current = task; replace(makeDraft(task)) }
+    if (!queue.hasPending && !dirty()) { queue.resetAcknowledged(); confirmed.current = task; replace(makeDraft(task)) }
   }, [task])
 
   const saveText = (field: TextField) => {
@@ -134,5 +135,5 @@ export function useImmediateTask(task: Task) {
     if (queue.hasKey(field)) saveText(field)
   }
   return { draft, changeText, saveText, changeSchedule, changeDimension, changeStatus, flush, discard, restoreText,
-    saving: queue.saving, error: validation.title || validation.schedule || queue.error, hasUnsaved: dirty() || queue.hasPending }
+    saving: queue.saving || (queue.hasPending && !queue.error), error: validation.title || validation.schedule || queue.error, hasUnsaved: dirty() || queue.hasPending }
 }
