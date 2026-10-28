@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import dayjs from 'dayjs'
 import type { Dimension, DimensionOption } from '@time-manage/shared'
 import { getOptionPath, getOrderedOptionNodes } from '@/utils/dimensionTree'
@@ -18,16 +18,14 @@ interface Props {
 type OpenField = { id: string; anchor: HTMLElement }
 
 export default function TaskQuickFields({ editor, dimensions, optionsByDimension, visible, detail, onOpen }: Props) {
-  const notesId = useId()
   const { draft } = editor
   const triggers = useRef(new Map<string, HTMLButtonElement>())
   const [open, setOpen] = useState<OpenField | null>(null)
   useEffect(() => { if (!visible || detail) setOpen(null) }, [visible, detail])
   const openField = (id: string, event: MouseEvent<HTMLButtonElement>) => {
-    if (open?.id === 'description') editor.saveText('description')
     setOpen({ id, anchor: event.currentTarget }); onOpen()
   }
-  const dismiss = () => { if (open?.id === 'description') editor.saveText('description'); setOpen(null) }
+  const dismiss = () => setOpen(null)
   const close = () => { dismiss(); open?.anchor.focus({ preventScroll: true }) }
   const hasDate = !!draft.startTime
   const dateLabel = hasDate ? `${dayjs(draft.startTime).format('YYYY/MM/DD')}${draft.endTime.slice(0, 10) !== draft.startTime.slice(0, 10) ? ` – ${dayjs(draft.endTime).format('MM/DD')}` : ''}` : ''
@@ -36,13 +34,12 @@ export default function TaskQuickFields({ editor, dimensions, optionsByDimension
     { id: 'date', label: '日期', icon: '▦', value: dateLabel, clear: () => editor.changeSchedule({ startTime: '', endTime: '', isAllDay: false }), required: false },
     { id: 'time', label: '时间', icon: '◷', value: timeLabel, clear: () => editor.changeSchedule(clearScheduleTime(draft)), required: false },
     ...dimensions.map(dim => ({ id: dim.id, label: dim.name, icon: dim.icon || '#', value: getOptionPath(optionsByDimension[dim.id] ?? [], draft.dimensionValues[dim.id]), clear: () => editor.changeDimension(dim.id, null), required: dim.isRequired })),
-    { id: 'description', label: '备注', icon: '☰', value: draft.description, clear: () => { editor.changeText('description', ''); editor.saveText('description') }, required: false },
   ]
   const dim = dimensions.find(dim => dim.id === open?.id)
   const choose = (change: () => void) => { change(); close() }
   return <>
     {!visible && <div className={styles.metadata}>
-      {chips.filter(chip => chip.value && chip.id !== 'description').map(chip => <button key={chip.id} title={`${chip.label}：${chip.value}`} onClick={() => { onOpen(); requestAnimationFrame(() => { const anchor = triggers.current.get(chip.id); if (anchor) setOpen({ id: chip.id, anchor }) }) }}>{chip.value}{chip.id === 'date' && draft.isAllDay ? ' · 全天' : ''}</button>)}
+      {chips.filter(chip => chip.value).map(chip => <button key={chip.id} title={`${chip.label}：${chip.value}`} onClick={() => { onOpen(); requestAnimationFrame(() => { const anchor = triggers.current.get(chip.id); if (anchor) setOpen({ id: chip.id, anchor }) }) }}>{chip.value}{chip.id === 'date' && draft.isAllDay ? ' · 全天' : ''}</button>)}
     </div>}
     {editor.persisted && visible && !detail && <div className={styles.bar} onDoubleClick={e => e.stopPropagation()}>
       {chips.map(chip => <div className={`${styles.chip} ${chip.value ? styles.hasValue : ''}`} key={chip.id}>
@@ -58,7 +55,6 @@ export default function TaskQuickFields({ editor, dimensions, optionsByDimension
         {getOrderedOptionNodes(optionsByDimension[dim.id] ?? [], dim.type).map(({ option, depth }) => <button key={option.id} title={getOptionPath(optionsByDimension[dim.id] ?? [], option.id)} aria-label={getOptionPath(optionsByDimension[dim.id] ?? [], option.id)} aria-pressed={draft.dimensionValues[dim.id] === option.id} style={{ paddingLeft: 10 + depth * 14 }} onClick={() => choose(() => editor.changeDimension(dim.id, option.id))}>{option.icon && <span>{option.icon}</span>}{option.name}{draft.dimensionValues[dim.id] === option.id && <span className={styles.tick}>✓</span>}</button>)}
         {!optionsByDimension[dim.id]?.length && <p className={styles.hint}>暂无选项，请在设置中添加</p>}
       </div></>}
-      {open.id === 'description' && <><label className={styles.heading} htmlFor={notesId}>备注</label><textarea id={notesId} className={styles.notes} aria-label="快捷编辑备注" placeholder="添加备注" value={draft.description} onChange={e => editor.changeText('description', e.target.value, (e.nativeEvent as InputEvent).isComposing)} onCompositionEnd={e => editor.changeText('description', e.currentTarget.value)} onBlur={() => editor.saveText('description')} /></>}
     </TaskFieldPopover>}
   </>
 }
