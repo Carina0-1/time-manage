@@ -3,13 +3,13 @@ import { createPortal } from 'react-dom'
 import dayjs from 'dayjs'
 import type { Dimension, DimensionOption, Task } from '@time-manage/shared'
 import { useTaskListStore } from '@/stores/taskListStore'
-import { getOptionPath } from '@/utils/dimensionTree'
 import DimensionFields from './DimensionFields'
-import { durationLabel, scheduleLabel } from './taskForm'
+import { durationLabel } from './taskForm'
+import TaskQuickFields from './TaskQuickFields'
 import { useImmediateTask } from './useImmediateTask'
 import styles from './TaskItem.module.css'
 
-export type TaskEditMode = 'inline' | 'detail' | 'schedule' | 'tags'
+export type TaskEditMode = 'inline' | 'detail' | 'fields'
 export interface TaskSession { id: string; mode: TaskEditMode; field?: 'title' | 'description' }
 interface Props {
   task: Task
@@ -29,9 +29,6 @@ export default function TaskItem({ task, isNew = false, dimensions, optionsByDim
   const { draft } = editor
   const mode = session?.mode
   const active = !!mode
-  const [showNotes, setShowNotes] = useState(false)
-  const [allTags, setAllTags] = useState(false)
-  const [quick, setQuick] = useState<'schedule' | 'tags' | null>(null)
   const row = useRef<HTMLDivElement>(null)
   const info = useRef<HTMLButtonElement>(null)
   const title = useRef<HTMLInputElement>(null)
@@ -39,13 +36,10 @@ export default function TaskItem({ task, isNew = false, dimensions, optionsByDim
   const current = useRef(editor)
   current.current = editor
   const detail = mode === 'detail'
-  const inline = active && !detail
+  const inline = mode === 'inline'
 
   useEffect(() => {
-    if (mode === 'schedule' || mode === 'tags') setQuick(mode)
-    else setQuick(null)
     if (mode === 'inline') {
-      if (session?.field === 'description') setShowNotes(true)
       const timer = setTimeout(() => {
         const input = session?.field === 'description' ? description.current : title.current
         input?.focus(); input?.select()
@@ -73,12 +67,12 @@ export default function TaskItem({ task, isNew = false, dimensions, optionsByDim
   const textKey = (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, field: 'title' | 'description') => {
     if (event.nativeEvent.isComposing) return
     if (event.key === 'Enter' && (field === 'title' || event.metaKey || event.ctrlKey)) {
-      event.preventDefault(); editor.saveText(field); event.currentTarget.blur(); if (isNew) void onClose()
+      event.preventDefault(); editor.saveText(field); event.currentTarget.blur(); if (!detail) void onClose()
     }
     if (event.key === 'Escape') {
       event.preventDefault(); event.stopPropagation()
       if (isNew && editor.saving) return
-      editor.restoreText(field); event.currentTarget.blur(); if (isNew) void onClose()
+      editor.restoreText(field); event.currentTarget.blur(); if (!detail) void onClose()
     }
   }
   const textInput = (field: 'title' | 'description', label: string) => {
@@ -102,12 +96,6 @@ export default function TaskItem({ task, isNew = false, dimensions, optionsByDim
   const feedback = (editor.saving || editor.error) && <div className={styles.feedback} aria-live="polite">
     {editor.error ? <><span role="alert" className={styles.error}>{editor.error}</span><button className={styles.linkButton} onClick={() => void editor.flush()}>重试</button>{!editor.saving && <button className={styles.linkButton} onClick={editor.discard}>放弃未保存修改</button>}</> : <span>正在保存…</span>}
   </div>
-  const summaryTask = { ...task, ...draft, startTime: task.startTime, endTime: task.endTime, isAllDay: task.isAllDay }
-  const tagsList = dimensions.flatMap(d => {
-    const value = draft.dimensionValues[d.id]
-    const path = value && getOptionPath(optionsByDimension[d.id] ?? [], value)
-    return path ? [{ id: d.id, name: d.name, path }] : []
-  })
 
   return <div ref={row} role="listitem" className={`${styles.row} ${selected || active ? styles.selected : ''} ${draft.status === 'done' ? styles.done : ''}`} onClick={onSelect} onDoubleClick={e => {
     if (editor.persisted && !(e.target as HTMLElement).closest('button,input,textarea,select,label,a')) onActivate('detail')
@@ -115,31 +103,21 @@ export default function TaskItem({ task, isNew = false, dimensions, optionsByDim
     <label className={styles.completion} onDoubleClick={e => e.stopPropagation()}><input type="checkbox" checked={draft.status === 'done'} aria-label={`${draft.status === 'done' ? '标为待办' : '完成任务'}：${draft.title}`} disabled={editor.saving || !editor.persisted} onChange={e => editor.changeStatus(e.target.checked)} /><span aria-hidden="true">{draft.status === 'done' ? '✓' : ''}</span></label>
     <div className={styles.body}>
       {inline ? <div className={styles.inline} onDoubleClick={e => e.stopPropagation()}>
-        {textInput('title', '编辑任务名称')}
-        {(draft.description || showNotes) && <label className={styles.field}><span>备注</span>{textInput('description', '编辑备注')}</label>}
+        {session?.field === 'description' ? <>
+          <span className={styles.name} onDoubleClick={() => onActivate('inline', 'title')}>{draft.title}</span>
+          {textInput('description', '编辑备注')}
+        </> : <>
+          {textInput('title', '编辑任务名称')}
+          {draft.description && <p className={styles.description} onDoubleClick={() => onActivate('inline', 'description')}>{draft.description}</p>}
+        </>}
       </div> : <div className={styles.textBlock} onDoubleClick={e => { e.stopPropagation(); onActivate('inline', (e.target as HTMLElement).dataset.field as TaskSession['field'] ?? 'title') }}>
         <span className={styles.name} tabIndex={0} role="button" aria-label={`编辑任务名称：${draft.title}`} title="双击编辑文字" data-field="title" onKeyDown={e => { if (e.key === 'F2' || e.key === 'Enter') { e.preventDefault(); onActivate('inline', 'title') } }}>{draft.title}</span>
         {draft.description && <p className={styles.description} data-field="description">{draft.description}</p>}
       </div>}
-      <div className={styles.metadata}>
-        {(task.isAllDay || task.startTime || task.endTime) && <button title="修改排期" onClick={() => onActivate('schedule')}>{scheduleLabel(summaryTask)}</button>}
-        {tagsList.slice(0, allTags ? undefined : 3).map(t => <button key={t.id} title={`${t.name}：${t.path}`} onClick={() => onActivate('tags')}>{t.path}</button>)}
-        {!allTags && tagsList.length > 3 && <button onClick={() => setAllTags(true)}>+{tagsList.length - 3}</button>}
-      </div>
-      {editor.persisted && (inline || (selected && !detail)) && <div className={styles.quickBar} onDoubleClick={e => e.stopPropagation()}>
-        <button title="修改排期" aria-expanded={quick === 'schedule'} onClick={() => { if (!inline) onActivate('schedule'); else setQuick(quick === 'schedule' ? null : 'schedule') }}>▦ <span>排期</span></button>
-        <button title="为任务打标" aria-expanded={quick === 'tags'} onClick={() => { if (!inline) onActivate('tags'); else setQuick(quick === 'tags' ? null : 'tags') }}># <span>维度</span></button>
-        <button onClick={() => { setShowNotes(true); onActivate('inline', 'description') }}>☰ <span>备注</span></button>
-        {!inline && <button onClick={() => onActivate('inline', 'title')}>编辑文字</button>}
-        {inline && <button className={styles.closeInline} onClick={() => void onClose()}>收起</button>}
-      </div>}
-      {inline && quick && <section className={styles.quickPanel} aria-label={quick === 'schedule' ? '快捷修改排期' : '快捷修改维度'} onDoubleClick={e => e.stopPropagation()}>
-        <div className={styles.panelHeading}><strong>{quick === 'schedule' ? '排期' : '维度信息'}</strong><span>修改自动保存</span><button aria-label="收起快捷编辑" onClick={async () => { if (await editor.flush()) setQuick(null) }}>×</button></div>
-        {quick === 'schedule' ? schedule : tags}
-      </section>}
+      <TaskQuickFields editor={editor} dimensions={dimensions} optionsByDimension={optionsByDimension} visible={selected || active} detail={detail} onOpen={() => { if (!inline) onActivate('fields') }} />
       {!detail && feedback}
     </div>
-    {editor.persisted ? <button ref={info} className={styles.info} title="查看并编辑完整任务信息" aria-label={`任务详情：${draft.title}`} onClick={() => onActivate('detail')} onDoubleClick={e => e.stopPropagation()}>ⓘ</button> : <button className={styles.linkButton} onMouseDown={e => e.preventDefault()} onClick={() => void onClose()}>收起</button>}
+    {editor.persisted ? <button ref={info} className={styles.info} title="查看并编辑完整任务信息" aria-label={`任务详情：${draft.title}`} onClick={() => onActivate('detail')} onDoubleClick={e => e.stopPropagation()}>ⓘ</button> : <button className={styles.linkButton} onMouseDown={e => e.preventDefault()} onClick={() => void onClose()} aria-label="结束任务编辑">×</button>}
     {detail && <Details anchor={row} onClose={onClose} returnFocus={() => info.current?.focus()}>
       <div className={styles.panelHeading}><strong>任务详情</strong><span>修改自动保存</span><button aria-label="关闭任务详情" onClick={() => void onClose()}>×</button></div>
       <div className={styles.detailContent}>
