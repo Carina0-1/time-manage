@@ -75,8 +75,8 @@ export default function TaskListPage() {
     if (!mutation) { setRefreshNeeded(revision); return }
     setResult(previous => projectTaskList(previous, mutation, query, optionsByDimension, session?.id))
     const matches = mutation.task && matchesTask(mutation.task, query, optionsByDimension)
-    if (mutation.type !== 'delete' && mutation.task && (mutation.type === 'create' || !matches)) {
-      setNotice({ message: `${mutation.type === 'create' ? '已创建任务' : '已保存'}${matches ? '' : '，任务不符合当前筛选'}`, task: !matches ? mutation.task : undefined })
+    if (mutation.type === 'update' && mutation.task && !matches) {
+      setNotice({ message: '已保存，任务不符合当前筛选', task: mutation.task })
     }
     const textOnly = mutation.type === 'update' && mutation.task && mutation.previous && !taskChangeImpact(mutation.previous, mutation.task).stats
     if (!textOnly || query.q) setRefreshNeeded(revision)
@@ -138,7 +138,7 @@ export default function TaskListPage() {
       removeTask(task.id)
       setSession(null)
       if (pinnedId === task.id) setPinnedId(null)
-      setNotice({ message: '已删除任务' })
+      setNotice(null)
     } catch (e) { setNotice({ message: errorMessage(e) }) }
   }
   const activeChips: { key: string; label: string; clear: () => void }[] = []
