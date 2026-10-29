@@ -19,7 +19,7 @@ interface TaskStore {
   addTask: (task: Task) => void
   updateTask: (id: string, data: Partial<Task>, notify?: boolean) => void
   removeTask: (id: string) => void
-  clearDimensionValueForTasks: (dimensionId: string, optionIds: string[]) => void
+  clearDimensionValueForTasks: (dimensionId: string, optionIds?: string[]) => void
   reset: () => void
 }
 let requestVersion = 0
@@ -75,7 +75,8 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   }) },
   clearDimensionValueForTasks: (dimensionId, optionIds) => set(s => {
     const clean = (t: Task) => {
-      if (!optionIds.includes(t.dimensionValues[dimensionId])) return t
+      const value = t.dimensionValues[dimensionId]
+      if (!value || (optionIds && !optionIds.includes(value))) return t
       const values = { ...t.dimensionValues }
       delete values[dimensionId]
       return { ...t, dimensionValues: values }

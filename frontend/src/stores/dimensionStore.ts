@@ -3,6 +3,7 @@ import type { Dimension, DimensionOption } from '@time-manage/shared'
 import { dimensionsApi } from '@/api/dimensions'
 import { RequestCache } from './requestCache'
 import { getDescendantIds, buildOptionTree } from '@/utils/dimensionTree'
+import { useTaskStore } from './taskStore'
 
 interface DimensionStore {
   dimensions: Dimension[]
@@ -50,11 +51,13 @@ export const useDimensionStore = create<DimensionStore>((set, get) => ({
       dimensions: s.dimensions.map((d) => (d.id === id ? { ...d, ...data } : d)),
     })),
 
-  removeDimension: (id) =>
+  removeDimension: (id) => {
     set((s) => ({
       dimensions: s.dimensions.filter((d) => d.id !== id),
       optionsByDimension: Object.fromEntries(Object.entries(s.optionsByDimension).filter(([k]) => k !== id)),
-    })),
+    }))
+    useTaskStore.getState().clearDimensionValueForTasks(id)
+  },
 
   reorderDimensions: (ordered) => set({ dimensions: ordered }),
 
@@ -95,6 +98,7 @@ export const useDimensionStore = create<DimensionStore>((set, get) => ({
         [dimensionId]: (s.optionsByDimension[dimensionId] ?? []).filter((o) => !idsToRemove.has(o.id)),
       },
     }))
+    useTaskStore.getState().clearDimensionValueForTasks(dimensionId, [...idsToRemove])
   },
 
   reorderOptions: (dimensionId, ordered) =>

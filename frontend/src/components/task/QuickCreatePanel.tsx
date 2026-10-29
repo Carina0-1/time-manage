@@ -56,6 +56,7 @@ export default function QuickCreatePanel() {
   const getValuesRef = useRef<(() => PanelFormValues) | null>(null)
   const doSaveRef = useRef<(data: PanelFormValues) => Promise<void>>(async () => {})
   const isSavingRef = useRef(false)
+  const changedDimensionsRef = useRef(new Set<string>())
   const [saveError, setSaveError] = useState('')
 
   const { register, handleSubmit, reset, setValue, watch, getValues } = useForm<PanelFormValues>({
@@ -70,6 +71,7 @@ export default function QuickCreatePanel() {
   useEffect(() => {
     if (!taskModalOpen) return
     isSavingRef.current = false
+    changedDimensionsRef.current.clear()
     setSaveError('')
     setTitleOpen(false)
     if (editingTask) {
@@ -123,8 +125,20 @@ export default function QuickCreatePanel() {
 
     try {
       if (editingTask) {
-        const updated = await tasksApi.update(editingTask.id, input)
-        updateTask(editingTask.id, updated)
+        // 编辑只提交文字和用户实际修改的维度，避免重提缓存中的失效值或覆盖其他维度。
+        const textChanges = {
+          ...(data.title.trim() !== editingTask.title ? { title: data.title } : {}),
+          ...((data.description ?? '') !== (editingTask.description ?? '') ? { description: data.description ?? '' } : {}),
+        }
+        if (Object.keys(textChanges).length) {
+          const updated = await tasksApi.update(editingTask.id, textChanges)
+          updateTask(editingTask.id, updated)
+        }
+        for (const dimensionId of changedDimensionsRef.current) {
+          const saved = await tasksApi.updateDimension(editingTask.id, dimensionId, data.dimensionValues[dimensionId] ?? null)
+          updateTask(editingTask.id, saved)
+          changedDimensionsRef.current.delete(dimensionId)
+        }
       } else {
         const created = await tasksApi.create(input)
         addTask(created)
@@ -320,7 +334,8 @@ export default function QuickCreatePanel() {
               options={optionsByDimension[dim.id] ?? []}
               selectedOptionId={dimensionValues[dim.id]}
               onSelect={(optionId) => {
-                const next = { ...dimensionValues }
+                changedDimensionsRef.current.add(dim.id)
+                const next = { ...getValues('dimensionValues') }
                 if (optionId) next[dim.id] = optionId
                 else delete next[dim.id]
                 setValue('dimensionValues', next, { shouldDirty: true })
